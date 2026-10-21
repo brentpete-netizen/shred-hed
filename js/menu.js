@@ -1,0 +1,347 @@
+// Start menu: Free Skate or Game of S.K.A.T.E. (then pick a map), Closet (change your fit),
+// Stats and Sound on/off. Works with the arrow keys + Enter / Esc, or by clicking.
+
+const PX_PER_FT = 23; // the skater is about 5.5 ft tall
+
+const MAIN_ITEMS = ['FREE SKATE', 'S.K.A.T.E.', 'CLOSET', 'STATS', 'SOUND'];
+const VERSUS_ITEMS = ['VS CPU', '2 PLAYERS'];
+
+class Menu {
+  constructor(preview, mapSel = 0) {
+    this.preview = preview;   // a second skater who models outfits in the closet
+    this.screen = 'main';
+    this.sel = 0;
+    this.row = 0;
+    this.mapSel = Math.max(0, mapSel);
+    this.mapShapes = MAPS.map(m => m.build()); // for the little map drawings
+    this.hits = [];
+    this.result = null;
+    this.showoff = 0;
+  }
+
+  open() { this.screen = 'main'; this.result = null; }
+
+  // Returns { map, game } once the player picks what to play: game is 'free', 'cpu' or '2p'.
+  handle(events) {
+    for (const e of events) {
+      if (this.screen === 'main') {
+        if (e === 'up') { this.sel = (this.sel + MAIN_ITEMS.length - 1) % MAIN_ITEMS.length; Sound.play('menuMove'); }
+        else if (e === 'down') { this.sel = (this.sel + 1) % MAIN_ITEMS.length; Sound.play('menuMove'); }
+        else if (e === 'start' || e === 'grab' || e === 'right') this.choose(this.sel);
+      } else if (this.screen === 'versus') {
+        if (e === 'up' || e === 'down') { this.vsSel = 1 - this.vsSel; Sound.play('menuMove'); }
+        else if (e === 'start' || e === 'grab' || e === 'right') this.chooseVersus(this.vsSel);
+        else if (e === 'menu' || e === 'left') this.back();
+      } else if (this.screen === 'maps') {
+        const n = MAPS.length;
+        if (e === 'left' || e === 'up') { this.mapSel = (this.mapSel + n - 1) % n; Sound.play('menuMove'); }
+        else if (e === 'right' || e === 'down') { this.mapSel = (this.mapSel + 1) % n; Sound.play('menuMove'); }
+        else if (e === 'start' || e === 'grab') this.pickMap(this.mapSel);
+        else if (e === 'menu') this.back();
+      } else if (this.screen === 'closet') {
+        const n = OUTFIT_CATEGORIES.length;
+        if (e === 'up') { this.row = (this.row + n - 1) % n; Sound.play('menuMove'); }
+        else if (e === 'down') { this.row = (this.row + 1) % n; Sound.play('menuMove'); }
+        else if (e === 'left' || e === 'right') this.change(this.row, e === 'right' ? 1 : -1);
+        else if (e === 'start' || e === 'menu') this.back();
+      } else if (e === 'start' || e === 'menu' || e === 'left') {
+        this.back();
+      }
+    }
+    const r = this.result;
+    this.result = null;
+    return r;
+  }
+
+  choose(i) {
+    this.sel = i;
+    Sound.play('menuPick');
+    if (i === 0) { this.game = 'free'; this.screen = 'maps'; }
+    else if (i === 1) { this.screen = 'versus'; this.vsSel = this.vsSel || 0; }
+    else if (i === 2) { this.screen = 'closet'; this.showoff = 0; }
+    else if (i === 3) this.screen = 'stats';
+    else Sound.toggle();
+  }
+
+  chooseVersus(i) {
+    this.vsSel = i;
+    this.game = i === 0 ? 'cpu' : '2p';
+    Sound.play('menuPick');
+    this.screen = 'maps';
+  }
+
+  pickMap(i) {
+    this.mapSel = i;
+    Sound.play('menuPick');
+    this.result = { map: MAPS[i].id, game: this.game };
+    this.screen = 'main';
+  }
+
+  back() {
+    this.screen = 'main';
+    Sound.play('menuMove');
+  }
+
+  change(row, dir) {
+    this.row = row;
+    const cat = OUTFIT_CATEGORIES[row][0];
+    Outfit.cycle(cat, dir);
+    Sound.play('menuMove');
+    if (cat === 'board') this.kickflip(true); // show off the graphic underneath
+  }
+
+  kickflip(loud = false) {
+    const p = this.preview;
+    if (p.state !== 'ground') return;
+    p.ollie();
+    p.trickInput('R');
+    this.showoff = 0;
+    this.loud = loud;
+  }
+
+  update(dt) {
+    const p = this.preview;
+    p.update(dt, [], () => false);
+    // only make noise for kickflips you asked for, not the idle show-off every few seconds
+    if (this.loud) for (const m of p.out) Sound.onMessage(m);
+    if (p.state === 'ground' && p.out.some(m => m.type === 'land')) this.loud = false;
+    p.out.length = 0;
+    if (this.screen === 'closet' && (this.showoff += dt) > 4) this.kickflip();
+  }
+
+  click(x, y) {
+    for (const h of this.hits) {
+      if (x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h) { h.fn(); break; }
+    }
+    const r = this.result;
+    this.result = null;
+    return r;
+  }
+
+  hit(x, y, w, h, fn) { this.hits.push({ x, y, w, h, fn }); }
+
+  // ---------------------------------------------------------------- drawing
+
+  draw(ctx, w, h, time, dpr) {
+    this.hits = [];
+    ctx.fillStyle = 'rgba(243, 238, 225, 0.72)';
+    ctx.fillRect(0, 0, w, h);
+    if (this.screen === 'main') this.drawMain(ctx, w, h, time);
+    else if (this.screen === 'maps') this.drawMaps(ctx, w, h);
+    else if (this.screen === 'versus') this.drawVersus(ctx, w, h);
+    else if (this.screen === 'closet') this.drawCloset(ctx, w, h, dpr);
+    else this.drawStats(ctx, w, h);
+  }
+
+  drawVersus(ctx, w, h) {
+    markerText(ctx, 'GAME OF S.K.A.T.E.', w / 2, Math.min(70, h * 0.11), Math.min(52, w / 12), '#f4c542', -0.04);
+    const fs = Math.max(14, Math.min(19, w / 60));
+    ctx.font = `${fs}px ${HAND}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = INK;
+    const rules = 'Land a trick and the other skater has to land the exact same one, or they get a letter. ' +
+      'Miss your set and they set instead. Last letter gets two tries. Spell S.K.A.T.E. and you lose.';
+    const lines = [''];
+    for (const word of rules.split(' ')) {
+      const test = (lines[lines.length - 1] + ' ' + word).trim();
+      if (ctx.measureText(test).width > Math.min(w - 40, 640)) lines.push(word); else lines[lines.length - 1] = test;
+    }
+    lines.forEach((l, i) => ctx.fillText(l, w / 2, Math.min(70, h * 0.11) + 40 + i * fs * 1.3));
+    const bw = Math.min(320, w - 48), bh = Math.min(60, h * 0.09), x = (w - bw) / 2, y0 = h * 0.38;
+    VERSUS_ITEMS.forEach((label, i) => this.button(ctx, label, x, y0 + i * bh * 1.35, bw, bh, i === this.vsSel, 140 + i, () => this.chooseVersus(i)));
+    const d = Stats.data;
+    ctx.font = `${fs}px ${HAND}`;
+    ctx.fillStyle = INK;
+    ctx.fillText(`vs CPU record: ${d.skateWins} won, ${d.skateLosses} lost  ·  Esc back`, w / 2, y0 + 2 * bh * 1.35 + 8);
+  }
+
+  // Map select: a card per spot with a little sketch of its layout and your best scores there.
+  drawMaps(ctx, w, h) {
+    const title = this.game === 'free' ? 'PICK A SPOT' : this.game === 'cpu' ? 'S.K.A.T.E. VS CPU' : 'S.K.A.T.E. 2 PLAYERS';
+    markerText(ctx, title, w / 2, Math.min(60, h * 0.09), Math.min(52, w / 12), '#ffffff', -0.04);
+    const cols = w > 900 ? 4 : 2, rows = Math.ceil(MAPS.length / cols);
+    const gap = 16, top = Math.min(110, h * 0.17);
+    const cardW = Math.min(300, (w - 32 - gap * (cols - 1)) / cols);
+    const cardH = Math.min(280, (h - top - 90 - gap * (rows - 1)) / rows);
+    const x0 = (w - (cardW * cols + gap * (cols - 1))) / 2;
+    MAPS.forEach((m, i) => {
+      const x = x0 + (i % cols) * (cardW + gap), y = top + Math.floor(i / cols) * (cardH + gap), sel = i === this.mapSel;
+      Sketch.seedFor(330 + i);
+      const box = [{ x, y }, { x: x + cardW, y }, { x: x + cardW, y: y + cardH }, { x, y: y + cardH }];
+      Sketch.fill(ctx, box, sel ? '#f4c542' : '#fbf8f0', 2);
+      Sketch.stroke(ctx, box, { color: INK, width: sel ? 3.2 : 2, amp: 1.2, closed: true });
+      const fs = Math.min(26, cardW / 9);
+      markerText(ctx, m.name, x + cardW / 2, y + fs, fs, '#ffffff', -0.03);
+
+      // the layout, squeezed into the card
+      const T = this.mapShapes[i];
+      const mx = x + 12, mw = cardW - 24, my = y + fs * 2, mh = cardH * 0.42;
+      const sx = mw / (T.maxX - T.minX), sy = Math.min(sx * 1.6, mh / (T.lowest + 60 - T.highest));
+      const px = p => ({ x: mx + (p.x - T.minX) * sx, y: my + mh - (T.lowest + 30 - p.y) * sy });
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      T.outline.forEach((p, k) => { const q = px(p); if (k) ctx.lineTo(q.x, q.y); else ctx.moveTo(q.x, q.y); });
+      ctx.stroke();
+      ctx.strokeStyle = '#7a8088';
+      ctx.lineWidth = 1.5;
+      for (const r of T.railLines) {
+        ctx.beginPath();
+        r.pts.forEach((p, k) => { const q = px(p); if (k) ctx.lineTo(q.x, q.y); else ctx.moveTo(q.x, q.y); });
+        ctx.stroke();
+      }
+
+      ctx.fillStyle = INK;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.font = `${Math.max(12, fs * 0.62)}px ${HAND}`;
+      const words = m.blurb.split(' '), lines = [''];
+      for (const word of words) {
+        const test = (lines[lines.length - 1] + ' ' + word).trim();
+        if (ctx.measureText(test).width > cardW - 24) lines.push(word); else lines[lines.length - 1] = test;
+      }
+      const by = my + mh + 8;
+      lines.slice(0, 2).forEach((l, k) => ctx.fillText(l, x + cardW / 2, by + k * fs * 0.75));
+      const best = Stats.map(m.id);
+      ctx.font = `${Math.max(12, fs * 0.6)}px ${MARKER}`;
+      ctx.fillText(best.bestCombo ? `best combo ${fmtScore(best.bestCombo)}` : 'not skated yet', x + cardW / 2, Math.min(y + cardH - fs * 0.95, by + fs * 1.7));
+      this.hit(x, y, cardW, cardH, () => this.pickMap(i));
+    });
+    ctx.font = `${Math.max(13, Math.min(17, w / 70))}px ${HAND}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = INK;
+    ctx.fillText('← → pick  ·  Enter skate  ·  Esc back', w / 2, top + rows * (cardH + gap) + 4);
+  }
+
+  button(ctx, label, x, y, bw, bh, selected, id, fn) {
+    Sketch.seedFor(id);
+    const box = [{ x, y }, { x: x + bw, y }, { x: x + bw, y: y + bh }, { x, y: y + bh }];
+    Sketch.fill(ctx, box, selected ? '#f4c542' : '#fbf8f0', 2);
+    Sketch.stroke(ctx, box, { color: INK, width: selected ? 3.2 : 2.2, amp: 1.2, closed: true });
+    markerText(ctx, label, x + bw / 2, y + bh / 2 + 2, Math.min(bh * 0.5, 34), selected ? '#ffffff' : '#f4f1ea', selected ? -0.03 : 0);
+    if (fn) this.hit(x, y, bw, bh, fn);
+  }
+
+  drawMain(ctx, w, h, time) {
+    const size = Math.min(w / 6.2, h / 5.5, 140);
+    markerText(ctx, 'SHRED HED', w / 2, h * 0.2, size, '#f4c542', -0.06 + Math.sin(time * 3) * 0.015);
+    Sketch.seedFor(95);
+    Sketch.stroke(ctx, [
+      { x: w / 2 - size * 2.5, y: h * 0.2 + size * 0.72 },
+      { x: w / 2 + size * 2.3, y: h * 0.2 + size * 0.42 },
+    ], { color: '#e2553f', width: size * 0.08, amp: 3 });
+
+    const bw = Math.min(320, w - 48), bh = Math.min(56, h * 0.075), gap = bh * 0.3;
+    const x = (w - bw) / 2, y0 = h * 0.2 + size * 1.1;
+    MAIN_ITEMS.forEach((item, i) => {
+      const label = item === 'SOUND' ? `SOUND: ${Sound.muted ? 'OFF' : 'ON'}` : item;
+      this.button(ctx, label, x, y0 + i * (bh + gap), bw, bh, i === this.sel, 100 + i, () => this.choose(i));
+    });
+
+    const d = Stats.data;
+    ctx.font = `${Math.max(14, Math.min(19, w / 60))}px ${HAND}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = INK;
+    ctx.fillText(`best combo ${fmtScore(d.bestCombo)}  ·  ${d.landed} trick${d.landed === 1 ? '' : 's'} landed  ·  ↑ ↓ + Enter, or click`,
+      w / 2, y0 + MAIN_ITEMS.length * (bh + gap) + 6);
+  }
+
+  drawCloset(ctx, w, h, dpr) {
+    const wide = w > h * 1.1;
+    markerText(ctx, 'CLOSET', wide ? w * 0.3 : w / 2, Math.min(60, h * 0.09), Math.min(52, w / 9), '#ffffff', -0.04);
+
+    // the skater modelling the fit
+    const p = this.preview;
+    const k = Math.min(wide ? h * 0.0042 : h * 0.0026, wide ? w * 0.0026 : w * 0.006);
+    const cx = wide ? w * 0.3 : w / 2, gy = wide ? h * 0.82 : h * 0.47;
+    ctx.save();
+    ctx.setTransform(dpr * k, 0, 0, dpr * k, dpr * cx - p.pos.x * dpr * k, dpr * gy - p.pos.y * dpr * k);
+    Sketch.seedFor(7);
+    Sketch.stroke(ctx, [{ x: p.pos.x - 90, y: p.pos.y }, { x: p.pos.x + 90, y: p.pos.y }], { color: INK, width: 3, amp: 1 });
+    drawSkater(ctx, p);
+    ctx.restore();
+
+    // category rows
+    const rows = OUTFIT_CATEGORIES.length;
+    const rx = wide ? w * 0.56 : 16, rw = wide ? Math.min(w * 0.4, 420) : w - 32;
+    const top = wide ? h * 0.16 : h * 0.52;
+    const rh = Math.min(58, ((wide ? h * 0.66 : h * 0.36)) / rows);
+    const fs = Math.min(rh * 0.42, 24);
+    OUTFIT_CATEGORIES.forEach(([cat, label], i) => {
+      const y = top + i * rh, sel = i === this.row;
+      Sketch.seedFor(200 + i);
+      const box = [{ x: rx, y: y + 3 }, { x: rx + rw, y: y + 3 }, { x: rx + rw, y: y + rh - 3 }, { x: rx, y: y + rh - 3 }];
+      Sketch.fill(ctx, box, sel ? '#f4c542' : '#fbf8f0', 1.5);
+      Sketch.stroke(ctx, box, { color: INK, width: sel ? 2.8 : 1.8, amp: 1, closed: true });
+      ctx.textBaseline = 'middle';
+      ctx.textAlign = 'left';
+      ctx.fillStyle = INK;
+      ctx.font = `${fs * 0.9}px ${HAND}`;
+      ctx.fillText(label, rx + 12, y + rh * 0.42);
+      const opt = Outfit.get(cat), n = OUTFIT_OPTIONS[cat].length;
+      const midX = rx + rw * 0.6;
+      markerText(ctx, opt.name, midX, y + rh / 2, fs * 0.8, '#ffffff');
+      markerText(ctx, '◀', rx + rw * 0.3, y + rh / 2, fs, '#ffffff');
+      markerText(ctx, '▶', rx + rw - 22, y + rh / 2, fs, '#ffffff');
+      ctx.font = `${fs * 0.6}px ${HAND}`;
+      ctx.fillStyle = INK;
+      ctx.fillText(`${Outfit.pick[cat] + 1} of ${n}`, rx + 12, y + rh * 0.74);
+      this.hit(rx, y, rw * 0.45, rh, () => this.change(i, -1));
+      this.hit(rx + rw * 0.45, y, rw * 0.55, rh, () => this.change(i, 1));
+    });
+
+    const by = top + rows * rh + 12, bw = Math.min(220, rw), bh = Math.min(50, h * 0.08);
+    this.button(ctx, 'DONE', rx + (rw - bw) / 2, by, bw, bh, false, 300, () => { this.screen = 'main'; });
+    ctx.font = `${Math.max(13, fs * 0.65)}px ${HAND}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = INK;
+    ctx.fillText('↑ ↓ pick  ·  ← → change  ·  Esc done', rx + rw / 2, by + bh + 8);
+  }
+
+  drawStats(ctx, w, h) {
+    const d = Stats.data;
+    const attempts = d.landed + d.bails;
+    const mph = d.topSpeed / PX_PER_FT * 0.6818;
+    const ft = d.distance / PX_PER_FT;
+    const mins = Math.floor(d.timeSkated / 60), secs = Math.floor(d.timeSkated % 60);
+    const fav = Stats.favorites(3).map(([n, c]) => `${n} ×${c}`).join(',  ') || '—';
+    const lines = [
+      ['Best combo', d.bestCombo ? `${fmtScore(d.bestCombo)}  (${d.bestComboText})` : '—'],
+      ['Total points', fmtScore(d.totalScore)],
+      ['Tricks landed', d.landed],
+      ['Bails', d.bails],
+      ['Landing rate', attempts ? Math.round((d.landed / attempts) * 100) + '%' : '—'],
+      ['Best air time', d.bestAir.toFixed(2) + ' s'],
+      ['Top speed', mph.toFixed(1) + ' mph'],
+      ['Distance skated', ft > 5280 ? (ft / 5280).toFixed(2) + ' miles' : Math.round(ft) + ' ft'],
+      ['Time skating', `${mins}:${String(secs).padStart(2, '0')}`],
+      ['S.K.A.T.E. vs CPU', `${d.skateWins} won, ${d.skateLosses} lost`],
+      ['Hardest trick', d.hardest || '—'],
+      ['Most landed', fav],
+    ];
+    markerText(ctx, 'STATS', w / 2, Math.min(60, h * 0.09), Math.min(52, w / 9), '#ffffff', -0.04);
+    const cw = Math.min(w - 32, 620), lh = Math.min(34, h * 0.055), fs = Math.min(lh * 0.64, 21);
+    const cx = (w - cw) / 2, cy = Math.min(110, h * 0.17), chh = lh * lines.length + 30;
+    drawCard(ctx, cx, cy, cw, chh, 310);
+    lines.forEach(([label, value], i) => {
+      const y = cy + 15 + i * lh + lh / 2;
+      ctx.textBaseline = 'middle';
+      ctx.textAlign = 'left';
+      ctx.fillStyle = INK;
+      ctx.font = `${fs}px ${HAND}`;
+      ctx.fillText(label, cx + 18, y);
+      ctx.textAlign = 'right';
+      ctx.font = `${fs * 0.95}px ${MARKER}`;
+      let text = String(value);
+      while (ctx.measureText(text).width > cw * 0.58 && text.length > 4) text = text.slice(0, -2);
+      ctx.fillText(text === String(value) ? text : text + '…', cx + cw - 18, y);
+    });
+    const bw = Math.min(220, cw), bh = Math.min(50, h * 0.08);
+    this.button(ctx, 'BACK', (w - bw) / 2, cy + chh + 14, bw, bh, false, 320, () => { this.screen = 'main'; });
+  }
+}
