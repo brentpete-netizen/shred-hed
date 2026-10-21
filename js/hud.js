@@ -49,9 +49,38 @@ class Hud {
     }
   }
 
+  // Rep and level-up news from Progress (kept across clear(), so a level up isn't cut short).
+  progress(ev) {
+    this.news = this.news || [];
+    if (ev.type === 'rep') this.news.push({ kind: 'rep', text: `+${ev.amount} REP`, t: 0, dur: 1.4 });
+    else if (ev.type === 'newTrick') this.news.push({ kind: 'trick', text: `NEW TRICK: ${ev.name}`, t: 0, dur: 2 });
+    else if (ev.type === 'level') this.levelUp = { level: ev.level, unlocked: ev.unlocked, t: 0 };
+  }
+
   update(dt) {
     if (this.trickPop && (this.trickPop.t += dt) > 1.2) this.trickPop = null;
     if (this.result && (this.result.t += dt) > 1.6) this.result = null;
+    if (this.news) this.news = this.news.filter(n => (n.t += dt) < n.dur);
+    if (this.levelUp && (this.levelUp.t += dt) > 3.6) this.levelUp = null;
+  }
+
+  drawProgress(ctx, w, h) {
+    (this.news || []).forEach((n, i) => {
+      ctx.globalAlpha = clamp((n.dur - n.t) / 0.4, 0, 1);
+      if (n.kind === 'rep') markerText(ctx, n.text, w - 70, 78 + i * 26 - n.t * 18, 18, '#7fd36b', -0.03);
+      else markerText(ctx, n.text, w / 2, h * 0.72 - n.t * 10, Math.min(28, w / 18), '#f4c542', -0.04, 1 + 0.3 * Math.exp(-n.t * 10));
+      ctx.globalAlpha = 1;
+    });
+    const L = this.levelUp;
+    if (!L) return;
+    const a = clamp(Math.min(L.t / 0.2, (3.6 - L.t) / 0.5), 0, 1);
+    ctx.globalAlpha = a;
+    ctx.fillStyle = 'rgba(243, 238, 225, 0.8)';
+    ctx.fillRect(0, h * 0.36, w, h * 0.26);
+    markerText(ctx, `LEVEL ${L.level}!`, w / 2, h * 0.44, Math.min(64, w / 8), '#f4c542', -0.05, 1 + 0.4 * Math.exp(-L.t * 8));
+    const text = L.unlocked.length ? `unlocked: ${L.unlocked.join(', ')}` : 'keep shredding';
+    markerText(ctx, text, w / 2, h * 0.53, Math.min(22, w / (text.length * 0.62)), '#ffffff', -0.02);
+    ctx.globalAlpha = 1;
   }
 
   // skate: in Game of S.K.A.T.E. there's no score, and the trick popups sit lower under the letters
@@ -90,6 +119,7 @@ class Hud {
       markerText(ctx, `${fmtScore(r.points)} × ${r.mult}`, cx, top + size * 1.6, size * 0.6, '#f4c542', -0.02);
     }
 
+    this.drawProgress(ctx, w, h);
     if (this.result) {
       const p = this.result;
       const y = top + size * (sk.combo.active ? 2.6 : 0.9);

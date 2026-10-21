@@ -3,7 +3,7 @@
 
 const PX_PER_FT = 23; // the skater is about 5.5 ft tall
 
-const MAIN_ITEMS = ['FREE SKATE', 'S.K.A.T.E.', 'PARK BUILDER', 'CLOSET', 'STATS', 'SOUND'];
+const MAIN_ITEMS = ['FREE SKATE', 'S.K.A.T.E.', 'PARK BUILDER', 'CLOSET', 'STATS', 'AUDIO'];
 const VERSUS_ITEMS = ['VS CPU', '2 PLAYERS'];
 
 class Menu {
@@ -41,6 +41,12 @@ class Menu {
         if (e === 'up' || e === 'down') { this.vsSel = 1 - this.vsSel; Sound.play('menuMove'); }
         else if (e === 'start' || e === 'grab' || e === 'right') this.chooseVersus(this.vsSel);
         else if (e === 'menu' || e === 'left') this.back();
+      } else if (this.screen === 'audio') {
+        if (e === 'up') { this.audioRow = (this.audioRow + 2) % 3; Sound.play('menuMove'); }
+        else if (e === 'down') { this.audioRow = (this.audioRow + 1) % 3; Sound.play('menuMove'); }
+        else if (e === 'left' || e === 'right') this.adjustAudio(this.audioRow, e === 'right' ? 1 : -1);
+        else if (e === 'start' || e === 'grab') { if (this.audioRow === 2) this.adjustAudio(2, 1); else this.back(); }
+        else if (e === 'menu') this.back();
       } else if (this.screen === 'parks') {
         const n = this.parkRows().length;
         if (e === 'up') { this.parkSel = (this.parkSel + n - 1) % n; this.confirmDelete = false; Sound.play('menuMove'); }
@@ -75,9 +81,9 @@ class Menu {
     if (i === 0) { this.game = 'free'; this.refreshMaps(); this.screen = 'maps'; }
     else if (i === 1) { this.screen = 'versus'; this.vsSel = this.vsSel || 0; }
     else if (i === 2) { this.screen = 'parks'; this.confirmDelete = false; }
-    else if (i === 3) { this.screen = 'closet'; this.showoff = 0; }
+    else if (i === 3) { this.screen = 'closet'; this.showoff = 0; this.trying = { ...Outfit.pick }; }
     else if (i === 4) this.screen = 'stats';
-    else Sound.toggle();
+    else { this.screen = 'audio'; this.audioRow = 0; }
   }
 
   chooseVersus(i) {
@@ -90,6 +96,8 @@ class Menu {
 
   pickMap(i) {
     this.mapSel = i;
+    const need = Progress.lockLevel('map', this.maps[i].id);
+    if (!Progress.isUnlocked('map', this.maps[i].id)) return this.flash(`reach level ${need} to unlock ${this.maps[i].name}`);
     this.mapId = this.maps[i].id;
     Sound.play('menuPick');
     this.result = { map: this.mapId, game: this.game };
@@ -126,12 +134,62 @@ class Menu {
     Sound.play('menuMove');
   }
 
+  adjustAudio(row, d) {
+    this.audioRow = row;
+    if (row === 2) Sound.toggle();
+    else Sound.adjust(row === 0 ? 'sfx' : 'music', d);
+    Sound.play('menuMove');
+  }
+
+  drawAudio(ctx, w, h) {
+    markerText(ctx, 'AUDIO', w / 2, Math.min(60, h * 0.09), Math.min(52, w / 10), '#ffffff', -0.04);
+    const s = Sound.settings;
+    const rows = [['Sound effects', s.sfx], ['Music', s.music], ['Mute everything', s.muted ? 'ON' : 'OFF']];
+    const rw = Math.min(460, w - 32), rh = Math.min(64, h * 0.1), x = (w - rw) / 2, top = Math.min(130, h * 0.2);
+    rows.forEach(([label, value], i) => {
+      const y = top + i * (rh + 10), sel = i === this.audioRow;
+      Sketch.seedFor(380 + i);
+      const box = [{ x, y }, { x: x + rw, y }, { x: x + rw, y: y + rh }, { x, y: y + rh }];
+      Sketch.fill(ctx, box, sel ? '#f4c542' : '#fbf8f0', 1.5);
+      Sketch.stroke(ctx, box, { color: INK, width: sel ? 3 : 1.8, amp: 1, closed: true });
+      ctx.font = `${Math.min(22, rh * 0.36)}px ${HAND}`;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = INK;
+      ctx.fillText(label, x + 16, y + rh / 2);
+      if (typeof value === 'number') {
+        // a row of 10 pips
+        for (let k = 0; k < 10; k++) {
+          const px = x + rw * 0.45 + k * (rw * 0.05);
+          Sketch.circle(ctx, px, y + rh / 2, rw * 0.016, k < value ? '#7fd36b' : null, { width: 1.4 });
+        }
+        this.hit(x, y, rw * 0.45, rh, () => this.adjustAudio(i, -1));
+        this.hit(x + rw * 0.45, y, rw * 0.55, rh, () => this.adjustAudio(i, 1));
+      } else {
+        markerText(ctx, value, x + rw * 0.72, y + rh / 2, rh * 0.4, value === 'ON' ? '#ef5a4a' : '#ffffff');
+        this.hit(x, y, rw, rh, () => this.adjustAudio(i, 1));
+      }
+    });
+    ctx.font = `${Math.max(13, Math.min(17, w / 70))}px ${HAND}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = INK;
+    ctx.fillText('↑ ↓ pick · ← → change · M mutes anytime · Esc back', w / 2, top + 3 * (rh + 10) + 6);
+  }
+
+  flash(text) {
+    this.msg = { text, t: 0 };
+    Sound.play('lost');
+  }
+
+  // In the closet you can try on anything; only unlocked things actually get saved.
   change(row, dir) {
     this.row = row;
-    const cat = OUTFIT_CATEGORIES[row][0];
-    Outfit.cycle(cat, dir);
+    const cat = OUTFIT_CATEGORIES[row][0], n = OUTFIT_OPTIONS[cat].length;
+    this.trying[cat] = (this.trying[cat] + dir + n) % n;
+    if (Progress.isUnlocked(cat, OUTFIT_OPTIONS[cat][this.trying[cat]].name)) Outfit.set(cat, this.trying[cat]);
     Sound.play('menuMove');
-    if (cat === 'board') this.kickflip(true); // show off the graphic underneath
+    if (cat === 'board' || cat === 'stance') this.kickflip(true); // show off the graphic underneath
   }
 
   kickflip(loud = false) {
@@ -151,6 +209,7 @@ class Menu {
     if (p.state === 'ground' && p.out.some(m => m.type === 'land')) this.loud = false;
     p.out.length = 0;
     if (this.screen === 'closet' && (this.showoff += dt) > 4) this.kickflip();
+    if (this.msg && (this.msg.t += dt) > 2) this.msg = null;
   }
 
   click(x, y) {
@@ -174,8 +233,21 @@ class Menu {
     else if (this.screen === 'maps') this.drawMaps(ctx, w, h);
     else if (this.screen === 'versus') this.drawVersus(ctx, w, h);
     else if (this.screen === 'parks') this.drawParks(ctx, w, h);
+    else if (this.screen === 'audio') this.drawAudio(ctx, w, h);
     else if (this.screen === 'closet') this.drawCloset(ctx, w, h, dpr);
     else this.drawStats(ctx, w, h);
+    if (this.msg) {
+      ctx.globalAlpha = clamp((2 - this.msg.t) / 0.4, 0, 1);
+      markerText(ctx, this.msg.text, w / 2, h * 0.5, Math.min(30, w / 20), '#ef5a4a', -0.03);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // A dark wash with the level something unlocks at.
+  drawLock(ctx, x, y, w, h, level) {
+    ctx.fillStyle = 'rgba(60, 56, 50, 0.45)';
+    ctx.fillRect(x, y, w, h);
+    markerText(ctx, `LEVEL ${level}`, x + w / 2, y + h / 2, Math.min(28, w / 7, h * 0.4), '#f4c542', -0.04);
   }
 
   drawVersus(ctx, w, h) {
@@ -285,6 +357,7 @@ class Menu {
       const best = Stats.map(m.id);
       ctx.font = `${Math.max(12, fs * 0.6)}px ${MARKER}`;
       ctx.fillText(best.bestCombo ? `best combo ${fmtScore(best.bestCombo)}` : 'not skated yet', x + cardW / 2, Math.min(y + cardH - fs * 0.95, by + fs * 1.7));
+      if (!Progress.isUnlocked('map', m.id)) this.drawLock(ctx, x, y, cardW, cardH, Progress.lockLevel('map', m.id));
       this.hit(x, y, cardW, cardH, () => this.pickMap(i));
     });
     ctx.font = `${Math.max(13, Math.min(17, w / 70))}px ${HAND}`;
@@ -312,11 +385,26 @@ class Menu {
       { x: w / 2 + size * 2.3, y: h * 0.2 + size * 0.42 },
     ], { color: '#e2553f', width: size * 0.08, amp: 3 });
 
-    const bw = Math.min(320, w - 48), bh = Math.min(56, h * 0.075), gap = bh * 0.3;
-    const x = (w - bw) / 2, y0 = h * 0.2 + size * 1.1;
+    // your level and how close you are to the next one
+    const bw = Math.min(320, w - 48), bh = Math.min(54, h * 0.07), gap = bh * 0.28;
+    const x = (w - bw) / 2, ly = h * 0.2 + size * 0.95;
+    const next = Progress.nextAt();
+    markerText(ctx, `LEVEL ${Progress.level}`, x + 52, ly + 9, 20, '#ffffff', -0.03);
+    Sketch.seedFor(96);
+    const bar = [{ x: x + 110, y: ly }, { x: x + bw, y: ly }, { x: x + bw, y: ly + 18 }, { x: x + 110, y: ly + 18 }];
+    Sketch.fill(ctx, bar, '#fbf8f0', 1);
+    const fillW = (bw - 110) * Progress.toNext;
+    if (fillW > 2) Sketch.fill(ctx, [{ x: x + 110, y: ly }, { x: x + 110 + fillW, y: ly }, { x: x + 110 + fillW, y: ly + 18 }, { x: x + 110, y: ly + 18 }], '#7fd36b', 1);
+    Sketch.stroke(ctx, bar, { color: INK, width: 2, amp: 0.8, closed: true });
+    ctx.font = `13px ${HAND}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = INK;
+    ctx.fillText(next ? `${Progress.data.rep} / ${next} rep` : `${Progress.data.rep} rep · max level!`, x + 110 + (bw - 110) / 2, ly + 9);
+
+    const y0 = ly + 34;
     MAIN_ITEMS.forEach((item, i) => {
-      const label = item === 'SOUND' ? `SOUND: ${Sound.muted ? 'OFF' : 'ON'}` : item;
-      this.button(ctx, label, x, y0 + i * (bh + gap), bw, bh, i === this.sel, 100 + i, () => this.choose(i));
+      this.button(ctx, item, x, y0 + i * (bh + gap), bw, bh, i === this.sel, 100 + i, () => this.choose(i));
     });
 
     const d = Stats.data;
@@ -340,6 +428,7 @@ class Menu {
     ctx.setTransform(dpr * k, 0, 0, dpr * k, dpr * cx - p.pos.x * dpr * k, dpr * gy - p.pos.y * dpr * k);
     Sketch.seedFor(7);
     Sketch.stroke(ctx, [{ x: p.pos.x - 90, y: p.pos.y }, { x: p.pos.x + 90, y: p.pos.y }], { color: INK, width: 3, amp: 1 });
+    p.outfit = this.trying; // shows what you're trying on, locked or not
     drawSkater(ctx, p);
     ctx.restore();
 
@@ -360,14 +449,16 @@ class Menu {
       ctx.fillStyle = INK;
       ctx.font = `${fs * 0.9}px ${HAND}`;
       ctx.fillText(label, rx + 12, y + rh * 0.42);
-      const opt = Outfit.get(cat), n = OUTFIT_OPTIONS[cat].length;
+      const opt = OUTFIT_OPTIONS[cat][this.trying[cat]], n = OUTFIT_OPTIONS[cat].length;
+      const locked = !Progress.isUnlocked(cat, opt.name);
       const midX = rx + rw * 0.6;
-      markerText(ctx, opt.name, midX, y + rh / 2, fs * 0.8, '#ffffff');
+      markerText(ctx, opt.name, midX, y + rh * (locked ? 0.38 : 0.5), fs * 0.8, locked ? '#b9b4aa' : '#ffffff');
+      if (locked) markerText(ctx, `locked · level ${Progress.lockLevel(cat, opt.name)}`, midX, y + rh * 0.74, fs * 0.5, '#ef5a4a');
       markerText(ctx, '◀', rx + rw * 0.3, y + rh / 2, fs, '#ffffff');
       markerText(ctx, '▶', rx + rw - 22, y + rh / 2, fs, '#ffffff');
       ctx.font = `${fs * 0.6}px ${HAND}`;
       ctx.fillStyle = INK;
-      ctx.fillText(`${Outfit.pick[cat] + 1} of ${n}`, rx + 12, y + rh * 0.74);
+      ctx.fillText(`${this.trying[cat] + 1} of ${n}`, rx + 12, y + rh * 0.74);
       this.hit(rx, y, rw * 0.45, rh, () => this.change(i, -1));
       this.hit(rx + rw * 0.45, y, rw * 0.55, rh, () => this.change(i, 1));
     });
@@ -389,6 +480,7 @@ class Menu {
     const mins = Math.floor(d.timeSkated / 60), secs = Math.floor(d.timeSkated % 60);
     const fav = Stats.favorites(3).map(([n, c]) => `${n} ×${c}`).join(',  ') || '—';
     const lines = [
+      ['Level', `${Progress.level}  (${Progress.data.rep} rep)`],
       ['Best combo', d.bestCombo ? `${fmtScore(d.bestCombo)}  (${d.bestComboText})` : '—'],
       ['Total points', fmtScore(d.totalScore)],
       ['Tricks landed', d.landed],

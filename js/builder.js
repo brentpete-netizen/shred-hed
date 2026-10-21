@@ -47,7 +47,13 @@ class Builder {
     Parks.save(this.park);
   }
 
-  slotX(i) { return (this.park.ends.left === 'wall' ? 0 : 180) + i * SLOT; }
+  slotX(i) { return this.terrain.slotStart + i * SLOT; }
+
+  // Bonus pieces are locked until you level up.
+  lockFor(item) {
+    if (item.kind !== 'piece' && item.kind !== 'prop') return 0;
+    return Progress.isUnlocked(item.kind, item.type) ? 0 : Progress.lockLevel(item.kind, item.type);
+  }
   slotAt(x) { return Math.floor((x - this.slotX(0)) / SLOT); }
 
   flash(text, bad = false) {
@@ -77,6 +83,7 @@ class Builder {
     const item = PALETTE[this.pal];
     if (item.kind === 'theme') return this.cycleTheme();
     if (at < 0 || at >= this.park.slots) return this.toggleEnd(at);
+    if (this.lockFor(item)) return this.flash(`${item.name} unlocks at level ${this.lockFor(item)}`, true);
     if (item.kind === 'piece') {
       const span = PIECES[item.type].span;
       this.commit(p => {
@@ -129,10 +136,14 @@ class Builder {
     return false;
   }
 
+  // Quarter pipe, wall, or (left side only, once unlocked) a roll-in tower.
   toggleEnd(at) {
     const side = at < 0 ? 'left' : 'right';
-    this.commit(p => { p.ends[side] = p.ends[side] === 'qp' ? 'wall' : 'qp'; }, `${side} end: ${this.park.ends[side] === 'qp' ? 'wall' : 'quarter pipe'}`);
-    if (side === 'left') this.cam.x = this.slotX(this.cursor);
+    const kinds = side === 'left' && Progress.isUnlocked('end', 'rollin') ? ['qp', 'wall', 'rollin'] : ['qp', 'wall'];
+    const next = kinds[(kinds.indexOf(this.park.ends[side]) + 1) % kinds.length];
+    const label = { qp: 'quarter pipe', wall: 'wall', rollin: 'roll-in tower' }[next];
+    this.commit(p => { p.ends[side] = next; }, `${side} end: ${label}`);
+    if (side === 'left' && !Progress.isUnlocked('end', 'rollin') && next === 'qp') this.flash(`roll-in tower unlocks at level ${Progress.lockLevel('end', 'rollin')}`);
   }
 
   cycleTheme() {
@@ -296,7 +307,7 @@ class Builder {
     // what's under the cursor
     const n = p.slots, c = this.cursor;
     let here = '';
-    if (c < 0 || c >= n) here = `${c < 0 ? 'Left' : 'Right'} end: ${p.ends[c < 0 ? 'left' : 'right'] === 'qp' ? 'quarter pipe' : 'wall'} (Enter to swap)`;
+    if (c < 0 || c >= n) here = `${c < 0 ? 'Left' : 'Right'} end: ${{ qp: 'quarter pipe', wall: 'wall', rollin: 'roll-in tower' }[p.ends[c < 0 ? 'left' : 'right']]} (Enter to swap)`;
     else {
       const piece = this.layout.cover[c], prop = this.propAt(c);
       here = `slot ${c + 1}/${n}: ${piece ? PIECES[piece.type].name : 'flat'}${prop ? ' + ' + PROPS[prop.type].name : ''}`;
@@ -332,6 +343,12 @@ class Builder {
       ctx.textBaseline = 'bottom';
       ctx.fillStyle = INK;
       ctx.fillText(item.kind === 'theme' ? `Theme: ${this.park.theme}` : item.name, x + cardW / 2, y + cardH - 6);
+      const lock = this.lockFor(item);
+      if (lock) {
+        ctx.fillStyle = 'rgba(60, 56, 50, 0.45)';
+        ctx.fillRect(x, y, cardW, cardH);
+        markerText(ctx, `LEVEL ${lock}`, x + cardW / 2, y + cardH / 2 - 6, 17, '#f4c542', -0.04);
+      }
       this.hit(x, y, cardW, cardH, () => { this.pal = i; Sound.play('menuMove'); if (item.kind === 'theme') this.cycleTheme(); });
     });
   }
@@ -367,6 +384,12 @@ class Builder {
         ctx.strokeStyle = '#7a8088';
         ctx.beginPath();
         ctx.moveTo(x + 10, gy - 36); ctx.lineTo(x + 18, gy - 36); ctx.lineTo(x + 66, gy - 12); ctx.lineTo(x + 76, gy - 12);
+        ctx.stroke();
+      } else if (def.kink) {
+        ctx.strokeStyle = '#7a8088';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(x + 6, gy - 12); ctx.lineTo(x + 24, gy - 32); ctx.lineTo(x + w - 24, gy - 32); ctx.lineTo(x + w - 6, gy - 12);
         ctx.stroke();
       } else {
         const ph = Math.max(6, def.h * 0.6), len = def.span > 1 ? w * 0.8 : w * 0.5;

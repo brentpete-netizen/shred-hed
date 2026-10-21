@@ -168,7 +168,10 @@ function startSkating({ map, game }) {
   } else {
     loadMap(map);
     skateGame = new SkateGame(terrain, game === 'cpu');
-    skateGame.onGameOver = winner => { if (game === 'cpu') Stats.skateResult(!winner.cpu); };
+    skateGame.onGameOver = winner => {
+      if (game === 'cpu') { Stats.skateResult(!winner.cpu); Progress.skateResult(!winner.cpu); }
+      else Progress.add(20, 'S.K.A.T.E.');
+    };
     skater = skateGame.skater;
     showHelp = false;
   }
@@ -201,19 +204,54 @@ canvas.addEventListener('contextmenu', e => e.preventDefault());
 canvas.addEventListener('wheel', e => { if (mode === 'build') { e.preventDefault(); builder.wheel(e.deltaY || e.deltaX); } }, { passive: false });
 let time = 0, fps = 60, acc = 0, last = performance.now(), carry = [];
 
+// Game feel: the camera zooms out for big air, shakes on slams, and a huge landing freezes for a beat.
+const feel = { zoom: 1, shake: 0, hitstop: 0, offset: { x: 0, y: 0 } };
+
+function feelMessage(m) {
+  if (m.type === 'bail') { feel.shake = Math.max(feel.shake, 12); feel.hitstop = 0.05; }
+  else if (m.type === 'land' && m.impact > 0.55) feel.shake = Math.max(feel.shake, 7 * m.impact);
+  else if (m.type === 'thud') feel.shake = Math.max(feel.shake, 6 * m.power);
+  else if (m.type === 'combo' && m.score >= 2000) { feel.hitstop = 0.08; feel.shake = Math.max(feel.shake, 4); }
+}
+
 // Fit viewHeight world pixels top to bottom, but zoom out on narrow windows so you can see ahead.
-function viewScale(vh = CONFIG.viewHeight) { return Math.min(ch / vh, cw / (vh * 1.4)); }
+function viewScale(vh = CONFIG.viewHeight * feel.zoom) { return Math.min(ch / vh, cw / (vh * 1.4)); }
 
 function updateCamera(dt) {
+  // zoom out the higher you are above the ground
+  const height = skater.state === 'air' ? terrain.groundYAt(skater.pos.x, skater.pos.y) - skater.pos.y : 0;
+  const zoomTarget = 1 + clamp((height - 100) / 800, 0, 0.45);
+  feel.zoom += (zoomTarget - feel.zoom) * Math.min(1, dt * (zoomTarget > feel.zoom ? 2 : 1.2));
+  feel.shake *= Math.pow(0.004, dt);
+  feel.offset = { x: (Math.random() - 0.5) * feel.shake, y: (Math.random() - 0.5) * feel.shake };
+
   const scale = viewScale(), halfW = cw / 2 / scale;
   const bail = skater.state === 'bail' ? skater.bail.body : null;
   const p = bail || skater.pos, vx = bail ? bail.vx : skater.vel.x;
   let tx = p.x + clamp(vx * CONFIG.lookAhead, -260, 260);
-  const ty = Math.min(p.y - 110, terrain.lowest - 100);
+  const ty = Math.min(p.y - 110 * feel.zoom, terrain.lowest - 100);
   const minX = terrain.minX + halfW, maxX = terrain.maxX - halfW;
   tx = minX < maxX ? clamp(tx, minX, maxX) : (terrain.minX + terrain.maxX) / 2;
   cam.x += (tx - cam.x) * Math.min(1, dt * 5);
   cam.y += (ty - cam.y) * Math.min(1, dt * (skater.state === 'air' ? 2.5 : 4));
+}
+
+// Streaks across the screen when you're really flying.
+function drawSpeedLines(ctx, w, h) {
+  const v = skater.state === 'bail' ? 0 : Math.hypot(skater.vel.x, skater.vel.y);
+  if (v < 950) return;
+  const k = clamp((v - 950) / 500, 0, 1), dir = Math.sign(skater.vel.x) || 1;
+  ctx.strokeStyle = `rgba(60, 54, 46, ${0.25 * k})`;
+  ctx.lineWidth = 2;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  for (let i = 0; i < 9; i++) {
+    const y = ((i * 97 + Math.floor(time * 30) * 53) % 100) / 100 * h;
+    const x = ((i * 211 + time * v * 1.4 * dir * -1) % (w + 300) + w + 300) % (w + 300) - 150;
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + 120 * dir * k, y);
+  }
+  ctx.stroke();
 }
 
 function render() {
@@ -233,9 +271,9 @@ function render() {
   const sy = ch / 2 + (40 - view.y * PARALLAX) * scale - SKY_H * scale;
   ctx.drawImage(skyline.canvas, sx, sy, skyline.width * scale, SKY_H * scale);
 
-  // world
-  const k = dpr * scale;
-  ctx.setTransform(k, 0, 0, k, dpr * cw / 2 - view.x * k, dpr * ch / 2 - view.y * k);
+  // world (shaken a little after a slam)
+  const k = dpr * scale, shake = building ? { x: 0, y: 0 } : feel.offset;
+  ctx.setTransform(k, 0, 0, k, dpr * (cw / 2 + shake.x) - view.x * k, dpr * (ch / 2 + shake.y) - view.y * k);
   const halfW = cw / 2 / scale;
   drawTerrain(ctx, world, { x0: view.x - halfW - 50, x1: view.x + halfW + 50 });
   if (building) builder.drawWorld(ctx);
@@ -246,9 +284,10 @@ function render() {
 
   // screen-space UI
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  if (mode === 'menu') menu.draw(ctx, cw, ch, time, dpr);
+  if (mode === 'menu') { menu.draw(ctx, cw, ch, time, dpr); hud.drawProgress(ctx, cw, ch); }
   else if (building) builder.drawUI(ctx, cw, ch);
   else {
+    drawSpeedLines(ctx, cw, ch);
     hud.draw(ctx, cw, ch, skater, !!skateGame);
     if (skateGame) skateGame.draw(ctx, cw, ch);
     if (showHelp) drawHelp(ctx, cw, ch);
@@ -303,7 +342,10 @@ function frame(now) {
     events = [];
   }
 
-  acc += dt * CONFIG.timeScale;
+  // hitstop: a big landing freezes the action for a split second
+  const simDt = feel.hitstop > 0 ? 0 : dt;
+  feel.hitstop -= dt;
+  acc += simDt * CONFIG.timeScale;
   if (acc < STEP) carry = events;
   let first = true;
   while (acc >= STEP) {
@@ -319,11 +361,20 @@ function frame(now) {
   const yours = !skateGame || skateGame.turn === 0; // only your own skating goes in your stats
   for (const m of skater.out) {
     hud.handle(m);
-    if (yours) Stats.onMessage(m, skateGame ? null : mapId, hud.score);
+    if (yours) {
+      Progress.onMessage(m); // before Stats, so it can tell which tricks are new
+      Stats.onMessage(m, skateGame ? null : mapId, hud.score);
+    }
     Sound.onMessage(m);
+    feelMessage(m);
     if (skateGame) skateGame.onMessage(m);
   }
   skater.out.length = 0;
+  for (const ev of Progress.events.splice(0)) {
+    hud.progress(ev);
+    if (ev.type === 'level') Sound.play('levelUp');
+    else if (ev.type === 'newTrick') Sound.play('newTrick');
+  }
   if (skateGame && mode === 'play') {
     skateGame.update(dt);
     if (skater !== skateGame.skater) { skater = skateGame.skater; hud.clear(); }

@@ -18,6 +18,9 @@ Open `index.html` in a browser (double-click it). No install, no build step.
   rails, ledges, benches...), test ride it, and skate it in Free Skate or S.K.A.T.E.
 - **Closet:** change your skater's skin, hat, top, pants, shoes and board.
 - **Stats:** best combos, tricks landed, top speed, S.K.A.T.E. record and more.
+- **Rep and levels:** combos, new tricks and S.K.A.T.E. games earn Rep. Levelling up unlocks
+  maps, outfits, skins (zombie, robot, alien...), boards and bonus Park Builder pieces.
+- **Music:** an original lo-fi loop made in code, with separate music and sound volumes.
 
 ## Controls
 
@@ -67,5 +70,5 @@ See [GAME_DESIGN.md](GAME_DESIGN.md) for the full design and the build plan.
 
 ## Status
 
-Milestones 1–6 are done (core feel, full trick system, ragdoll and sound, maps, Game of
-S.K.A.T.E., Park Builder). Next up: unlocks, music and polish.
+All seven milestones from the design are done: core feel, the full trick system, ragdoll and
+sound, four maps, Game of S.K.A.T.E., the Park Builder, and unlocks, music and polish.

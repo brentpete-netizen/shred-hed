@@ -20,6 +20,10 @@ const PIECES = {
   bankDown: { name: 'Bank Down', span: 2, drop: 70 },
   gap:      { name: 'Gap', span: 2, drop: 0 },
   dropoff:  { name: 'Drop-off', span: 1, drop: 40 },
+  // unlockable
+  halfpipe:   { name: 'Halfpipe', span: 4, drop: 0 },
+  bankLedge:  { name: 'Bank to Ledge', span: 2, drop: 0 },
+  diyQuarter: { name: 'DIY Quarter', span: 2, drop: 0 },
 };
 
 // Props on top. A handrail goes on a set of stairs instead of flat ground.
@@ -31,6 +35,7 @@ const PROPS = {
   bench:    { name: 'Bench', span: 1, h: 28, kind: 'bench' },
   planter:  { name: 'Planter', span: 2, h: 30, kind: 'planter' },
   curb:     { name: 'Curb', span: 2, h: 11, kind: 'curb' },
+  kinkRail: { name: 'Kink Rail', span: 3, h: 24, kind: 'rail', kink: 36 }, // unlockable: humps up in the middle
 };
 
 const PARK_THEMES = ['park', 'street', 'school', 'mega'];
@@ -74,6 +79,28 @@ function emitPiece(b, type, opts = {}) {
     case 'dropoff':
       b.flat(60).to(0, 40);
       break;
+    case 'halfpipe': {
+      // sunk into the ground: rounded lips, steep walls, a flat bottom, and back up
+      const wall = (110 - 30 * (1 - Math.cos(1)) - 130 * (1 - Math.cos(1))) / Math.sin(1);
+      b.flat(30).bend(30, 1).line(wall, 1).bend(130, 0).flat(104).bend(130, -1).line(wall, -1).bend(30, 0);
+      break;
+    }
+    case 'bankLedge': {
+      // a bank up onto a ledge, then a drop off the end
+      const y = b.cur.y;
+      b.flat(30).to(110, -50).flat(60).to(0, 50);
+      b.decor.push([{ x: x0 + 140, y: y - 50 }, { x: x0 + 140, y }]);
+      break;
+    }
+    case 'diyQuarter': {
+      // a steep crusty quarter: launches you nearly straight up, with a little deck and a drop behind
+      const y = b.cur.y;
+      b.flat(20).bend(100, -1.2).line(30, -1.2);
+      const lip = { ...b.cur };
+      b.flat(40).to(0, y - b.cur.y);
+      b.decor.push([lip, { x: lip.x, y }]);
+      break;
+    }
   }
   pad();
 }
@@ -127,9 +154,21 @@ function validatePark(park) {
 // Turns a saved park into a ridable map.
 function buildPark(park) {
   const theme = THEMES[park.theme] || THEMES.park;
-  const b = park.ends.left === 'wall' ? MapBuilder.wallStart(0, 0, 480) : MapBuilder.qpStart(0, 0, 180, 10);
+  let b, spawn;
+  if (park.ends.left === 'rollin') {
+    // a roll-in tower: start up top and drop in
+    b = MapBuilder.wallStart(0, -420, 260).flat(170).bend(120, 0.9);
+    const drop = (0 - 380 * (1 - Math.cos(0.9))) - b.cur.y;
+    b.line(drop / Math.sin(0.9), 0.9).bend(380, 0);
+    b.front.push({ type: 'scaffold', x0: -160, x1: b.cur.x, top: -420 });
+    spawn = { x: 90, y: -420 };
+  } else {
+    b = park.ends.left === 'wall' ? MapBuilder.wallStart(0, 0, 480) : MapBuilder.qpStart(0, 0, 180, 10);
+    if (park.ends.left === 'wall') b.front.push({ type: 'facade', x0: -160, x1: 0, top: -480, bottom: 0, style: park.theme === 'school' ? 'school' : 'shop' });
+  }
+  b.cur.y = 0; // a roll-in's transition can land a hair off level
   const startX = b.cur.x;
-  if (park.ends.left === 'wall') b.front.push({ type: 'facade', x0: -160, x1: 0, top: -480, bottom: 0, style: park.theme === 'school' ? 'school' : 'shop' });
+  spawn = spawn || { x: startX + 60, y: 0 };
   const { cover, levels } = parkLayout(park);
   const handrails = new Set(park.props.filter(p => p.type === 'handrail').map(p => p.at));
   for (let i = 0; i < park.slots; i++) {
@@ -140,8 +179,11 @@ function buildPark(park) {
   for (const pr of park.props) {
     const def = PROPS[pr.type];
     if (def.kind === 'handrail') continue;
-    const x = startX + pr.at * SLOT + 12, y = levels[pr.at];
-    b.rails.push({ kind: def.kind, pts: [{ x, y: y - def.h }, { x: x + def.span * SLOT - 24, y: y - def.h }] });
+    const x = startX + pr.at * SLOT + 12, y = levels[pr.at], len = def.span * SLOT - 24;
+    const pts = def.kink
+      ? [{ x, y: y - def.h }, { x: x + 80, y: y - def.h - def.kink }, { x: x + len - 80, y: y - def.h - def.kink }, { x: x + len, y: y - def.h }]
+      : [{ x, y: y - def.h }, { x: x + len, y: y - def.h }];
+    b.rails.push({ kind: def.kind, pts });
   }
   const endY = levels[park.slots];
   if (park.ends.right === 'wall') {
@@ -156,7 +198,9 @@ function buildPark(park) {
     if (park.theme === 'street') b.scenery({ type: 'lamp', x, y });
     else b.scenery({ type: 'tree', x, y: y - 4, s: 1 });
   }
-  return b.build({ spawn: { x: startX + 60, y: 0 }, theme, name: park.name });
+  const T = b.build({ spawn, theme, name: park.name });
+  T.slotStart = startX; // where slot 0 begins, for the builder's grid
+  return T;
 }
 
 // ---------------------------------------------------------------- saving

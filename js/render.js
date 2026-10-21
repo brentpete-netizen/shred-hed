@@ -73,6 +73,20 @@ const BOARD_ART = {
     for (let i = 0; i < 8; i++) pts.push([l + Math.cos(i * TAU / 8) * 4, w + Math.sin(i * TAU / 8) * 4]);
     return pts;
   }),
+  checker: (() => {
+    const squares = [];
+    for (let i = 0; i < 8; i++) for (let j = 0; j < 2; j++) {
+      if ((i + j) % 2) continue;
+      const l = -28 + i * 7, w = -9 + j * 9;
+      squares.push([[l, w], [l + 7, w], [l + 7, w + 9], [l, w + 9]]);
+    }
+    return squares;
+  })(),
+  stars: [[-24, -3, 4], [-10, 5, 3], [4, -5, 5], [18, 3, 3], [27, -4, 2.5]].map(([l, w, r]) => {
+    const pts = [];
+    for (let i = 0; i < 8; i++) { const rr = i % 2 ? r * 0.35 : r; pts.push([l + Math.cos(i * TAU / 8) * rr, w + Math.sin(i * TAU / 8) * rr]); }
+    return pts;
+  }),
 };
 
 function drawBoard(ctx, B) {
@@ -155,9 +169,10 @@ function trickRotation(sk) {
   if (!tr) return { roll: 0, yaw: 0, imp: 0, p: 1, active: false };
   const p = tr.done ? 1 : Math.min(1, tr.t / tr.dur);
   const e = 1 - (1 - p) * (1 - p); // fast flick, slowing into the catch
+  const stance = Outfit.get('stance')?.goofy ? -1 : 1; // goofy riders flick the other way
   return {
-    roll: tr.def.flip * TAU * e * sk.facing,
-    yaw: tr.def.shuv * Math.PI * e * sk.facing,
+    roll: tr.def.flip * TAU * e * sk.facing * stance,
+    yaw: tr.def.shuv * Math.PI * e * sk.facing * stance,
     imp: (tr.def.imp || 0) * TAU * e,
     p, active: !tr.done, def: tr.def,
   };
@@ -371,6 +386,22 @@ function drawHead(ctx, h, up, F) {
     Sketch.shape(ctx, arcPts(c, R, ua - half + 0.2, ua + half - 0.2), hat.color, HAT_LINE);
     Sketch.limb(ctx, [add(c, back, R - 1), add(c, F, R - 1)], 1.8, hat.accent, { amp: 0.2 });
     Sketch.limb(ctx, [add(add(c, back, R + 6), up, -3), add(c, up, -0.5), add(add(c, F, R + 6), up, -3)], 2.5, hat.color, { amp: 0.3 });
+  } else if (hat.type === 'mohawk') {
+    const fin = [];
+    for (let i = 0; i <= 8; i++) {
+      const a = ua - 0.7 + (1.4 * i) / 8, r = i % 2 ? R + 4 : R + 12 - Math.abs(i - 4);
+      fin.push({ x: h.x + Math.cos(a) * r, y: h.y + Math.sin(a) * r });
+    }
+    fin.push({ x: h.x + Math.cos(ua + 0.7) * (R - 2), y: h.y + Math.sin(ua + 0.7) * (R - 2) });
+    fin.push({ x: h.x + Math.cos(ua - 0.7) * (R - 2), y: h.y + Math.sin(ua - 0.7) * (R - 2) });
+    Sketch.shape(ctx, fin, hat.color, HAT_LINE);
+  } else if (hat.type === 'crown') {
+    const base = add(h, up, R - 3), left = add(base, F, -(R - 1)), right = add(base, F, R - 1);
+    const crown = [left, add(left, up, 13), add(mix(left, right, 0.25), up, 6), add(mix(left, right, 0.5), up, 15),
+      add(mix(left, right, 0.75), up, 6), add(right, up, 13), right];
+    Sketch.shape(ctx, crown, hat.color, HAT_LINE);
+    const gem = add(add(base, up, 5), F, 0);
+    Sketch.circle(ctx, gem.x, gem.y, 2.4, hat.accent, { width: 1.2 });
   } else if (hat.type === 'helmet') {
     Sketch.stroke(ctx, [add(add(h, back, R - 3), up, -2), add(add(h, F, 2), up, -R + 0.5)], thin(INK, 1.3));
     Sketch.shape(ctx, arcPts(h, R + 3, ua - half - 0.45, ua + half + 0.35), hat.color, HAT_LINE);
@@ -404,6 +435,11 @@ function drawTorso(ctx, f, top) {
   }
   Sketch.limb(ctx, [add(hip, up, -2), neck], width, top.color);
   const at = (k, side) => add(add(hip, up, k), F, side);
+  if (top.stripes) top.stripes.forEach((c, i) => Sketch.stroke(ctx, [at(10 + i * 5, -7.5), at(10 + i * 5, 7.5)], thin(c, 3)));
+  if (top.swirl) top.swirl.forEach((c, i) => {
+    const s = at(9 + i * 11, i ? -2 : 3);
+    Sketch.circle(ctx, s.x, s.y, 4.5 - i, null, { color: c, width: 2.4, amp: 1 });
+  });
   if (top.type === 'hoodie') {
     Sketch.stroke(ctx, [at(7, -3), at(9, 8)], thin(INK, 1.3));
     for (const s of [3, 6]) Sketch.stroke(ctx, [at(29, s), at(20, s + 0.5)], thin(top.accent, 1.6));
