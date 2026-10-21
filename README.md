@@ -6,7 +6,8 @@ against a friend or the CPU.
 
 ## Play
 
-Open `index.html` in a browser (double-click it). No install, no build step.
+**[Play online](https://brentpete-netizen.github.io/shred-hed/)**, or open `index.html` in a
+browser (double-click it). No install, no build step. You'll need a keyboard.
 
 ## Modes
 
