@@ -242,7 +242,8 @@ const Parks = (() => {
 
 // Every map you can pick: the built-in ones, then your parks.
 function allMaps() {
-  return [...MAPS, ...Parks.list().map(p => ({
+  const hidden = typeof Progress !== 'undefined' && Progress.everything ? SECRET_MAPS : [];
+  return [...MAPS, ...hidden, ...Parks.list().map(p => ({
     id: 'park:' + p.id, name: p.name.toUpperCase(), blurb: 'Your park', custom: true,
     build: () => buildPark(Parks.get(p.id)),
   }))];

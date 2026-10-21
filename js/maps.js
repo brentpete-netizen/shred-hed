@@ -104,10 +104,10 @@ class MapBuilder {
 
   scenery(item) { this.back.push(item); return this; }
 
-  build({ spawn, theme, name }) {
+  build({ spawn, theme, name, gravity }) {
     return new Terrain({
       points: this.pts, spawn, ends: this.ends, rails: this.rails,
-      decor: this.decor, back: this.back, front: this.front, theme, name,
+      decor: this.decor, back: this.back, front: this.front, theme, name, gravity,
     });
   }
 }
@@ -119,6 +119,9 @@ const THEMES = {
   street: { ground: '#bfbab0', hatch: 'rgba(70, 66, 60, 0.25)', sky: 'downtown' },
   school: { ground: '#b3aea6', hatch: 'rgba(70, 66, 60, 0.22)', sky: 'suburb' },
   mega:   { ground: '#d6cdbb', hatch: 'rgba(110, 90, 60, 0.22)', sky: 'hills' },
+  moon:   { ground: '#bdbac8', hatch: 'rgba(70, 66, 90, 0.25)', sky: 'space' },
+  lava:   { ground: '#c97a5e', hatch: 'rgba(110, 30, 20, 0.25)', sky: 'volcano' },
+  hill:   { ground: '#cfc6ae', hatch: 'rgba(100, 86, 60, 0.22)', sky: 'hills' },
 };
 
 function buildSkatepark() {
@@ -212,6 +215,54 @@ function buildMega() {
   for (const [x, c] of [[diy + 140, '#e2553f'], [diy + 820, '#6c4bd1']]) b.scenery({ type: 'graffiti', x, y: -120, color: c });
   return b.build({ spawn: { x: 120, y: -560 }, theme: THEMES.mega, name: 'Mega Ramp' });
 }
+
+// ---------------------------------------------------------------- the hidden ones
+
+function buildMoon() {
+  const b = MapBuilder.qpStart(0, 0, 260, 12);
+  b.flat(260);
+  b.line(70, 0.45).flat(160).line(70, -0.45);           // a crater
+  b.flat(200).prop('rail', 40, 420, 40).flat(560);       // the antenna pipe
+  b.bend(160, -0.5).line(60, -0.5).flat(160).line(60, 0.5).bend(160, 0); // a moon mound
+  b.flat(240).line(90, 0.5).flat(200).line(90, -0.5);    // a bigger crater
+  b.flat(300).prop('ledge', 20, 300, 30).flat(500);
+  b.qpEnd(260, 12);
+  for (const x of [520, 1500, 2600, 3400]) b.scenery({ type: 'dome', x, y: 0 });
+  return b.build({ spawn: { x: 420, y: 0 }, theme: THEMES.moon, name: 'Moon Base', gravity: 760 });
+}
+
+function buildLavaPipe() {
+  const b = MapBuilder.qpStart(0, 0, 340, 20);
+  b.flat(420).line(70, -0.55).line(70, 0.55).flat(420);  // a little spine in the middle
+  b.qpEnd(340, 20);
+  return b.build({ spawn: { x: 520, y: 0 }, theme: THEMES.lava, name: 'Lava Pipe' });
+}
+
+function buildHillBomb() {
+  const b = MapBuilder.wallStart(0, -700, 300);
+  b.flat(220).bend(300, 0.13);
+  const tan = Math.tan(0.13);
+  for (let i = 0; i < 4; i++) {
+    if (i % 2 === 0) {
+      b.line(520, 0.13).bend(120, -0.3).line(30, -0.3).to(0, 40); // a kicker on the way down
+    } else {
+      const a = { ...b.cur };
+      b.line(560, 0.13);
+      const c = b.cur;
+      b.rails.push({ kind: 'rail', pts: [{ x: a.x + 40, y: a.y + 40 * tan - 32 }, { x: c.x - 40, y: c.y - 40 * tan - 32 }] });
+    }
+  }
+  b.line(400, 0.13).bend(300, 0).flat(400);
+  b.qpEnd(300, 12);
+  for (let x = 300; x < b.cur.x - 300; x += 650) b.scenery({ type: 'tree', x, y: b.pts.find(p => p.x >= x).y - 4, s: 1.1 });
+  return b.build({ spawn: { x: 110, y: -700 }, theme: THEMES.hill, name: 'Hill Bomb' });
+}
+
+const SECRET_MAPS = [
+  { id: 'moon', name: 'MOON BASE', blurb: 'Low gravity. Very low.', build: buildMoon },
+  { id: 'lava', name: 'LAVA PIPE', blurb: 'One giant halfpipe over the lava', build: buildLavaPipe },
+  { id: 'hill', name: 'HILL BOMB', blurb: 'A long, fast way down', build: buildHillBomb },
+];
 
 const MAPS = [
   { id: 'park', name: 'SKATEPARK', blurb: 'Quarter pipes, funbox, rails and a manual pad', build: buildSkatepark },

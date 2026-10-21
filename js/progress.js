@@ -60,8 +60,16 @@ const Progress = (() => {
     // The level something unlocks at (0 if it's always open).
     lockLevel(type, key) { return UNLOCK_LEVEL[`${type}:${key}`] || 0; },
     isUnlocked(type, key) {
+      if (data.everything) return true;
       const need = api.lockLevel(type, key);
       return !need || api.level >= need || data.owned.includes(`${type}:${key}`);
+    },
+    get everything() { return !!data.everything; },
+    unlockAll() {
+      const first = !data.everything;
+      data.everything = true;
+      store();
+      events.push({ type: 'secret', first });
     },
 
     add(amount, reason) {

@@ -95,7 +95,7 @@ function cpuSpots(terrain, grind) {
       for (let x = a.x - 260; x <= a.x + 20; x += 35) spots.push({ x });
     }
   } else {
-    const flat = x => Math.abs(terrain.surfaceBelow(x, -2000)?.ang ?? 1) < 0.03;
+    const flat = x => Math.abs(terrain.surfaceBelow(x, -2000)?.ang ?? 1) < 0.15; // flat-ish, a gentle hill is fine
     for (let x = spawnX + 120; x < spawnX + 2800; x += 110) if (flat(x) && flat(x + 150) && flat(x + 300)) spots.push({ x });
   }
   return spots;

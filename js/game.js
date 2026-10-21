@@ -80,7 +80,29 @@ function makeSkyline(kind, worldWidth) {
     Sketch.circle(g, x, -46 * s, 20 * s, wash, { color: pencil.color, width: 1.4, amp: 1 });
   };
 
-  if (kind === 'downtown') towers(160, 440, 0.7);
+  if (kind === 'space') {
+    for (let i = 0; i < 260; i++) {
+      const x = r() * width, y = -40 - r() * 460, s = 1 + r() * 2;
+      g.fillStyle = `rgba(70, 66, 90, ${0.25 + r() * 0.4})`;
+      g.fillRect(x, y, s, s);
+    }
+    Sketch.circle(g, width * 0.55, -330, 70, 'rgba(90, 150, 220, 0.35)', { color: 'rgba(70,66,90,0.5)', width: 2 });
+    Sketch.circle(g, width * 0.55 - 20, -345, 26, 'rgba(110, 170, 90, 0.35)', { color: 'rgba(70,66,90,0.3)', width: 1.2 });
+    const ridge = [{ x: 0, y: 0 }];
+    for (let x = 0; x <= width; x += 50) ridge.push({ x, y: -60 - Math.abs(Math.sin(x / 180)) * 50 });
+    ridge.push({ x: width, y: 0 });
+    Sketch.fill(g, ridge, 'rgba(150, 146, 170, 0.3)', 2);
+    Sketch.stroke(g, ridge.slice(1, -1), pencil);
+  } else if (kind === 'volcano') {
+    for (let x = 100; x < width; x += 700 + r() * 300) {
+      const vh = 220 + r() * 120, vw = 360;
+      const cone = [{ x: x - vw / 2, y: 0 }, { x: x - 40, y: -vh }, { x: x + 40, y: -vh }, { x: x + vw / 2, y: 0 }];
+      Sketch.fill(g, cone, 'rgba(150, 90, 70, 0.35)', 2);
+      Sketch.stroke(g, cone, pencil);
+      for (let k = 0; k < 4; k++) Sketch.circle(g, x + (r() - 0.5) * 60, -vh - 30 - k * 40, 22 + k * 8, 'rgba(120, 110, 100, 0.18)', { color: 'rgba(80,74,66,0.25)', width: 1.2 });
+      Sketch.stroke(g, [{ x: x - 30, y: -vh + 4 }, { x: x - 10, y: -vh + 60 }, { x: x + 6, y: -vh + 110 }], { ...pencil, color: 'rgba(226, 85, 63, 0.6)', width: 4 });
+    }
+  } else if (kind === 'downtown') towers(160, 440, 0.7);
   else if (kind === 'suburb') {
     for (let x = 0; x < width; x += 150 + r() * 80) {
       const w = 90 + r() * 40, h = 60 + r() * 30;
@@ -307,6 +329,7 @@ function frame(now) {
   fps += (1 / Math.max(dt, 1e-3) - fps) * 0.05;
 
   Input.repeatOk = mode === 'build'; // holding ← → slides the builder cursor along
+  Secrets.listening = mode === 'menu';
   let events = carry.concat(Input.drain());
   carry = [];
   events = events.filter(e => {
@@ -372,8 +395,9 @@ function frame(now) {
   skater.out.length = 0;
   for (const ev of Progress.events.splice(0)) {
     hud.progress(ev);
-    if (ev.type === 'level') Sound.play('levelUp');
+    if (ev.type === 'level' || ev.type === 'secret') Sound.play('levelUp');
     else if (ev.type === 'newTrick') Sound.play('newTrick');
+    if (ev.type === 'secret') menu.refreshMaps();
   }
   if (skateGame && mode === 'play') {
     skateGame.update(dt);

@@ -27,6 +27,9 @@ class Skater {
     this.respawn(terrain.spawnS);
   }
 
+  // some maps have their own gravity
+  get gravity() { return this.terrain.gravity || CONFIG.gravity; }
+
   respawn(s) {
     const T = this.terrain;
     this.state = 'ground';
@@ -164,7 +167,7 @@ class Skater {
     }
 
     const seg = this.terrain.segs[this.seg];
-    let a = C.gravity * seg.ty;
+    let a = this.gravity * seg.ty;
     if (this.crouchHeld && seg.curved && a * this.v > 0) a *= C.pumpBoost; // pumping
     this.v += a * dt;
     const drag = (C.rollingFriction + C.airDrag * this.v * this.v) * dt;
@@ -479,7 +482,7 @@ class Skater {
 
   updateFlight(dt) {
     const C = CONFIG, T = this.terrain;
-    this.vel.y += C.gravity * dt;
+    this.vel.y += this.gravity * dt;
     const p1 = { x: this.pos.x + this.vel.x * dt, y: this.pos.y + this.vel.y * dt };
     const hit = T.sweep(this.pos, p1);
     const rail = T.sweepRails(this.pos, p1);
@@ -517,7 +520,7 @@ class Skater {
   updateVert(dt) {
     const C = CONFIG, seg = this.terrain.segs[this.vert.seg];
     this.vel.x = 0;
-    this.vel.y += C.gravity * dt;
+    this.vel.y += this.gravity * dt;
     this.pos.x = this.vert.x;
     this.pos.y += this.vel.y * dt;
     this.alignTo(seg.ang, dt);
@@ -625,7 +628,7 @@ class Skater {
       this.popFrom(g.rail, g.v, C.popSpeed * 0.9); // ollie out, combo keeps going
       return;
     }
-    g.v += C.gravity * g.rail.ty * dt;
+    g.v += this.gravity * g.rail.ty * dt;
     const fr = C.grindFriction * dt;
     g.v = Math.abs(g.v) <= fr ? 0 : g.v - Math.sign(g.v) * fr;
     g.s += g.v * dt;
@@ -744,7 +747,7 @@ class Skater {
     for (const f of this.fx) {
       f.life += dt;
       if (f.kind === 'dust') { f.x += f.vx * dt; f.y += f.vy * dt; f.vx *= 0.92; f.vy *= 0.92; }
-      if (f.kind === 'spark') { f.vy += CONFIG.gravity * 0.6 * dt; f.x += f.vx * dt; f.y += f.vy * dt; }
+      if (f.kind === 'spark') { f.vy += this.gravity * 0.6 * dt; f.x += f.vx * dt; f.y += f.vy * dt; }
     }
     this.fx = this.fx.filter(f => f.life < f.max);
     if (this.braking && Math.abs(this.v) > 150 && Math.random() < 0.3) {

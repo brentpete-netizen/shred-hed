@@ -65,6 +65,14 @@ const SCENERY = {
     Sketch.shape(sc, deck, '#a59d90', { color: INK, width: 2.4, amp: 1.2, maxLen: 60 });
     Sketch.stroke(sc, [{ x: x0 - 400, y: y - 14 }, { x: x1 + 400, y: y - 14 }], { color: PENCIL, width: 2, amp: 1, maxLen: 60 });
   },
+  dome({ x, y }) {
+    const pts = [];
+    for (let i = 0; i <= 12; i++) { const a = Math.PI + (Math.PI * i) / 12; pts.push({ x: x + Math.cos(a) * 90, y: y + Math.sin(a) * 70 }); }
+    Sketch.shape(sc, pts, 'rgba(210, 225, 235, 0.8)', { color: PENCIL, width: 2, amp: 1 });
+    for (const k of [-0.5, 0, 0.5]) Sketch.stroke(sc, [{ x: x + k * 90, y }, { x: x + k * 60, y: y - 68 + Math.abs(k) * 20 }], thin(PENCIL, 1.2));
+    Sketch.limb(sc, [{ x: x + 40, y: y - 60 }, { x: x + 40, y: y - 120 }], 2, '#9aa0a6', { amp: 0.3 });
+    Sketch.circle(sc, x + 40, y - 124, 5, '#ef5a4a', { width: 1.4 });
+  },
   graffiti({ x, y, color }) {
     for (let i = 0; i < 5; i++) {
       Sketch.circle(sc, x + i * 26 - 50, y + Math.sin(i * 1.7) * 10, 18, color, { color: INK, width: 2, amp: 2 });

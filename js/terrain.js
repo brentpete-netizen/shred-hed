@@ -13,8 +13,9 @@ function makeSeg(a, b) {
 
 class Terrain {
   constructor({ points, spawn, ends = { start: 'coping', end: 'coping' }, rails = [], decor = [],
-                back = [], front = [], theme = {}, name = '', decks = 160 }) {
+                back = [], front = [], theme = {}, name = '', decks = 160, gravity = null }) {
     this.name = name;
+    this.gravity = gravity;
     this.points = points;
     this.segs = [];
     let s = 0;

@@ -389,7 +389,7 @@ class Menu {
     const bw = Math.min(320, w - 48), bh = Math.min(54, h * 0.07), gap = bh * 0.28;
     const x = (w - bw) / 2, ly = h * 0.2 + size * 0.95;
     const next = Progress.nextAt();
-    markerText(ctx, `LEVEL ${Progress.level}`, x + 52, ly + 9, 20, '#ffffff', -0.03);
+    markerText(ctx, `LEVEL ${Progress.level}${Progress.everything ? ' ★' : ''}`, x + 52, ly + 9, 20, Progress.everything ? '#f4c542' : '#ffffff', -0.03);
     Sketch.seedFor(96);
     const bar = [{ x: x + 110, y: ly }, { x: x + bw, y: ly }, { x: x + bw, y: ly + 18 }, { x: x + 110, y: ly + 18 }];
     Sketch.fill(ctx, bar, '#fbf8f0', 1);
