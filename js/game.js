@@ -111,17 +111,16 @@ function makeSkyline(kind, worldWidth) {
 const MAP_KEY = 'shredHed.map';
 let mapId = 'park';
 try { mapId = localStorage.getItem(MAP_KEY) || 'park'; } catch (e) { /* storage blocked */ }
-if (!MAPS.some(m => m.id === mapId)) mapId = 'park';
+if (!allMaps().some(m => m.id === mapId)) mapId = 'park';
 
 let terrain, skater, skyline;
 const hud = new Hud();
 const cam = { x: 0, y: -100 };
 const STEP = 1 / 120;
 
-function loadMap(id) {
+function loadTerrain(t, id) {
   mapId = id;
-  try { localStorage.setItem(MAP_KEY, id); } catch (e) { /* storage blocked */ }
-  terrain = MAPS.find(m => m.id === id).build();
+  terrain = t;
   skater = new Skater(terrain);
   skyline = makeSkyline(terrain.theme.sky, terrain.maxX - terrain.minX);
   cam.x = skater.pos.x;
@@ -131,11 +130,35 @@ function loadMap(id) {
   hud.mapName = terrain.name;
   window.shredHed = { skater, terrain, cam, CONFIG }; // for tuning from the browser console
 }
+
+function loadMap(id) {
+  const m = allMaps().find(m => m.id === id) || MAPS[0];
+  try { localStorage.setItem(MAP_KEY, m.id); } catch (e) { /* storage blocked */ }
+  loadTerrain(m.build(), m.id);
+}
 loadMap(mapId);
 
-const menu = new Menu(new Skater(MAPS[0].build()), MAPS.findIndex(m => m.id === mapId));
-let mode = 'menu', showHelp = true, debug = false;
+const menu = new Menu(new Skater(MAPS[0].build()), mapId);
+const builder = new Builder();
+let mode = 'menu', showHelp = true, debug = false; // mode: 'menu', 'play' or 'build'
 let skateGame = null; // a Game of S.K.A.T.E. in progress, or null for free skate
+let testRide = false; // skating a park straight from the builder
+
+// resume: coming back from a test ride, keeping the cursor and undo history
+function openBuilder(parkId, resume = false) {
+  if (!resume) builder.open(Parks.get(parkId));
+  skyline = makeSkyline(builder.terrain.theme.sky, builder.terrain.maxX - builder.terrain.minX);
+  mode = 'build';
+  testRide = false;
+  skateGame = null;
+}
+
+function startTestRide() {
+  loadTerrain(buildPark(builder.park), 'park:' + builder.park.id);
+  skateGame = null;
+  testRide = true;
+  mode = 'play';
+}
 
 // choice: { map, game: 'free' | 'cpu' | '2p' }
 function startSkating({ map, game }) {
@@ -150,19 +173,36 @@ function startSkating({ map, game }) {
     showHelp = false;
   }
   menu.lastChoice = { map, game };
+  testRide = false;
   mode = 'play';
   hud.clear();
 }
 
+function menuPicked(r) {
+  if (r.build) openBuilder(r.build);
+  else startSkating(r);
+}
+
+// The builder zooms out further so you can see more of your park.
+const BUILD_VIEW = 900;
+const builderToWorld = (x, y) => {
+  const s = viewScale(BUILD_VIEW);
+  return { x: builder.cam.x + (x - cw / 2) / s, y: builder.cam.y + (y - ch / 2) / s };
+};
+
 canvas.addEventListener('pointerdown', e => {
-  if (mode !== 'menu') return;
-  const r = menu.click(e.clientX, e.clientY);
-  if (r) startSkating(r);
+  if (mode === 'menu') {
+    const r = menu.click(e.clientX, e.clientY);
+    if (r) menuPicked(r);
+  } else if (mode === 'build') builder.pointerDown(e.clientX, e.clientY, e.button, builderToWorld);
 });
+canvas.addEventListener('pointerup', e => { if (mode === 'build') builder.pointerUp(e.clientX, e.clientY, builderToWorld); });
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+canvas.addEventListener('wheel', e => { if (mode === 'build') { e.preventDefault(); builder.wheel(e.deltaY || e.deltaX); } }, { passive: false });
 let time = 0, fps = 60, acc = 0, last = performance.now(), carry = [];
 
 // Fit viewHeight world pixels top to bottom, but zoom out on narrow windows so you can see ahead.
-function viewScale() { return Math.min(ch / CONFIG.viewHeight, cw / (CONFIG.viewHeight * 1.4)); }
+function viewScale(vh = CONFIG.viewHeight) { return Math.min(ch / vh, cw / (vh * 1.4)); }
 
 function updateCamera(dt) {
   const scale = viewScale(), halfW = cw / 2 / scale;
@@ -177,7 +217,9 @@ function updateCamera(dt) {
 }
 
 function render() {
-  const scale = viewScale();
+  const building = mode === 'build';
+  const scale = building ? viewScale(BUILD_VIEW) : viewScale();
+  const view = building ? builder.cam : cam, world = building ? builder.terrain : terrain;
   Sketch.setBoil(Math.floor(time * CONFIG.boilFps));
 
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -187,21 +229,25 @@ function render() {
   ctx.fillRect(0, 0, cw, ch);
 
   // skyline (parallax)
-  const sx = (SKY_X0 - cam.x * PARALLAX) * scale + cw / 2;
-  const sy = ch / 2 + (40 - cam.y * PARALLAX) * scale - SKY_H * scale;
+  const sx = (SKY_X0 - view.x * PARALLAX) * scale + cw / 2;
+  const sy = ch / 2 + (40 - view.y * PARALLAX) * scale - SKY_H * scale;
   ctx.drawImage(skyline.canvas, sx, sy, skyline.width * scale, SKY_H * scale);
 
   // world
   const k = dpr * scale;
-  ctx.setTransform(k, 0, 0, k, dpr * cw / 2 - cam.x * k, dpr * ch / 2 - cam.y * k);
+  ctx.setTransform(k, 0, 0, k, dpr * cw / 2 - view.x * k, dpr * ch / 2 - view.y * k);
   const halfW = cw / 2 / scale;
-  drawTerrain(ctx, terrain, { x0: cam.x - halfW - 50, x1: cam.x + halfW + 50 });
-  drawFx(ctx, skater.fx);
-  drawSkater(ctx, skater);
+  drawTerrain(ctx, world, { x0: view.x - halfW - 50, x1: view.x + halfW + 50 });
+  if (building) builder.drawWorld(ctx);
+  else {
+    drawFx(ctx, skater.fx);
+    drawSkater(ctx, skater);
+  }
 
   // screen-space UI
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (mode === 'menu') menu.draw(ctx, cw, ch, time, dpr);
+  else if (building) builder.drawUI(ctx, cw, ch);
   else {
     hud.draw(ctx, cw, ch, skater, !!skateGame);
     if (skateGame) skateGame.draw(ctx, cw, ch);
@@ -210,7 +256,7 @@ function render() {
     ctx.textAlign = 'right';
     ctx.textBaseline = 'top';
     ctx.fillStyle = INK;
-    ctx.fillText('Esc · menu', cw - 14, 12);
+    ctx.fillText(testRide ? 'TEST RIDE · Esc back to the builder' : 'Esc · menu', cw - 14, 12);
   }
   if (debug) drawDebug(ctx, skater, fps);
 }
@@ -221,6 +267,7 @@ function frame(now) {
   time += dt;
   fps += (1 / Math.max(dt, 1e-3) - fps) * 0.05;
 
+  Input.repeatOk = mode === 'build'; // holding ← → slides the builder cursor along
   let events = carry.concat(Input.drain());
   carry = [];
   events = events.filter(e => {
@@ -228,15 +275,32 @@ function frame(now) {
     if (e === 'debug') { debug = !debug; return false; }
     if (e === 'mute') { Sound.toggle(); return false; }
     if (mode === 'play' && e === 'reset' && !skateGame) { skater.facing = 1; skater.respawn(terrain.spawnS); hud.clear(); return false; }
+    if (mode === 'play' && e === 'menu' && testRide) { openBuilder(builder.park.id, true); Stats.save(); return false; }
     if (mode === 'play' && e === 'menu') { mode = 'menu'; menu.open(); Stats.save(); return false; }
     if (mode === 'play' && skateGame?.state === 'over' && e === 'start') { startSkating(menu.lastChoice); return false; }
     return true;
   });
   if (mode === 'menu') {
     const picked = menu.handle(events);
-    if (picked) startSkating(picked);
+    if (picked) menuPicked(picked);
     events = [];
     menu.update(dt);
+  }
+  if (mode === 'build') {
+    const r = builder.handle(events);
+    if (r?.test) startTestRide();
+    else if (r?.exit) { mode = 'menu'; menu.open('parks'); }
+    else {
+      if (builder.skylineDirty) {
+        builder.skylineDirty = false;
+        skyline = makeSkyline(builder.terrain.theme.sky, builder.terrain.maxX - builder.terrain.minX);
+      }
+      builder.update(dt);
+      render();
+      requestAnimationFrame(frame);
+      return;
+    }
+    events = [];
   }
 
   acc += dt * CONFIG.timeScale;

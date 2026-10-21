@@ -14,6 +14,8 @@ Open `index.html` in a browser (double-click it). No install, no build step.
   combos and chase your best score on each map.
 - **Game of S.K.A.T.E.:** two players on one keyboard, or vs the CPU. Land a trick and the other
   skater has to land the exact same one or get a letter.
+- **Park Builder:** lay out your own park slot by slot (kickers, funboxes, stairs, banks, gaps,
+  rails, ledges, benches...), test ride it, and skate it in Free Skate or S.K.A.T.E.
 - **Closet:** change your skater's skin, hat, top, pants, shoes and board.
 - **Stats:** best combos, tricks landed, top speed, S.K.A.T.E. record and more.
 
@@ -34,6 +36,21 @@ WASD and the arrow keys both work.
 | Q / E after landing | Revert (keeps the combo going) |
 | H / R / M / Esc | Help card / back to the start / mute / menu |
 
+### Park Builder
+
+| Keys | What it does |
+| --- | --- |
+| ← → | Move the cursor (past either end to swap quarter pipe / wall) |
+| ↑ ↓ | Pick a piece from the palette |
+| Enter / Delete | Place / remove |
+| Shift + ← → | Move the piece under the cursor |
+| Z / Y | Undo / redo |
+| [ ] | Make the park shorter / longer |
+| N / T / Esc | Rename / test ride / back to the menu |
+
+You can also click the palette, click to place, right-click to remove, drag pieces around and
+scroll to slide along. Parks save automatically.
+
 ## How it's built
 
 Plain JavaScript and HTML canvas, no libraries. Everything, including the art and the sounds,
@@ -44,10 +61,11 @@ is drawn or synthesized in code.
 - `js/maps.js`: the four maps, built with a small map builder.
 - `js/render.js`, `js/scenery.js`, `js/sketch.js`: the hand-drawn look.
 - `js/cpu.js`, `js/skategame.js`: the CPU opponent and Game of S.K.A.T.E. rules.
+- `js/parks.js`, `js/builder.js`: custom parks and the Park Builder.
 
 See [GAME_DESIGN.md](GAME_DESIGN.md) for the full design and the build plan.
 
 ## Status
 
-Milestones 1–5 are done (core feel, full trick system, ragdoll and sound, maps, Game of
-S.K.A.T.E.). Next up: the Park Builder, then unlocks, music and polish.
+Milestones 1–6 are done (core feel, full trick system, ragdoll and sound, maps, Game of
+S.K.A.T.E., Park Builder). Next up: unlocks, music and polish.

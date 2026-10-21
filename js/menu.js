@@ -1,27 +1,36 @@
-// Start menu: Free Skate or Game of S.K.A.T.E. (then pick a map), Closet (change your fit),
-// Stats and Sound on/off. Works with the arrow keys + Enter / Esc, or by clicking.
+// Start menu: Free Skate or Game of S.K.A.T.E. (then pick a map), the Park Builder, Closet
+// (change your fit), Stats and Sound on/off. Works with the arrow keys + Enter / Esc, or by clicking.
 
 const PX_PER_FT = 23; // the skater is about 5.5 ft tall
 
-const MAIN_ITEMS = ['FREE SKATE', 'S.K.A.T.E.', 'CLOSET', 'STATS', 'SOUND'];
+const MAIN_ITEMS = ['FREE SKATE', 'S.K.A.T.E.', 'PARK BUILDER', 'CLOSET', 'STATS', 'SOUND'];
 const VERSUS_ITEMS = ['VS CPU', '2 PLAYERS'];
 
 class Menu {
-  constructor(preview, mapSel = 0) {
+  constructor(preview, mapId = 'park') {
     this.preview = preview;   // a second skater who models outfits in the closet
     this.screen = 'main';
     this.sel = 0;
     this.row = 0;
-    this.mapSel = Math.max(0, mapSel);
-    this.mapShapes = MAPS.map(m => m.build()); // for the little map drawings
+    this.mapId = mapId;
+    this.parkSel = 0;
+    this.refreshMaps();
     this.hits = [];
     this.result = null;
     this.showoff = 0;
   }
 
-  open() { this.screen = 'main'; this.result = null; }
+  // The map list includes your parks, which can change whenever you build.
+  refreshMaps() {
+    this.maps = allMaps();
+    this.mapShapes = this.maps.map(m => m.build()); // for the little map drawings
+    this.mapSel = Math.max(0, this.maps.findIndex(m => m.id === this.mapId));
+  }
 
-  // Returns { map, game } once the player picks what to play: game is 'free', 'cpu' or '2p'.
+  open(screen = 'main') { this.screen = screen; this.result = null; this.confirmDelete = false; }
+
+  // Returns { map, game } once the player picks what to play (game is 'free', 'cpu' or '2p'),
+  // or { build: parkId } to open the Park Builder.
   handle(events) {
     for (const e of events) {
       if (this.screen === 'main') {
@@ -32,8 +41,15 @@ class Menu {
         if (e === 'up' || e === 'down') { this.vsSel = 1 - this.vsSel; Sound.play('menuMove'); }
         else if (e === 'start' || e === 'grab' || e === 'right') this.chooseVersus(this.vsSel);
         else if (e === 'menu' || e === 'left') this.back();
+      } else if (this.screen === 'parks') {
+        const n = this.parkRows().length;
+        if (e === 'up') { this.parkSel = (this.parkSel + n - 1) % n; this.confirmDelete = false; Sound.play('menuMove'); }
+        else if (e === 'down') { this.parkSel = (this.parkSel + 1) % n; this.confirmDelete = false; Sound.play('menuMove'); }
+        else if (e === 'start' || e === 'grab' || e === 'right') this.pickPark(this.parkSel);
+        else if (e === 'delete') this.deletePark(this.parkSel);
+        else if (e === 'menu' || e === 'left') this.back();
       } else if (this.screen === 'maps') {
-        const n = MAPS.length;
+        const n = this.maps.length;
         if (e === 'left' || e === 'up') { this.mapSel = (this.mapSel + n - 1) % n; Sound.play('menuMove'); }
         else if (e === 'right' || e === 'down') { this.mapSel = (this.mapSel + 1) % n; Sound.play('menuMove'); }
         else if (e === 'start' || e === 'grab') this.pickMap(this.mapSel);
@@ -56,10 +72,11 @@ class Menu {
   choose(i) {
     this.sel = i;
     Sound.play('menuPick');
-    if (i === 0) { this.game = 'free'; this.screen = 'maps'; }
+    if (i === 0) { this.game = 'free'; this.refreshMaps(); this.screen = 'maps'; }
     else if (i === 1) { this.screen = 'versus'; this.vsSel = this.vsSel || 0; }
-    else if (i === 2) { this.screen = 'closet'; this.showoff = 0; }
-    else if (i === 3) this.screen = 'stats';
+    else if (i === 2) { this.screen = 'parks'; this.confirmDelete = false; }
+    else if (i === 3) { this.screen = 'closet'; this.showoff = 0; }
+    else if (i === 4) this.screen = 'stats';
     else Sound.toggle();
   }
 
@@ -67,14 +84,41 @@ class Menu {
     this.vsSel = i;
     this.game = i === 0 ? 'cpu' : '2p';
     Sound.play('menuPick');
+    this.refreshMaps();
     this.screen = 'maps';
   }
 
   pickMap(i) {
     this.mapSel = i;
+    this.mapId = this.maps[i].id;
     Sound.play('menuPick');
-    this.result = { map: MAPS[i].id, game: this.game };
+    this.result = { map: this.mapId, game: this.game };
     this.screen = 'main';
+  }
+
+  // My Parks: each saved park, then "new park" if there's room.
+  parkRows() {
+    const rows = Parks.list().map(p => ({ park: p }));
+    if (!Parks.full()) rows.push({ create: true });
+    return rows;
+  }
+
+  pickPark(i) {
+    const row = this.parkRows()[i];
+    if (!row) return;
+    Sound.play('menuPick');
+    const park = row.create ? Parks.create() : row.park;
+    this.result = { build: park.id };
+  }
+
+  deletePark(i) {
+    const row = this.parkRows()[i];
+    if (!row || row.create) return;
+    if (!this.confirmDelete) { this.confirmDelete = true; Sound.play('menuMove'); return; }
+    Parks.remove(row.park.id);
+    this.confirmDelete = false;
+    this.parkSel = Math.max(0, Math.min(this.parkSel, this.parkRows().length - 1));
+    Sound.play('lost');
   }
 
   back() {
@@ -129,6 +173,7 @@ class Menu {
     if (this.screen === 'main') this.drawMain(ctx, w, h, time);
     else if (this.screen === 'maps') this.drawMaps(ctx, w, h);
     else if (this.screen === 'versus') this.drawVersus(ctx, w, h);
+    else if (this.screen === 'parks') this.drawParks(ctx, w, h);
     else if (this.screen === 'closet') this.drawCloset(ctx, w, h, dpr);
     else this.drawStats(ctx, w, h);
   }
@@ -156,16 +201,49 @@ class Menu {
     ctx.fillText(`vs CPU record: ${d.skateWins} won, ${d.skateLosses} lost  ·  Esc back`, w / 2, y0 + 2 * bh * 1.35 + 8);
   }
 
+  drawParks(ctx, w, h) {
+    markerText(ctx, 'MY PARKS', w / 2, Math.min(60, h * 0.09), Math.min(52, w / 10), '#ffffff', -0.04);
+    const rows = this.parkRows();
+    const rw = Math.min(460, w - 32), rh = Math.min(58, (h * 0.66) / Math.max(4, rows.length)), x = (w - rw) / 2, top = Math.min(110, h * 0.17);
+    rows.forEach((row, i) => {
+      const y = top + i * (rh + 8), sel = i === this.parkSel;
+      Sketch.seedFor(360 + i);
+      const box = [{ x, y }, { x: x + rw, y }, { x: x + rw, y: y + rh }, { x, y: y + rh }];
+      const danger = sel && this.confirmDelete;
+      Sketch.fill(ctx, box, danger ? '#ef9a8f' : sel ? '#f4c542' : row.create ? '#e7eef3' : '#fbf8f0', 1.5);
+      Sketch.stroke(ctx, box, { color: INK, width: sel ? 3 : 1.8, amp: 1, closed: true });
+      const fs = Math.min(rh * 0.42, 24);
+      if (row.create) markerText(ctx, '+ NEW PARK', x + rw / 2, y + rh / 2, fs, '#ffffff');
+      else {
+        const p = row.park;
+        markerText(ctx, p.name.toUpperCase(), x + rw * 0.36, y + rh / 2, fs, '#ffffff');
+        ctx.font = `${fs * 0.7}px ${HAND}`;
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = INK;
+        ctx.fillText(danger ? 'press Delete again to delete' : `${p.slots} slots · ${p.theme} · best ${fmtScore(Stats.map('park:' + p.id).bestScore)}`, x + rw - 14, y + rh / 2);
+      }
+      this.hit(x, y, rw, rh, () => { this.parkSel = i; this.pickPark(i); });
+    });
+    ctx.font = `${Math.max(13, Math.min(17, w / 70))}px ${HAND}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = INK;
+    const tip = Parks.full() ? `that's the max of ${MAX_PARKS} parks · ` : '';
+    ctx.fillText(`${tip}↑ ↓ pick · Enter build · Delete remove · Esc back`, w / 2, top + rows.length * (rh + 8) + 6);
+    ctx.fillText('Your parks show up in the map list for Free Skate and S.K.A.T.E.', w / 2, top + rows.length * (rh + 8) + 28);
+  }
+
   // Map select: a card per spot with a little sketch of its layout and your best scores there.
   drawMaps(ctx, w, h) {
     const title = this.game === 'free' ? 'PICK A SPOT' : this.game === 'cpu' ? 'S.K.A.T.E. VS CPU' : 'S.K.A.T.E. 2 PLAYERS';
     markerText(ctx, title, w / 2, Math.min(60, h * 0.09), Math.min(52, w / 12), '#ffffff', -0.04);
-    const cols = w > 900 ? 4 : 2, rows = Math.ceil(MAPS.length / cols);
+    const cols = w > 900 ? 4 : 2, rows = Math.ceil(this.maps.length / cols);
     const gap = 16, top = Math.min(110, h * 0.17);
     const cardW = Math.min(300, (w - 32 - gap * (cols - 1)) / cols);
     const cardH = Math.min(280, (h - top - 90 - gap * (rows - 1)) / rows);
     const x0 = (w - (cardW * cols + gap * (cols - 1))) / 2;
-    MAPS.forEach((m, i) => {
+    this.maps.forEach((m, i) => {
       const x = x0 + (i % cols) * (cardW + gap), y = top + Math.floor(i / cols) * (cardH + gap), sel = i === this.mapSel;
       Sketch.seedFor(330 + i);
       const box = [{ x, y }, { x: x + cardW, y }, { x: x + cardW, y: y + cardH }, { x, y: y + cardH }];
@@ -203,7 +281,7 @@ class Menu {
         if (ctx.measureText(test).width > cardW - 24) lines.push(word); else lines[lines.length - 1] = test;
       }
       const by = my + mh + 8;
-      lines.slice(0, 2).forEach((l, k) => ctx.fillText(l, x + cardW / 2, by + k * fs * 0.75));
+      if (cardH > 170) lines.slice(0, 2).forEach((l, k) => ctx.fillText(l, x + cardW / 2, by + k * fs * 0.75));
       const best = Stats.map(m.id);
       ctx.font = `${Math.max(12, fs * 0.6)}px ${MARKER}`;
       ctx.fillText(best.bestCombo ? `best combo ${fmtScore(best.bestCombo)}` : 'not skated yet', x + cardW / 2, Math.min(y + cardH - fs * 0.95, by + fs * 1.7));
