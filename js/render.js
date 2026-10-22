@@ -886,6 +886,40 @@ function drawFigure(ctx, f) {
   drawExtraFront(ctx, f, extra);
   if (bigHead) ctx.restore();
   drawArm(ctx, f.frontArm, top, top.color, skin);
+  if (extra.type === 'nametag') drawNameTag(ctx, f, extra, Outfit.tagName());
+}
+
+// A "HELLO my name is" sticker on your chest, with your name written on it. It goes on top of
+// your arm so it can always be read, and it stays the right way round whichever way you face.
+function drawNameTag(ctx, f, extra, name) {
+  const up = f.torsoDir, c = add(add(f.hip, up, 21), f.F, 1.5);
+  const W = 13, H = 9.5, band = 3.6;
+  ctx.save();
+  ctx.translate(c.x, c.y);
+  ctx.rotate(Math.atan2(up.y, up.x) + Math.PI / 2);
+  Sketch.seedFor(55);
+  const box = [{ x: -W / 2, y: -H / 2 }, { x: W / 2, y: -H / 2 }, { x: W / 2, y: H / 2 }, { x: -W / 2, y: H / 2 }];
+  Sketch.shape(ctx, box, '#ffffff', { color: INK, width: 0.9, amp: 0.15, maxLen: 4 });
+  ctx.fillStyle = extra.color;
+  ctx.fillRect(-W / 2 + 0.45, -H / 2 + 0.45, W - 0.9, band);
+  ctx.fillRect(-W / 2 + 0.45, H / 2 - 1.3, W - 0.9, 0.85); // the red strip along the bottom
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `bold 2.1px ${HAND}`;
+  ctx.fillText('HELLO', 0, -H / 2 + 1.35);
+  ctx.font = `1.15px ${HAND}`;
+  ctx.fillText('my name is', 0, -H / 2 + 2.95);
+  if (name) {
+    // written in marker, shrunk to fit
+    let size = 3.4;
+    ctx.font = `${size}px ${MARKER}`;
+    const wide = ctx.measureText(name).width;
+    if (wide > W - 1.6) { size *= (W - 1.6) / wide; ctx.font = `${size}px ${MARKER}`; }
+    ctx.fillStyle = INK;
+    ctx.fillText(name, 0, 1.6);
+  }
+  ctx.restore();
 }
 
 function drawSkater(ctx, sk) {

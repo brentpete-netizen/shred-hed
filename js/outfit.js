@@ -133,6 +133,7 @@ const OUTFIT_OPTIONS = {
     { name: 'Spiked Collar', type: 'collar', color: '#26262b', accent: '#c0c5cc' },
     { name: 'Eye Patch', type: 'patch', color: '#1c1c20' },
     { name: 'Band-Aid', type: 'bandaid', color: '#e8c39a' },
+    { name: 'Name Tag', type: 'nametag', color: '#d63a3a', secret: 'tag' }, // "HELLO my name is", with your name on it
   ],
   // which foot goes forward; goofy flicks flips and shove-its the other way round
   stance: [
@@ -197,6 +198,10 @@ const FIT_BY_KEY = Object.fromEntries(FIT_SLIDERS.map(f => [f.key, f]));
 
 const OUTFIT_SAVE_SLOTS = 2;
 
+// What's written on the name tag: plain characters, short enough to fit.
+const TAG_NAME_MAX = 12;
+const cleanTagName = s => String(s ?? '').replace(/[^\x20-\x7e]/g, '').slice(0, TAG_NAME_MAX);
+
 const Outfit = (() => {
   const KEY = 'shredHed.outfit', SAVES_KEY = 'shredHed.outfitSaves';
   // Fills in anything missing and keeps every pick in range (lists can change between versions).
@@ -212,6 +217,7 @@ const Outfit = (() => {
       const v = Math.round(+o[f.key]);
       o[f.key] = Number.isFinite(v) ? Math.max(f.min, Math.min(f.max, v)) : f.normal;
     }
+    o.tagName = cleanTagName(o.tagName);
     return o;
   };
   let stored = null;
@@ -240,6 +246,7 @@ const Outfit = (() => {
       return this.override ? this.override[key] ?? FIT_BY_KEY[key].normal : pick[key];
     },
     sag() { return this.fit('sag'); },
+    tagName() { return (this.override ? this.override.tagName : pick.tagName) || ''; },
     set(cat, index) {
       pick[cat] = index;
       try { localStorage.setItem(KEY, JSON.stringify(pick)); } catch (e) { /* storage blocked */ }

@@ -127,7 +127,18 @@ const Progress = (() => {
     },
 
     // secret closet items (like the Ghost) only show up once you've earned them
-    secretOwned(item) { return !item.secret || !!data.everything || (item.secret === 'letters' && api.allLetters); },
+    secretOwned(item) {
+      return !item.secret || !!data.everything || (item.secret === 'letters' && api.allLetters) || (item.secret === 'tag' && !!data.nameTag);
+    },
+    // a secret cosmetic of its own: yours for good once you've found it
+    unlockNameTag() {
+      const had = data.nameTag;
+      data.nameTag = true;
+      store();
+      events.push(had
+        ? { type: 'banner', title: 'NAME TAG', lines: ['already yours', 'Closet → Extra'] }
+        : { type: 'banner', title: 'SECRET COSMETIC!', lines: ['Hello My Name Is tag', 'Closet → Extra · N to write your name'] });
+    },
 
     add(amount, reason) {
       if (amount <= 0) return;

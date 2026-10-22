@@ -10,12 +10,14 @@ const Secrets = (() => {
     [4, 341506799, () => Progress.toggleCheat('halfspeed', 'SLOW-MO')],
     [7, 631033509, () => Progress.toggleCheat('trail', 'COLOR TRAIL')],
     [4, 356882152, () => Progress.toggleCheat('mini', 'MINI SKATER')],
+    [4, 358316207, () => Progress.unlockNameTag()],
   ];
   let recent = '';
   const api = { listening: false };
 
   addEventListener('keydown', e => {
-    if (!api.listening || e.repeat || e.key.length !== 1) return;
+    // (not while you're typing a name, or your name could switch things on)
+    if (!api.listening || e.repeat || e.key.length !== 1 || Input.textCapture) return;
     recent = (recent + e.key.toLowerCase()).slice(-10);
     for (const [len, check, run] of LOCKS) {
       if (recent.length >= len && mix(recent.slice(-len)) === check) {

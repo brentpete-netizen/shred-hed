@@ -74,6 +74,7 @@ class Menu {
         else if (e === 'down') { this.row = (this.row + 1) % n; Sound.play('menuMove'); }
         else if (e === 'left' || e === 'right') this.change(this.row, e === 'right' ? 1 : -1);
         else if (e === 'fit') this.openFit();
+        else if (e === 'rename') this.startTagName();
         else if (e === 'slot1' || e === 'slot2') this.loadOutfit(e === 'slot1' ? 0 : 1);
         else if (e === 'saveSlot1' || e === 'saveSlot2') this.saveOutfit(e === 'saveSlot1' ? 0 : 1);
         else if (e === 'start' || e === 'menu') this.back();
@@ -196,6 +197,30 @@ class Menu {
     ctx.fillText('↑ ↓ pick · ← → change · M mutes anytime · Esc back', w / 2, top + 3 * (rh + 10) + 6);
   }
 
+  wearingTag() { return OUTFIT_OPTIONS.extra[this.trying.extra].type === 'nametag'; }
+
+  // Write your name on the name tag: type, Backspace to fix it, Enter (or Esc) when you're done.
+  startTagName() {
+    if (!this.wearingTag() || this.naming) return;
+    this.naming = true;
+    Sound.play('menuPick');
+    Input.textCapture = key => {
+      if (key === 'Enter' || key === 'Escape') return this.finishTagName();
+      if (key === 'Backspace') this.trying.tagName = this.trying.tagName.slice(0, -1);
+      else if (key.length === 1) this.trying.tagName = cleanTagName(this.trying.tagName + key);
+      Outfit.set('tagName', this.trying.tagName);
+    };
+  }
+
+  finishTagName() {
+    if (!this.naming) return;
+    this.naming = false;
+    Input.textCapture = null;
+    this.trying.tagName = this.trying.tagName.trim();
+    Outfit.set('tagName', this.trying.tagName);
+    Sound.play('menuMove');
+  }
+
   // good news, in green
   note(text) {
     this.msg = { text, t: 0, color: '#7fd36b' };
@@ -219,6 +244,8 @@ class Menu {
       if (Progress.isUnlocked(cat, OUTFIT_OPTIONS[cat][saved[cat]].name)) Outfit.set(cat, saved[cat]);
     }
     for (const f of FIT_SLIDERS) { this.trying[f.key] = saved[f.key]; Outfit.set(f.key, saved[f.key]); }
+    this.trying.tagName = saved.tagName;
+    Outfit.set('tagName', saved.tagName);
     this.note(`LOADED SLOT ${slot + 1}`);
     this.kickflip(true);
   }
@@ -288,6 +315,8 @@ class Menu {
     p.out.length = 0;
     if (this.screen === 'closet' && (this.showoff += dt) > 4) this.kickflip();
     if (this.msg && (this.msg.t += dt) > 2) this.msg = null;
+    // clicked away from the name tag (or took it off) while writing on it
+    if (this.naming && (this.screen !== 'closet' || !this.wearingTag())) this.finishTagName();
   }
 
   click(x, y) {
@@ -568,7 +597,14 @@ class Menu {
       markerText(ctx, '▶', rx + rw - 22, y + rh / 2, fs, '#ffffff');
       ctx.font = `${fs * 0.6}px ${HAND}`;
       ctx.fillStyle = INK;
-      ctx.fillText(`${visible.indexOf(opt) + 1} of ${n}`, rx + 12, y + rh * 0.74);
+      if (cat === 'extra' && opt.type === 'nametag') {
+        // the name tag: click the label (or press N) to write your name on it
+        const caret = this.naming && Math.floor(performance.now() / 400) % 2 ? '|' : '';
+        const shown = this.naming ? `${this.trying.tagName}${caret}` : this.trying.tagName ? `"${this.trying.tagName}" · N edit` : 'N: write name';
+        ctx.fillStyle = this.naming ? '#e2553f' : INK;
+        ctx.fillText(shown, rx + 12, y + rh * 0.74);
+        this.hit(rx, y, rw * 0.24, rh, () => { this.row = i; this.startTagName(); });
+      } else ctx.fillText(`${visible.indexOf(opt) + 1} of ${n}`, rx + 12, y + rh * 0.74);
       this.hit(rx, y, rw * 0.45, rh, () => this.change(i, -1));
       this.hit(rx + rw * 0.45, y, rw * 0.55, rh, () => this.change(i, 1));
     });
