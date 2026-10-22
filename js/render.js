@@ -165,6 +165,7 @@ const GRIND_POSE = {
   fwd:  { shift: -TRUCK_L, up: 8.5, yaw: 0, pitch: -0.28, pivotL: TRUCK_L }, // nosegrind: front truck only
   down: { shift: 0, up: 3, yaw: 1.15, pitch: 0, pivotL: 0 },                 // boardslide: deck across the rail
   up:   { shift: -TRUCK_L - 4, up: 7, yaw: 0.45, pitch: -0.3, pivotL: TRUCK_L }, // crooked: angled on the nose
+  dark: { shift: 0, up: 4, yaw: 0, pitch: 0, pivotL: 0, flip: Math.PI },      // darkslide: board upside down
 };
 
 function trickRotation(sk) {
@@ -206,9 +207,10 @@ function riderPose(sk) {
   const nose = { x: T.x * sk.facing, y: T.y * sk.facing };
 
   // where the board rides: on its wheels, on a rail, or up on two wheels in a manual
-  let ride = add(sk.pos, N, HB), yaw = 0, roll = 0, pivotL = -TRUCK_L, pivotN = -HB;
+  let ride = add(sk.pos, N, HB), yaw = 0, roll = 0, pivotL = -TRUCK_L, pivotN = -HB, flip = 0;
   if (sk.state === 'grind') {
     const gp = GRIND_POSE[sk.grind.kind];
+    flip = gp.flip || 0; // only the board turns over; the feet stay on top
     ride = add(add(sk.pos, N, gp.up), nose, gp.shift);
     yaw = gp.yaw * sk.facing;
     pitch = gp.pitch;
@@ -234,7 +236,7 @@ function riderPose(sk) {
   const lift = rot.active ? Math.sin(rot.p * Math.PI) * 7 : 0;
   const board = {
     ...control, cx: center.x + N.x * lift, cy: center.y + N.y * lift,
-    roll: roll + rot.roll, yaw: control.yaw + rot.yaw, pitch: pitch + rot.imp,
+    roll: roll + rot.roll + flip, yaw: control.yaw + rot.yaw, pitch: pitch + rot.imp,
   };
 
   // Feet ride the board unless a flip is in progress, then they hover while it spins under them.
@@ -652,13 +654,37 @@ function drawFigure(ctx, f) {
   drawExtraBody(ctx, f, extra);
   Sketch.limb(ctx, [f.neck, add(f.head, f.torsoDir, -HEAD_R + 2)], 4, skin, { amp: 0.2 });
   drawTorso(ctx, f, top);
+  // bobblehead: blow the head up around the neck
+  const bigHead = typeof Progress !== 'undefined' && Progress.cheat('bighead');
+  if (bigHead) {
+    ctx.save();
+    ctx.translate(f.neck.x, f.neck.y);
+    ctx.scale(1.8, 1.8);
+    ctx.translate(-f.neck.x, -f.neck.y);
+  }
   drawHead(ctx, f.head, f.torsoDir, f.F);
   drawExtraFront(ctx, f, extra);
+  if (bigHead) ctx.restore();
   drawArm(ctx, f.frontArm, top, top.color, skin);
 }
 
 function drawSkater(ctx, sk) {
   Outfit.override = sk.outfit || null;
+  // mini skater: shrink everything around where the wheels touch down
+  const mini = typeof Progress !== 'undefined' && Progress.cheat('mini');
+  if (mini) {
+    const p = sk.state === 'bail' ? sk.bail.rag.hip : sk.pos;
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.scale(0.55, 0.55);
+    ctx.translate(-p.x, -p.y);
+  }
+  drawSkaterBody(ctx, sk);
+  if (mini) ctx.restore();
+  Outfit.override = null;
+}
+
+function drawSkaterBody(ctx, sk) {
   if (sk.state === 'bail') {
     drawBoard(ctx, sk.bail.rag.boardPose());
     drawFigure(ctx, sk.bail.rag.figure());
@@ -668,7 +694,6 @@ function drawSkater(ctx, sk) {
     drawFigure(ctx, pose.fig);
     if (sk.manual) drawBalance(ctx, sk, pose.fig);
   }
-  Outfit.override = null;
 }
 
 function drawFx(ctx, fx) {

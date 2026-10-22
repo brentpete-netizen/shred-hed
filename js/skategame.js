@@ -15,7 +15,10 @@ const CPU_OUTFIT = { skin: 3, hat: 5, top: 4, pants: 2, shoes: 3, board: 2, extr
 
 function secondOutfit() {
   const pick = {};
-  for (const cat in OUTFIT_OPTIONS) pick[cat] = (Outfit.pick[cat] + (cat === 'skin' ? 1 : 2)) % OUTFIT_OPTIONS[cat].length;
+  for (const cat in OUTFIT_OPTIONS) {
+    pick[cat] = (Outfit.pick[cat] + (cat === 'skin' ? 1 : 2)) % OUTFIT_OPTIONS[cat].length;
+    if (OUTFIT_OPTIONS[cat][pick[cat]].secret) pick[cat] = 0; // don't give the secret stuff away
+  }
   return pick;
 }
 

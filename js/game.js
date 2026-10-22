@@ -150,6 +150,7 @@ function loadTerrain(t, id) {
   hud.clear();
   hud.mapId = id;
   hud.mapName = terrain.name;
+  Bonus.load(id, terrain);
   window.shredHed = { skater, terrain, cam, CONFIG }; // for tuning from the browser console
 }
 
@@ -301,6 +302,7 @@ function render() {
   if (building) builder.drawWorld(ctx);
   else {
     drawFx(ctx, skater.fx);
+    Bonus.draw(ctx, time);
     drawSkater(ctx, skater);
   }
 
@@ -368,7 +370,7 @@ function frame(now) {
   // hitstop: a big landing freezes the action for a split second
   const simDt = feel.hitstop > 0 ? 0 : dt;
   feel.hitstop -= dt;
-  acc += simDt * CONFIG.timeScale;
+  acc += simDt * CONFIG.timeScale * (Progress.cheat('halfspeed') ? 0.5 : 1);
   if (acc < STEP) carry = events;
   let first = true;
   while (acc >= STEP) {
@@ -393,11 +395,15 @@ function frame(now) {
     if (skateGame) skateGame.onMessage(m);
   }
   skater.out.length = 0;
+  if (mode === 'play') {
+    const warp = Bonus.update(skater, dt, !skateGame && !testRide);
+    if (warp) { loadMap(warp); menu.lastChoice = { map: warp, game: 'free' }; }
+  }
   for (const ev of Progress.events.splice(0)) {
     hud.progress(ev);
-    if (ev.type === 'level' || ev.type === 'secret') Sound.play('levelUp');
-    else if (ev.type === 'newTrick') Sound.play('newTrick');
-    if (ev.type === 'secret') menu.refreshMaps();
+    if (ev.type === 'level' || ev.type === 'secret' || ev.type === 'banner') Sound.play('levelUp');
+    else if (ev.type === 'newTrick' || ev.type === 'letter') Sound.play('newTrick');
+    if (ev.type === 'secret' || ev.type === 'banner') menu.refreshMaps();
   }
   if (skateGame && mode === 'play') {
     skateGame.update(dt);

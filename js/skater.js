@@ -28,7 +28,7 @@ class Skater {
   }
 
   // some maps have their own gravity
-  get gravity() { return this.terrain.gravity || CONFIG.gravity; }
+  get gravity() { return this.terrain.gravity || (typeof Progress !== 'undefined' && Progress.cheat('lowgrav') ? 760 : CONFIG.gravity); }
 
   respawn(s) {
     const T = this.terrain;
@@ -610,7 +610,8 @@ class Skater {
     if (!res) return;
     const fwd = this.facing > 0 ? 'right' : 'left', back = this.facing > 0 ? 'left' : 'right';
     const isDown = d => this.held(d) || (res.late && KEY_DIR[res.late] === d);
-    const kind = isDown(fwd) ? 'fwd' : isDown(back) ? 'back' : isDown('down') ? 'down' : isDown('up') ? 'up' : 'none';
+    const kind = this.held('spinBack') && this.held('spinFront') ? 'dark'
+      : isDown(fwd) ? 'fwd' : isDown(back) ? 'back' : isDown('down') ? 'down' : isDown('up') ? 'up' : 'none';
     const def = GRINDS[kind];
     this.state = 'grind';
     this.ang = rail.ang;

@@ -15,6 +15,7 @@ const OUTFIT_OPTIONS = {
     { name: 'Alien', color: '#a593e6' },
     { name: 'Ice', color: '#bfe6f2' },
     { name: 'Gold Statue', color: '#e0b23c' },
+    { name: 'Ghost', color: '#eef3f8', secret: 'letters' },
   ],
   hat: [
     { name: 'Backwards Cap', type: 'capBack', color: '#26262b', accent: '#e2553f' },
@@ -33,6 +34,7 @@ const OUTFIT_OPTIONS = {
     { name: 'Propeller Beanie', type: 'propeller', color: '#2f80ed', accent: '#f4c542', stripe: '#e2553f' },
     { name: 'Viking Helmet', type: 'viking', color: '#9aa0a6', accent: '#f1e8cf' },
     { name: 'Halo', type: 'halo', color: '#e8c06a', accent: '#f4d35e' },
+    { name: 'Golden Beanie', type: 'beanie', color: '#e0b23c', accent: '#fff4c2', secret: 'letters' },
   ],
   top: [
     { name: 'Purple Hoodie', type: 'hoodie', color: '#6c4bd1', shade: '#5639ad', accent: '#f4f1ea' },
@@ -92,6 +94,7 @@ const OUTFIT_OPTIONS = {
       artColors: ['#ff3dbb', '#3dd6ff', '#c6ff3d'] },
     { name: 'Camo', grip: '#2f2f33', graphic: '#7a8a4a', art: 'dots', accent: '#4e5a30', wheel: '#a39a6a',
       artColors: ['#4e5a30', '#a39a6a', '#3d4a26'] },
+    { name: 'Golden Letters', grip: '#4a3a10', graphic: '#26262b', art: 'checker', accent: '#e0b23c', wheel: '#e0b23c', secret: 'letters' },
   ],
   // accessories on top of everything else
   extra: [

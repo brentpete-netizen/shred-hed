@@ -55,6 +55,8 @@ class Hud {
     if (ev.type === 'rep') this.news.push({ kind: 'rep', text: `+${ev.amount} REP`, t: 0, dur: 1.4 });
     else if (ev.type === 'newTrick') this.news.push({ kind: 'trick', text: `NEW TRICK: ${ev.name}`, t: 0, dur: 2 });
     else if (ev.type === 'level') this.levelUp = { level: ev.level, unlocked: ev.unlocked, t: 0 };
+    else if (ev.type === 'banner') this.levelUp = { title: ev.title, unlocked: ev.lines, t: 0 };
+    else if (ev.type === 'letter') this.news.push({ kind: 'trick', text: `GOLDEN ${ev.letter}!  ${ev.found} / ${ev.total}`, t: 0, dur: 2.2 });
     else if (ev.type === 'secret') {
       this.levelUp = ev.on
         ? { title: 'SECRET UNLOCKED!', unlocked: ['everything', 'plus 3 hidden maps'], t: 0 }
@@ -83,7 +85,7 @@ class Hud {
     ctx.fillStyle = 'rgba(243, 238, 225, 0.8)';
     ctx.fillRect(0, h * 0.36, w, h * 0.26);
     markerText(ctx, L.title || `LEVEL ${L.level}!`, w / 2, h * 0.44, Math.min(64, w / (L.title ? 11 : 8)), '#f4c542', -0.05, 1 + 0.4 * Math.exp(-L.t * 8));
-    const text = L.unlocked.length ? `unlocked: ${L.unlocked.join(', ')}` : 'keep shredding';
+    const text = L.title ? L.unlocked.join(' · ') : L.unlocked.length ? `unlocked: ${L.unlocked.join(', ')}` : 'keep shredding';
     markerText(ctx, text, w / 2, h * 0.53, Math.min(22, w / (text.length * 0.62)), '#ffffff', -0.02);
     ctx.globalAlpha = 1;
   }

@@ -142,11 +142,16 @@ function cpuSearch(terrain, target, budget) {
               // press the grind's direction just before touching the rail ("forward" means toward
               // the nose, which flips if you're fakie or spun a half turn)
               const facing = (air.fakie ? -1 : 1) * (Math.abs(air.halves) % 2 ? -1 : 1);
-              const key = grind === 'down' || grind === 'up' ? grind
-                : (grind === 'fwd') === (facing > 0) ? 'right' : 'left';
               const t = Math.max(0.02, r.lockT - 0.08);
-              plan.presses.push({ t, key });
-              plan.holds.push({ from: t, to: r.lockT + 0.15, key });
+              if (grind === 'dark') {
+                // both spin keys held at once
+                plan.holds.push({ from: t, to: r.lockT + 0.15, key: 'spinBack' }, { from: t, to: r.lockT + 0.15, key: 'spinFront' });
+              } else {
+                const key = grind === 'down' || grind === 'up' ? grind
+                  : (grind === 'fwd') === (facing > 0) ? 'right' : 'left';
+                plan.presses.push({ t, key });
+                plan.holds.push({ from: t, to: r.lockT + 0.15, key });
+              }
               r = cpuSimulate(terrain, plan);
             }
             if (r.landed && r.names === target) return plan;

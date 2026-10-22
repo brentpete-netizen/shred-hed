@@ -25,6 +25,8 @@ const UNLOCKS = {
 const UNLOCK_LEVEL = {};
 for (const [lvl, items] of Object.entries(UNLOCKS)) for (const [type, key] of items) UNLOCK_LEVEL[`${type}:${key}`] = +lvl;
 
+const TOTAL_LETTERS = 20; // S-K-A-T-E on each of the four maps
+
 const MAP_NAMES = { street: 'Street map', school: 'School Yard map', mega: 'Mega Ramp map' };
 const BUILDER_NAMES = { halfpipe: 'Halfpipe piece', kinkRail: 'Kink Rail piece', bankLedge: 'Bank-to-Ledge piece', diyQuarter: 'DIY Quarter piece', rollin: 'Roll-in tower start' };
 const unlockLabel = ([type, key]) => MAP_NAMES[key] || BUILDER_NAMES[key] || key;
@@ -61,6 +63,8 @@ const Progress = (() => {
     lockLevel(type, key) { return UNLOCK_LEVEL[`${type}:${key}`] || 0; },
     isUnlocked(type, key) {
       if (data.everything) return true;
+      const secretItem = (OUTFIT_OPTIONS[type] || []).find(o => o.name === key && o.secret);
+      if (secretItem) return api.secretOwned(secretItem);
       const need = api.lockLevel(type, key);
       return !need || api.level >= need || data.owned.includes(`${type}:${key}`);
     },
@@ -71,6 +75,45 @@ const Progress = (() => {
       store();
       events.push({ type: 'secret', on: data.everything });
     },
+
+    // little extras that change how the game plays or looks
+    cheat(name) { return !!(data.cheats && data.cheats[name]); },
+    toggleCheat(name, label) {
+      data.cheats = data.cheats || {};
+      data.cheats[name] = !data.cheats[name];
+      store();
+      events.push({ type: 'banner', title: `${label} ${data.cheats[name] ? 'ON' : 'OFF'}`, lines: [data.cheats[name] ? 'type it again to turn it off' : 'back to normal'] });
+    },
+
+    // golden letters hidden around the maps
+    hasLetter(mapId, i) { return !!(data.letters && data.letters[mapId] && data.letters[mapId].includes(i)); },
+    lettersFound() { return Object.values(data.letters || {}).reduce((n, l) => n + l.length, 0); },
+    get allLetters() { return api.lettersFound() >= TOTAL_LETTERS; },
+    collectLetter(mapId, i, letter) {
+      data.letters = data.letters || {};
+      const list = (data.letters[mapId] = data.letters[mapId] || []);
+      if (list.includes(i)) return;
+      list.push(i);
+      store();
+      const found = api.lettersFound();
+      events.push({ type: 'letter', letter, found, total: TOTAL_LETTERS });
+      if (found === TOTAL_LETTERS) {
+        events.push({ type: 'banner', title: 'ALL 20 LETTERS!', lines: ['secret skater unlocked: the Ghost', 'check the closet'] });
+      }
+    },
+
+    // hidden spots you find by doing something special
+    hasSpot(id) { return !!(data.spots && data.spots[id]) || !!data.everything; },
+    findSpot(id, name) {
+      data.spots = data.spots || {};
+      const first = !data.spots[id];
+      data.spots[id] = true;
+      store();
+      events.push({ type: 'banner', title: first ? 'SECRET SPOT FOUND!' : name.toUpperCase(), lines: [first ? `welcome to the ${name}` : 'you found it again'] });
+    },
+
+    // secret closet items (like the Ghost) only show up once you've earned them
+    secretOwned(item) { return !item.secret || !!data.everything || (item.secret === 'letters' && api.allLetters); },
 
     add(amount, reason) {
       if (amount <= 0) return;

@@ -52,7 +52,7 @@ class Ragdoll {
   get hip() { return this.p.hip; }
 
   step(dt, terrain) {
-    const g = terrain.gravity || CONFIG.gravity;
+    const g = terrain.gravity || (typeof Progress !== 'undefined' && Progress.cheat('lowgrav') ? 760 : CONFIG.gravity);
     this.hitCooldown -= dt;
     const all = [...Object.values(this.p), this.board.tail, this.board.nose];
     const old = new Map();

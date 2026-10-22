@@ -186,7 +186,8 @@ class Menu {
   change(row, dir) {
     this.row = row;
     const cat = OUTFIT_CATEGORIES[row][0], n = OUTFIT_OPTIONS[cat].length;
-    this.trying[cat] = (this.trying[cat] + dir + n) % n;
+    // secret items don't even show up until you've earned them
+    do { this.trying[cat] = (this.trying[cat] + dir + n) % n; } while (!Progress.secretOwned(OUTFIT_OPTIONS[cat][this.trying[cat]]));
     if (Progress.isUnlocked(cat, OUTFIT_OPTIONS[cat][this.trying[cat]].name)) Outfit.set(cat, this.trying[cat]);
     Sound.play('menuMove');
     if (cat === 'board' || cat === 'stance') this.kickflip(true); // show off the graphic underneath
@@ -356,7 +357,9 @@ class Menu {
       if (cardH > 170) lines.slice(0, 2).forEach((l, k) => ctx.fillText(l, x + cardW / 2, by + k * fs * 0.75));
       const best = Stats.map(m.id);
       ctx.font = `${Math.max(12, fs * 0.6)}px ${MARKER}`;
-      ctx.fillText(best.bestCombo ? `best combo ${fmtScore(best.bestCombo)}` : 'not skated yet', x + cardW / 2, Math.min(y + cardH - fs * 0.95, by + fs * 1.7));
+      const gold = [0, 1, 2, 3, 4].filter(i => Progress.hasLetter(m.id, i)).length; // only hinted once you've found one
+      const line = (best.bestCombo ? `best combo ${fmtScore(best.bestCombo)}` : 'not skated yet') + (gold ? `  ·  ${gold}/5 ★` : '');
+      ctx.fillText(line, x + cardW / 2, Math.min(y + cardH - fs * 0.95, by + fs * 1.7));
       if (!Progress.isUnlocked('map', m.id)) this.drawLock(ctx, x, y, cardW, cardH, Progress.lockLevel('map', m.id));
       this.hit(x, y, cardW, cardH, () => this.pickMap(i));
     });
@@ -449,7 +452,8 @@ class Menu {
       ctx.fillStyle = INK;
       ctx.font = `${fs * 0.9}px ${HAND}`;
       ctx.fillText(label, rx + 12, y + rh * 0.42);
-      const opt = OUTFIT_OPTIONS[cat][this.trying[cat]], n = OUTFIT_OPTIONS[cat].length;
+      const visible = OUTFIT_OPTIONS[cat].filter(o => Progress.secretOwned(o));
+      const opt = OUTFIT_OPTIONS[cat][this.trying[cat]], n = visible.length;
       const locked = !Progress.isUnlocked(cat, opt.name);
       const midX = rx + rw * 0.6;
       markerText(ctx, opt.name, midX, y + rh * (locked ? 0.38 : 0.5), fs * 0.8, locked ? '#b9b4aa' : '#ffffff');
@@ -458,7 +462,7 @@ class Menu {
       markerText(ctx, '▶', rx + rw - 22, y + rh / 2, fs, '#ffffff');
       ctx.font = `${fs * 0.6}px ${HAND}`;
       ctx.fillStyle = INK;
-      ctx.fillText(`${this.trying[cat] + 1} of ${n}`, rx + 12, y + rh * 0.74);
+      ctx.fillText(`${visible.indexOf(opt) + 1} of ${n}`, rx + 12, y + rh * 0.74);
       this.hit(rx, y, rw * 0.45, rh, () => this.change(i, -1));
       this.hit(rx + rw * 0.45, y, rw * 0.55, rh, () => this.change(i, 1));
     });

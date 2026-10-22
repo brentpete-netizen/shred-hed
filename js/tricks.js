@@ -19,6 +19,11 @@ const TRICKS = {
   DL: { name: 'Laser Flip',      flip: -1, shuv: -2, dur: 0.52, pts: 450 },
   RU: { name: 'Hardflip',        flip:  1, shuv: -1, dur: 0.46, pts: 350 },
   LU: { name: 'Inward Heelflip', flip: -1, shuv:  1, dur: 0.46, pts: 350 },
+  // not in the help card...
+  LR: { name: 'Casper Flip',     flip:  3, shuv:  0, dur: 0.66, pts: 700 },
+  RL: { name: 'Ghost Flip',      flip:  1, shuv:  3, dur: 0.7, pts: 800 },
+  UD: { name: 'Hospital Flip',   flip:  1, shuv:  0, imp: 1, dur: 0.6, pts: 650 },
+  DU: { name: 'Nightmare Flip',  flip: -2, shuv:  2, dur: 0.66, pts: 900 },
 };
 
 const TRICKS_BY_NAME = Object.fromEntries(Object.values(TRICKS).map(t => [t.name, t]));
@@ -41,6 +46,7 @@ const GRINDS = {
   back: { name: '5-0',           pts: 150, perSec: 200 },
   down: { name: 'Boardslide',    pts: 200, perSec: 220 },
   up:   { name: 'Crooked Grind', pts: 250, perSec: 250 },
+  dark: { name: 'Darkslide',     pts: 600, perSec: 320 }, // board upside down; nobody tells you how
 };
 
 const MANUALS = {

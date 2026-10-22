@@ -122,6 +122,9 @@ const THEMES = {
   moon:   { ground: '#bdbac8', hatch: 'rgba(70, 66, 90, 0.25)', sky: 'space' },
   lava:   { ground: '#c97a5e', hatch: 'rgba(110, 30, 20, 0.25)', sky: 'volcano' },
   hill:   { ground: '#cfc6ae', hatch: 'rgba(100, 86, 60, 0.22)', sky: 'hills' },
+  roof:   { ground: '#9c958c', hatch: 'rgba(50, 46, 42, 0.28)', sky: 'downtown' },
+  pool:   { ground: '#b7dbe7', hatch: 'rgba(40, 90, 120, 0.25)', sky: 'suburb' },
+  drain:  { ground: '#aaa69c', hatch: 'rgba(60, 60, 56, 0.25)', sky: 'hills' },
 };
 
 function buildSkatepark() {
@@ -257,6 +260,57 @@ function buildHillBomb() {
   for (let x = 300; x < b.cur.x - 300; x += 650) b.scenery({ type: 'tree', x, y: b.pts.find(p => p.x >= x).y - 4, s: 1.1 });
   return b.build({ spawn: { x: 110, y: -700 }, theme: THEMES.hill, name: 'Hill Bomb' });
 }
+
+// Found, not given: each of these turns up when you pull off something special on a main map.
+
+function buildRooftops() {
+  const b = MapBuilder.wallStart(0, 0, 400);         // the stairwell door
+  b.front.push({ type: 'facade', x0: -160, x1: 0, top: -400, bottom: 0, style: 'shop' });
+  const alley = (drop, floor) => b.to(0, drop).flat(floor).line(drop / Math.sin(0.87), -0.87); // fall in, ride the ramp out
+  b.flat(260).prop('rail', 40, 180, 30).flat(300);  // skylight rail
+  alley(220, 120);
+  b.flat(120).prop('ledge', 20, 200, 34).flat(380);  // AC unit
+  const roof = b.cur.y;
+  b.bend(90, -0.5).line(30, -0.5);                   // chimney kicker
+  b.to(0, roof - b.cur.y);
+  b.flat(160);
+  alley(260, 100);
+  b.flat(200).prop('rail', 30, 300, 32).flat(420);   // the long pipe
+  b.qpEnd(220, 10);
+  for (const [x, y] of [[300, 0], [1200, 0], [2300, 0]]) b.scenery({ type: 'lamp', x, y });
+  b.front.push({ type: 'paint', x: 900, y: 120, text: 'NO SKATING' });
+  return b.build({ spawn: { x: 120, y: 0 }, theme: THEMES.roof, name: 'Rooftops' });
+}
+
+function buildPool() {
+  const b = MapBuilder.wallStart(0, 0, 260);         // the back fence
+  b.flat(320).prop('bench', 80, 150, 26);
+  // an empty pool: rounded coping, steep walls, a deep end
+  const wall = depth => (depth - 30 * (1 - Math.cos(1.3)) - 220 * (1 - Math.cos(1.3))) / Math.sin(1.3);
+  b.bend(30, 1.3).line(wall(250), 1.3).bend(220, 0).flat(260).bend(220, -1.3).line(wall(250), -1.3).bend(30, 0);
+  b.flat(300).prop('planter', 60, 160, 28).flat(200);
+  b.wallEnd(260);
+  b.front.push({ type: 'facade', x0: b.cur.x, x1: b.cur.x + 160, top: -260, bottom: 0, style: 'school' });
+  b.scenery({ type: 'building', x: 40, w: 420, h: 220, y: 0, color: '#e8d9c0' });
+  for (const x of [520, 1500]) b.scenery({ type: 'tree', x, y: 0, s: 1.2 });
+  return b.build({ spawn: { x: 120, y: 0 }, theme: THEMES.pool, name: 'Backyard Pool' });
+}
+
+function buildDrain() {
+  const b = MapBuilder.qpStart(0, 0, 320, 10);       // the curved drain walls
+  b.flat(300).prop('rail', 60, 360, 30).flat(500);   // a long drain pipe
+  b.line(160, 0.4).bend(200, 0).flat(260).bend(200, -0.4).line(160, -0.4); // the spillway dip
+  b.flat(200).prop('ledge', 40, 260, 26).flat(420);
+  b.qpEnd(320, 10);
+  for (const [x, c] of [[700, '#7fd36b'], [1700, '#e2553f'], [2500, '#2f80ed']]) b.scenery({ type: 'graffiti', x, y: -160, color: c });
+  return b.build({ spawn: { x: 420, y: 0 }, theme: THEMES.drain, name: 'Storm Drain' });
+}
+
+const HIDDEN_SPOTS = [
+  { id: 'rooftops', name: 'ROOFTOPS', title: 'Rooftops', blurb: 'You found the way up', build: buildRooftops },
+  { id: 'pool', name: 'BACKYARD POOL', title: 'Backyard Pool', blurb: "Don't tell the neighbours", build: buildPool },
+  { id: 'drain', name: 'STORM DRAIN', title: 'Storm Drain', blurb: 'Deep, curved and secret', build: buildDrain },
+];
 
 const SECRET_MAPS = [
   { id: 'moon', name: 'MOON BASE', blurb: 'Low gravity. Very low.', build: buildMoon },
