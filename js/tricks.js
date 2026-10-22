@@ -36,6 +36,9 @@ const GRABS = {
   L: { name: 'Melon',     pts: 200, hand: 'front', l: 4,   side: -1, roll: -0.35, pitch: 0.1 },
   D: { name: 'Stalefish', pts: 300, hand: 'back',  l: -16, side: -1, roll: -0.3,  pitch: -0.2 },
   U: { name: 'Method',    pts: 300, hand: 'front', l: 6,   side: -1, roll: -0.95, pitch: 0.3 },
+  // two quick taps while holding Space, like the combo flips
+  // Christ Air: board held out at arm's length, arms spread, legs hanging straight down
+  UD: { name: 'Christ Air', pts: 600, hand: 'front', l: 0, side: 1, roll: 0.25, pitch: 0, christ: true },
 };
 const GRAB_TWEAK_PTS = 250; // per second held
 

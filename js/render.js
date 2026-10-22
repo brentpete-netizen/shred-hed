@@ -284,9 +284,10 @@ function riderPose(sk) {
 
   // grabs pull the board up to your hand and tweak it
   const grab = sk.grab ? sk.grab.def : sk.lastGrab, ga = grab ? sk.grabAmt : 0;
+  const christ = grab?.christ ? ga : 0; // how far into a Christ Air (see below)
   let center = ride;
   if (ga > 0.01) {
-    center = add(ride, N, 15 * ga);
+    center = add(ride, N, (christ ? 0 : 15) * ga);
     roll += grab.roll * sk.facing * ga;
     pitch += grab.pitch * ga;
   }
@@ -343,10 +344,25 @@ function riderPose(sk) {
   if (sk.braking) lean -= 0.25;
   if (sk.manual) lean += sk.manual.bal * 0.45;
   lean = lerp(lean, 0.06 + (rot.active ? 0.18 : 0), sk.airAmt) + 0.4 * ga;
+  lean = lerp(lean, -0.04, christ); // standing tall in a Christ Air
   const torsoDir = add({ x: N.x * Math.cos(lean), y: N.y * Math.cos(lean) }, F, Math.sin(lean));
   const neck = add(hip, torsoDir, TORSO);
   const shoulder = add(add(hip, torsoDir, TORSO - 6), F, 1);
   const head = add(add(neck, torsoDir, HEAD_R + 4), F, 2);
+
+  // Christ Air: the board comes off your feet, held up on end at arm's length out in front,
+  // and your legs hang straight down together, making a cross with your spread arms.
+  if (christ > 0.01) {
+    const held = add(add(shoulder, torsoDir, 12), F, 29);
+    board.cx = lerp(board.cx, held.x, christ);
+    board.cy = lerp(board.cy, held.y, christ);
+    board.pitch += 1.45 * christ;
+    board.pivotL = lerp(board.pivotL, 0, christ); // turned on end around its middle, not a truck
+    board.pivotN = lerp(board.pivotN, 0, christ);
+    const down = { x: -N.x, y: -N.y };
+    front = mix(front, add(add(hip, down, 47), F, 2.5), christ);
+    back = mix(back, add(add(hip, down, 46), F, -2.5), christ);
+  }
 
   const legs = {
     front: solveLeg(hip, front, F),
@@ -364,6 +380,9 @@ function riderPose(sk) {
     backBend: lerp(0.5, 0.75, air),
     frontBend: lerp(0.55, 0.6, air),
   };
+  // spread out straight behind you in a Christ Air
+  armAng.back = lerp(armAng.back, -1.65, christ);
+  armAng.backBend = lerp(armAng.backBend, 0.08, christ);
   const D = { x: -torsoDir.x, y: -torsoDir.y };
   const armDir = th => add({ x: D.x * Math.cos(th), y: D.y * Math.cos(th) }, F, Math.sin(th));
   const arm = (th, bend) => {

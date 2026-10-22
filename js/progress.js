@@ -35,6 +35,9 @@ for (const [lvl, items] of Object.entries({
   11: [['grip', 'Gold'], ['hat', 'Black Helmet']],
   12: [['grip', 'Galaxy'], ['top', 'Black Flannel']],
 })) UNLOCKS[lvl].push(...items);
+// combo trails: a new one nearly every level (Glow and Off are yours from the start)
+['Ice', 'Fire', 'Toxic', 'Bubblegum', 'Lightning', 'Rainbow', 'Galaxy', 'Shadow', 'Gold']
+  .forEach((name, i) => UNLOCKS[i < 8 ? i + 2 : 11].push(['trail', name]));
 
 const UNLOCK_LEVEL = {};
 for (const [lvl, items] of Object.entries(UNLOCKS)) for (const [type, key] of items) UNLOCK_LEVEL[`${type}:${key}`] = +lvl;
@@ -43,7 +46,7 @@ const TOTAL_LETTERS = 20; // S-K-A-T-E on each of the four maps
 
 const MAP_NAMES = { street: 'Street map', school: 'School Yard map', mega: 'Mega Ramp map' };
 const BUILDER_NAMES = { halfpipe: 'Halfpipe piece', kinkRail: 'Kink Rail piece', bankLedge: 'Bank-to-Ledge piece', diyQuarter: 'DIY Quarter piece', rollin: 'Roll-in tower start' };
-const unlockLabel = ([type, key]) => MAP_NAMES[key] || BUILDER_NAMES[key] || key;
+const unlockLabel = ([type, key]) => MAP_NAMES[key] || BUILDER_NAMES[key] || (type === 'trail' ? `${key} trail` : key);
 
 const Progress = (() => {
   const KEY = 'shredHed.progress';

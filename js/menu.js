@@ -535,7 +535,8 @@ class Menu {
   }
 
   // The skater modelling what you're trying on (locked or not). Returns where it's drawn.
-  drawPreview(ctx, w, h, dpr, wide, zoom = 1) {
+  // trail: a combo trail style to show swooping around the model
+  drawPreview(ctx, w, h, dpr, wide, zoom = 1, trail = null) {
     const p = this.preview;
     const k = zoom * Math.min(wide ? h * 0.0042 : h * 0.0026, wide ? w * 0.0026 : w * 0.006);
     const cx = wide ? w * 0.3 : w / 2, gy = wide ? h * 0.82 : h * 0.47;
@@ -543,6 +544,7 @@ class Menu {
     ctx.setTransform(dpr * k, 0, 0, dpr * k, dpr * cx - p.pos.x * dpr * k, dpr * gy - p.pos.y * dpr * k);
     Sketch.seedFor(7);
     Sketch.stroke(ctx, [{ x: p.pos.x - 90, y: p.pos.y }, { x: p.pos.x + 90, y: p.pos.y }], { color: INK, width: 3, amp: 1 });
+    if (trail) ComboTrail.drawDemo(ctx, p.pos.x, p.pos.y - 55, 72, performance.now() / 1000, trail);
     p.outfit = this.trying;
     drawSkater(ctx, p);
     ctx.restore();
@@ -552,7 +554,9 @@ class Menu {
   drawCloset(ctx, w, h, dpr) {
     const wide = w > h * 1.1;
     markerText(ctx, 'CLOSET', wide ? w * 0.3 : w / 2, Math.min(60, h * 0.09), Math.min(52, w / 9), '#ffffff', -0.04);
-    const { cx } = this.drawPreview(ctx, w, h, dpr, wide);
+    // picking a trail: show it swooping round your skater
+    const showTrail = OUTFIT_CATEGORIES[this.row][0] === 'trail' ? OUTFIT_OPTIONS.trail[this.trying.trail] : null;
+    const { cx } = this.drawPreview(ctx, w, h, dpr, wide, 1, showTrail);
 
     // picking a board or grip: hold the board up so you can see it properly
     const rowCat = OUTFIT_CATEGORIES[this.row][0];

@@ -307,6 +307,7 @@ function render() {
   else {
     drawFx(ctx, skater.fx);
     Bonus.draw(ctx, time);
+    ComboTrail.draw(ctx, skater, time);
     drawSkater(ctx, skater);
   }
 
@@ -400,6 +401,7 @@ function frame(now) {
   }
   skater.out.length = 0;
   if (mode === 'play') {
+    ComboTrail.update(skater, dt);
     const warp = Bonus.update(skater, dt, !skateGame && !testRide);
     if (warp) { loadMap(warp); menu.lastChoice = { map: warp, game: 'free' }; }
   }

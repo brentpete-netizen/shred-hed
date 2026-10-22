@@ -172,12 +172,27 @@ const OUTFIT_OPTIONS = {
     { name: 'X', cut: 'x' },
     { name: 'Skull', cut: 'skull' },
   ],
+  // the glowing trail you leave once you're two tricks into a combo (see trail.js)
+  //   colors: outer glow first, white-hot core last · rainbow / flicker / zap / sparkle: extra effects
+  trail: [
+    { name: 'Glow', colors: ['#ffd84a', '#fff1a0', '#fffbe6'] },
+    { name: 'Ice', colors: ['#5cc8ff', '#a8e8ff', '#f2fdff'] },
+    { name: 'Fire', colors: ['#e2553f', '#ff8c2e', '#ffe680'], flicker: true },
+    { name: 'Toxic', colors: ['#5fc232', '#a6f05c', '#efffc4'] },
+    { name: 'Bubblegum', colors: ['#ff5fae', '#ff9fcf', '#fff0f7'] },
+    { name: 'Lightning', colors: ['#3fa9ff', '#a8dcff', '#ffffff'], zap: true },
+    { name: 'Rainbow', colors: ['#ffffff', '#ffffff', '#ffffff'], rainbow: true },
+    { name: 'Galaxy', colors: ['#4b2fa8', '#9a7cff', '#efe8ff'], sparkle: '#ffffff' },
+    { name: 'Shadow', colors: ['#1c1c20', '#3a3a44', '#6a6a78'] },
+    { name: 'Gold', colors: ['#c8931c', '#f4c542', '#fff6d0'], sparkle: '#fffbe6' },
+    { name: 'Off', off: true },
+  ],
 };
 
 // 'sag' isn't a list of looks, it's a slider in the closet (see SAG_MAX).
 const OUTFIT_CATEGORIES = [
   ['skin', 'Skin'], ['hat', 'Head'], ['top', 'Top'], ['pants', 'Pants'], ['sag', 'Sag'], ['shoes', 'Shoes'], ['board', 'Board'],
-  ['grip', 'Grip'], ['cutout', 'Grip Cut'], ['extra', 'Extra'], ['stance', 'Stance'],
+  ['grip', 'Grip'], ['cutout', 'Grip Cut'], ['trail', 'Trail'], ['extra', 'Extra'], ['stance', 'Stance'],
 ];
 
 // How high or low you wear your pants: 0 = pulled way up, SAG_NORMAL = regular, SAG_MAX = boxers out.

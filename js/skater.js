@@ -473,7 +473,14 @@ class Skater {
   grabInput(k) {
     const g = this.grab;
     if (!g) return this.startGrab(k);
-    if (g.t <= CONFIG.comboWindow && k !== g.key) {
+    if (g.t > CONFIG.comboWindow) return;
+    if (g.key.length === 1 && GRABS[g.key + k]) {
+      // a second quick tap: a two-tap grab like the Christ Air (↑ then ↓)
+      g.key += k;
+      g.def = GRABS[g.key];
+      this.lastGrab = g.def;
+      this.renameEntry(g.entry, g.def.name, g.def.pts);
+    } else if (k !== g.key) {
       g.key = k;
       g.def = GRABS[k];
       this.lastGrab = g.def;
