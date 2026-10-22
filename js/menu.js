@@ -73,7 +73,7 @@ class Menu {
         if (e === 'up') { this.row = (this.row + n - 1) % n; Sound.play('menuMove'); }
         else if (e === 'down') { this.row = (this.row + 1) % n; Sound.play('menuMove'); }
         else if (e === 'left' || e === 'right') this.change(this.row, e === 'right' ? 1 : -1);
-        else if (e === 'carry') this.openFit();
+        else if (e === 'fit') this.openFit();
         else if (e === 'start' || e === 'menu') this.back();
       } else if (this.screen === 'fit') {
         const n = FIT_SLIDERS.length;
@@ -82,7 +82,7 @@ class Menu {
         else if (e === 'left' || e === 'right') {
           const key = FIT_SLIDERS[this.fitRow].key;
           this.setFit(key, this.trying[key] + (e === 'right' ? 1 : -1));
-        } else if (e === 'start' || e === 'menu' || e === 'carry') this.closeFit();
+        } else if (e === 'start' || e === 'menu' || e === 'fit') this.closeFit();
       } else if (e === 'start' || e === 'menu' || e === 'left') {
         this.back();
       }

@@ -58,14 +58,6 @@ const CONFIG = {
   manualLean: 7,          // how hard ← / → push the balance back
   comboGrace: 0.35,       // after landing, this long to start a manual or revert and keep the combo going
 
-  // On foot (F picks the board up)
-  walkSpeed: 190,
-  walkAccel: 1400,
-  walkSteep: 0.55,        // slopes steeper than this slow you down and slide you back
-  footJumpSpeed: 430,
-  throwBoost: 160,        // speed a running throw down adds
-  cavemanTime: 0.1,       // the board needs this long in the air to get under your feet
-
   // Bails
   bailResetTime: 2.2,
   bailSkipTime: 0.5,      // after this long, any key gets you back up

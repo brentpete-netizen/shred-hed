@@ -112,15 +112,6 @@ const Sound = (() => {
       burst({ type: 'highpass', freq: 2200, dur: 0.08, gain: 0.25 });
     },
     push() { burst({ type: 'bandpass', freq: 450, Q: 0.7, dur: 0.18, gain: 0.16 }); },
-    step(p = 0.3) { // a sneaker on concrete
-      burst({ type: 'bandpass', freq: 600 + Math.random() * 200, Q: 1.2, dur: 0.05, gain: 0.05 + 0.2 * p });
-      if (p > 0.4) tone({ freq: 90, to: 50, dur: 0.08, gain: 0.25 * p });
-    },
-    pickup() { // grabbing the deck: a woody clack and the wheels spinning down
-      burst({ type: 'highpass', freq: 1600, dur: 0.03, gain: 0.22 });
-      tone({ freq: 210, to: 120, dur: 0.08, gain: 0.18 });
-      burst({ type: 'bandpass', freq: 2600, Q: 3, dur: 0.25, gain: 0.04, delay: 0.03 });
-    },
     pivot() { burst({ type: 'bandpass', freq: 700, Q: 1, dur: 0.12, gain: 0.12 }); },
     thud(p = 0.5) { // body hitting the ground
       tone({ freq: 80, to: 40, dur: 0.16, gain: 0.3 + 0.4 * p });
@@ -157,11 +148,6 @@ const Sound = (() => {
       case 'land': return m.onRail ? undefined : play('land', m.impact);
       case 'grindStart': return play('grind');
       case 'push': return play('push');
-      case 'footstep': return play('step', 0.15);
-      case 'jump': return play('step', 0.35);
-      case 'step': return play('step', m.power);
-      case 'pickup': return play('pickup');
-      case 'throwdown': return play('land', 0.35);
       case 'pivot': return play('pivot');
       case 'thud': return play('thud', m.power);
       case 'bail': return play('bail');
@@ -175,7 +161,7 @@ const Sound = (() => {
     if (!ac || !loops) return;
     const t = ac.currentTime, set = (param, v) => param.setTargetAtTime(v, t, 0.04);
     const speed = Math.abs(sk.v);
-    const rolling = active && sk.state === 'ground' && !sk.foot ? Math.min(1, speed / 800) : 0;
+    const rolling = active && sk.state === 'ground' ? Math.min(1, speed / 800) : 0;
     set(loops.roll.gain.gain, rolling * (sk.manual ? 0.18 : 0.3) * (0.9 + Math.random() * 0.2));
     set(loops.roll.filter.frequency, 250 + speed * 1.1);
     const grinding = active && sk.state === 'grind';

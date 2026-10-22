@@ -8,7 +8,8 @@ const Input = (() => {
     KeyS: 'down', ArrowDown: 'down',
     KeyA: 'left', ArrowLeft: 'left',
     KeyD: 'right', ArrowRight: 'right',
-    KeyQ: 'spinBack', KeyE: 'spinFront', Space: 'grab', KeyF: 'carry',
+    KeyQ: 'spinBack', KeyE: 'spinFront', Space: 'grab',
+    KeyF: 'fit', // the closet's Fit screen
     KeyH: 'help', KeyR: 'reset', KeyM: 'mute', Backquote: 'debug',
     Enter: 'start', Escape: 'menu',
     // park builder

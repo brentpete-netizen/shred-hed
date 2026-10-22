@@ -56,7 +56,3 @@ const MANUALS = {
 
 const SPIN_PTS = [0, 150, 400, 800, 1200, 1800]; // per half turns: 180, 360, 540...
 const REVERT_PTS = 100;
-
-// Carrying your board (F): drop it and hop on while running, or jump and put it under your feet.
-const THROWDOWN_PTS = 150;
-const CAVEMAN_PTS = 300;

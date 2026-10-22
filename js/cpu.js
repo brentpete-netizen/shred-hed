@@ -18,7 +18,6 @@ class CpuDriver {
     this.t = 0;
     this.popT = null;
     this.done = new Set();
-    this.picked = false;
   }
 
   step(sk) {
@@ -26,19 +25,13 @@ class CpuDriver {
     this.t += CPU_STEP;
     if (this.popT === null) {
       const dist = p.ollieX - sk.pos.x;
-      // a caveman: ride most of the way, then grab the board and jog up to the spot
-      if (p.caveman && !sk.foot && !this.picked && sk.state === 'ground' && dist < 140 && sk.flatEnough()) {
-        ev.push('carry');
-        this.picked = true;
-        return { ev, held };
-      }
       if (sk.facing === 1) {
         // push right up to speed; for a fakie trick, then revert so you're rolling backwards
         if (Math.abs(sk.v) < p.speed && !sk.pivot) held.add('right');
         else if (p.fakie && sk.state === 'ground' && !sk.push && !sk.pivot) ev.push('spinFront');
       }
       if (p.charge && dist < Math.abs(sk.v) * 0.4) held.add('down');
-      const ready = (!p.fakie || (sk.facing === -1 && !sk.pivot)) && (!p.caveman || sk.foot);
+      const ready = !p.fakie || (sk.facing === -1 && !sk.pivot);
       if (sk.state === 'ground' && dist <= 0 && ready) {
         ev.push('up');
         this.popT = this.t;
@@ -78,7 +71,6 @@ function cpuParse(target) {
   let air = null, grind = null;
   for (const part of parts) {
     if (GRIND_BY_NAME[part]) { if (grind) return null; grind = GRIND_BY_NAME[part]; continue; }
-    if (part === 'Caveman') { if (air || grind) return null; air = { caveman: true, fakie: false, halves: 0, flip: null, grab: null }; continue; }
     if (air || grind) return null; // flips after a grind, or two separate airs: too fancy for the CPU
     const m = part.match(/^(Fakie )?(?:(BS|FS) (\d+) ?)?(.*)$/);
     const rest = m[4];
@@ -121,7 +113,6 @@ function cpuSearch(terrain, target, budget) {
   const want = cpuParse(target);
   if (!want) return null;
   const { air, grind } = want;
-  if (air.caveman) return grind ? null : cpuSearchCaveman(terrain, target, budget);
   const presses = [], holds = [];
   if (air.flip) [...air.flip].forEach((k, i) => presses.push({ t: 0.03 + i * 0.06, key: KEY_EVENT[k] }));
   if (air.grab) {
@@ -172,21 +163,6 @@ function cpuSearch(terrain, target, budget) {
   return null;
 }
 
-// Ride up to a spot, pick the board up, jog the last bit, jump, and put the board under your
-// feet: where, and when to press F in the air, are the things to work out.
-function cpuSearchCaveman(terrain, target, budget) {
-  let sims = 0;
-  for (const spot of cpuSpots(terrain, null)) {
-    for (const t of [0.04, 0.08, 0.12, 0.16]) {
-      if (sims++ > budget) return null;
-      const plan = { ollieX: spot.x, speed: 300, charge: false, fakie: false, caveman: true, presses: [{ t, key: 'carry' }], holds: [] };
-      const r = cpuSimulate(terrain, plan, 10);
-      if (r.landed && r.names === target) return plan;
-    }
-  }
-  return null;
-}
-
 // Mess a plan up on purpose: flick too late, cut a spin short, hang onto a grab, or pop at the
 // wrong spot. Each idea is test-run and the first one that really fails is used.
 function cpuFluff(terrain, plan, target) {
@@ -212,7 +188,7 @@ function cpuFluff(terrain, plan, target) {
 // What the CPU tries to set, roughly from easy to hard.
 const CPU_SETS = [
   { tier: 0, names: ['Kickflip', 'Heelflip', 'Pop Shove-it', 'FS 180', 'BS 180', 'Indy', '50-50'] },
-  { tier: 1, names: ['Varial Kickflip', '360 Shove-it', 'BS 180 Kickflip', 'FS 180 Heelflip', 'Melon', 'Boardslide', '5-0', 'Kickflip + 50-50', 'Impossible', 'Caveman'] },
+  { tier: 1, names: ['Varial Kickflip', '360 Shove-it', 'BS 180 Kickflip', 'FS 180 Heelflip', 'Melon', 'Boardslide', '5-0', 'Kickflip + 50-50', 'Impossible'] },
   { tier: 2, names: ['Tre Flip', 'Laser Flip', 'Hardflip', 'Inward Heelflip', 'BS 360', 'Method', 'Nosegrind', 'Crooked Grind', 'Fakie Kickflip'] },
 ];
 
@@ -224,8 +200,7 @@ function cpuMissChance(target) {
     const grab = air?.grab ? GRABS[air.grab].pts : 0;
     const spin = air ? SPIN_PTS[Math.abs(air.halves)] || 0 : 0;
     const grind = GRIND_BY_NAME[part] ? GRINDS[GRIND_BY_NAME[part]].pts + 50 : 0;
-    const cave = air?.caveman ? CAVEMAN_PTS : 0;
-    return sum + flip + grab + spin + grind + cave + (air?.fakie ? 50 : 0);
+    return sum + flip + grab + spin + grind + (air?.fakie ? 50 : 0);
   }, 0);
   return clamp(0.12 + pts / 1200, 0.15, 0.5);
 }
