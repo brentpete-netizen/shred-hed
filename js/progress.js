@@ -21,6 +21,20 @@ const UNLOCKS = {
   12: [['skin', 'Alien'], ['board', 'Galaxy']],
   13: [['board', 'Gold'], ['skin', 'Gold Statue']],
 };
+// the tough stuff and grip, spread over the levels
+for (const [lvl, items] of Object.entries({
+  2:  [['top', 'Skull Tee'], ['grip', 'Red'], ['cutout', 'Smiley'], ['pants', 'Black Cargos']],
+  3:  [['hat', 'Black Beanie'], ['grip', 'Blue'], ['cutout', 'Heart'], ['extra', 'Band-Aid']],
+  4:  [['top', 'Leather Jacket'], ['shoes', 'Black High-Tops'], ['grip', 'Purple'], ['cutout', 'Star']],
+  5:  [['pants', 'Ripped Black Jeans'], ['hat', 'Black Snapback'], ['grip', 'Pink'], ['board', 'Black Flames']],
+  6:  [['top', 'Flame Tee'], ['extra', 'Spiked Collar'], ['cutout', 'Lightning'], ['grip', 'Teal']],
+  7:  [['top', 'Denim Vest'], ['pants', 'Chain Jeans'], ['board', 'Skull'], ['cutout', 'Diamond']],
+  8:  [['shoes', 'Steel-Toe Boots'], ['hat', 'Skull Bandana'], ['extra', 'Eye Patch'], ['grip', 'Camo']],
+  9:  [['top', 'Studded Jacket'], ['pants', 'Leather Pants'], ['cutout', 'Skull'], ['hat', 'Black Mohawk']],
+  10: [['pants', 'Flame Pants'], ['shoes', 'Flame Kicks'], ['board', 'Crossbones'], ['top', 'Moto Jersey']],
+  11: [['grip', 'Gold'], ['hat', 'Black Helmet']],
+  12: [['grip', 'Galaxy'], ['top', 'Black Flannel']],
+})) UNLOCKS[lvl].push(...items);
 
 const UNLOCK_LEVEL = {};
 for (const [lvl, items] of Object.entries(UNLOCKS)) for (const [type, key] of items) UNLOCK_LEVEL[`${type}:${key}`] = +lvl;
@@ -148,7 +162,7 @@ const Progress = (() => {
   if (!saved) {
     const s = Stats.data;
     data.rep = Math.floor(s.totalScore / 200) + 10 * Object.keys(s.tricks).length + 60 * s.skateWins + 20 * s.skateLosses;
-    for (const [cat] of OUTFIT_CATEGORIES) {
+    for (const cat in OUTFIT_OPTIONS) {
       const item = OUTFIT_OPTIONS[cat][Outfit.pick[cat]];
       if (item) data.owned.push(`${cat}:${item.name}`);
     }

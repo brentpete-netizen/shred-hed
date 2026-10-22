@@ -222,7 +222,11 @@ canvas.addEventListener('pointerdown', e => {
     if (r) menuPicked(r);
   } else if (mode === 'build') builder.pointerDown(e.clientX, e.clientY, e.button, builderToWorld);
 });
-canvas.addEventListener('pointerup', e => { if (mode === 'build') builder.pointerUp(e.clientX, e.clientY, builderToWorld); });
+canvas.addEventListener('pointerup', e => {
+  if (mode === 'build') builder.pointerUp(e.clientX, e.clientY, builderToWorld);
+  else if (mode === 'menu') menu.pointerMove(e.clientX, e.clientY, false);
+});
+canvas.addEventListener('pointermove', e => { if (mode === 'menu') menu.pointerMove(e.clientX, e.clientY, (e.buttons & 1) === 1); });
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 canvas.addEventListener('wheel', e => { if (mode === 'build') { e.preventDefault(); builder.wheel(e.deltaY || e.deltaX); } }, { passive: false });
 let time = 0, fps = 60, acc = 0, last = performance.now(), carry = [];

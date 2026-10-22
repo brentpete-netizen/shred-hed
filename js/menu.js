@@ -185,12 +185,30 @@ class Menu {
   // In the closet you can try on anything; only unlocked things actually get saved.
   change(row, dir) {
     this.row = row;
-    const cat = OUTFIT_CATEGORIES[row][0], n = OUTFIT_OPTIONS[cat].length;
+    const cat = OUTFIT_CATEGORIES[row][0];
+    if (cat === 'sag') return this.setSag(this.trying.sag + dir);
+    const n = OUTFIT_OPTIONS[cat].length;
     // secret items don't even show up until you've earned them
     do { this.trying[cat] = (this.trying[cat] + dir + n) % n; } while (!Progress.secretOwned(OUTFIT_OPTIONS[cat][this.trying[cat]]));
     if (Progress.isUnlocked(cat, OUTFIT_OPTIONS[cat][this.trying[cat]].name)) Outfit.set(cat, this.trying[cat]);
     Sound.play('menuMove');
     if (cat === 'board' || cat === 'stance') this.kickflip(true); // show off the graphic underneath
+  }
+
+  // the Sag slider: anything goes, nothing to unlock
+  setSag(v) {
+    v = clamp(Math.round(v), 0, SAG_MAX);
+    if (v === this.trying.sag) return;
+    this.trying.sag = v;
+    Outfit.set('sag', v);
+    Sound.play('menuMove');
+  }
+
+  // Dragging the Sag slider's knob (or clicking anywhere along the bar).
+  pointerMove(x, y, down) {
+    if (!down) { this.dragging = false; return; }
+    const s = this.sagBar;
+    if (this.dragging && s) this.setSag(((x - s.x) / s.w) * SAG_MAX);
   }
 
   kickflip(loud = false) {
@@ -215,7 +233,7 @@ class Menu {
 
   click(x, y) {
     for (const h of this.hits) {
-      if (x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h) { h.fn(); break; }
+      if (x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h) { h.fn(x, y); break; }
     }
     const r = this.result;
     this.result = null;
@@ -435,6 +453,21 @@ class Menu {
     drawSkater(ctx, p);
     ctx.restore();
 
+    // picking a board or grip: hold the board up so you can see it properly
+    const rowCat = OUTFIT_CATEGORIES[this.row][0];
+    if (rowCat === 'board' || rowCat === 'grip' || rowCat === 'cutout') {
+      const bk = Math.min(wide ? w * 0.3 : w * 0.7, 360) / DECK_L;
+      const by = wide ? h * 0.25 : h * 0.15, rock = Math.sin(performance.now() / 700) * 0.12;
+      // turned face-on to the camera: grip side for grip, the graphic for boards
+      const roll = Math.PI / 2 - CAM_TILT + (rowCat === 'board' ? Math.PI : 0) + rock;
+      ctx.save();
+      ctx.setTransform(dpr * bk, 0, 0, dpr * bk, dpr * cx, dpr * by);
+      Outfit.override = this.trying;
+      drawBoard(ctx, { cx: 0, cy: 0, ang: 0, facing: 1, roll, yaw: rock * 0.5, pitch: 0, pivotL: 0, pivotN: 0 });
+      Outfit.override = null;
+      ctx.restore();
+    }
+
     // category rows
     const rows = OUTFIT_CATEGORIES.length;
     const rx = wide ? w * 0.56 : 16, rw = wide ? Math.min(w * 0.4, 420) : w - 32;
@@ -452,6 +485,7 @@ class Menu {
       ctx.fillStyle = INK;
       ctx.font = `${fs * 0.9}px ${HAND}`;
       ctx.fillText(label, rx + 12, y + rh * 0.42);
+      if (cat === 'sag') return this.drawSagRow(ctx, i, rx, y, rw, rh, fs);
       const visible = OUTFIT_OPTIONS[cat].filter(o => Progress.secretOwned(o));
       const opt = OUTFIT_OPTIONS[cat][this.trying[cat]], n = visible.length;
       const locked = !Progress.isUnlocked(cat, opt.name);
@@ -474,6 +508,36 @@ class Menu {
     ctx.textBaseline = 'top';
     ctx.fillStyle = INK;
     ctx.fillText('↑ ↓ pick  ·  ← → change  ·  Esc done', rx + rw / 2, by + bh + 8);
+  }
+
+  // A slider: drag the knob (or press ← →) to wear your pants higher or lower.
+  drawSagRow(ctx, i, rx, y, rw, rh, fs) {
+    const v = this.trying.sag;
+    const x0 = rx + rw * 0.3, x1 = rx + rw - 24, cy = y + rh * 0.5;
+    this.sagBar = { x: x0, w: x1 - x0 };
+    Sketch.seedFor(260);
+    Sketch.stroke(ctx, [{ x: x0, y: cy }, { x: x1, y: cy }], { color: INK, width: 4, amp: 0.6 });
+    for (let k = 0; k <= SAG_MAX; k++) {
+      const tx = x0 + ((x1 - x0) * k) / SAG_MAX;
+      Sketch.stroke(ctx, [{ x: tx, y: cy - (k === SAG_NORMAL ? 7 : 4) }, { x: tx, y: cy + (k === SAG_NORMAL ? 7 : 4) }], thin(INK, k === SAG_NORMAL ? 2 : 1.2));
+    }
+    const kx = x0 + ((x1 - x0) * v) / SAG_MAX;
+    Sketch.circle(ctx, kx, cy, Math.min(11, rh * 0.22), this.dragging ? '#ef5a4a' : '#ffffff', { width: 2.2 });
+    ctx.font = `${fs * 0.5}px ${HAND}`;
+    ctx.fillStyle = INK;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('high', x0, cy + 8);
+    ctx.fillText('low', x1, cy + 8);
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.font = `${fs * 0.6}px ${HAND}`;
+    ctx.fillText(v === SAG_NORMAL ? 'normal' : v < SAG_NORMAL ? 'pulled up' : v >= SAG_MAX - 1 ? 'mega sag' : 'saggy', rx + 12, y + rh * 0.74);
+    this.hit(rx + rw * 0.25, y, rw * 0.75, rh, x => {
+      this.row = i;
+      this.dragging = true;
+      this.setSag(((x - x0) / (x1 - x0)) * SAG_MAX);
+    });
   }
 
   drawStats(ctx, w, h) {

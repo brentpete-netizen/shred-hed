@@ -35,6 +35,11 @@ const OUTFIT_OPTIONS = {
     { name: 'Viking Helmet', type: 'viking', color: '#9aa0a6', accent: '#f1e8cf' },
     { name: 'Halo', type: 'halo', color: '#e8c06a', accent: '#f4d35e' },
     { name: 'Golden Beanie', type: 'beanie', color: '#e0b23c', accent: '#fff4c2', secret: 'letters' },
+    { name: 'Black Beanie', type: 'beanie', color: '#26262b', accent: '#3d3d44' },
+    { name: 'Black Snapback', type: 'capBack', color: '#1c1c20', accent: '#e0b23c' },
+    { name: 'Black Mohawk', type: 'mohawk', color: '#26262b' },
+    { name: 'Skull Bandana', type: 'bandana', color: '#26262b', accent: '#f4f1ea', hair: '#26262b' },
+    { name: 'Black Helmet', type: 'helmet', color: '#1c1c20', accent: '#e2553f' },
   ],
   top: [
     { name: 'Purple Hoodie', type: 'hoodie', color: '#6c4bd1', shade: '#5639ad', accent: '#f4f1ea' },
@@ -51,6 +56,13 @@ const OUTFIT_OPTIONS = {
     { name: 'Varsity Jacket', type: 'varsity', color: '#c8463d', shade: '#a73930', accent: '#f4f1ea', sleeve: '#f4f1ea' },
     { name: 'Tuxedo', type: 'tux', color: '#26262b', shade: '#1c1c20', accent: '#e2553f', under: '#f4f1ea' },
     { name: 'Camo Hoodie', type: 'hoodie', color: '#7a8a4a', shade: '#66753d', accent: '#3d4a26', spots: ['#4e5a30', '#a39a6a', '#3d4a26'] },
+    { name: 'Leather Jacket', type: 'leather', color: '#24242a', shade: '#1a1a1f', accent: '#c0c5cc', under: '#e9e6de' },
+    { name: 'Studded Jacket', type: 'leather', color: '#24242a', shade: '#1a1a1f', accent: '#c0c5cc', under: '#c8463d', studs: true },
+    { name: 'Skull Tee', type: 'tee', color: '#26262b', shade: '#1c1c20', accent: '#f4f1ea', logo: 'skull' },
+    { name: 'Flame Tee', type: 'tee', color: '#26262b', shade: '#1c1c20', accent: '#e2553f', flames: ['#e2553f', '#f4c542'] },
+    { name: 'Denim Vest', type: 'vest', color: '#4a6aa8', shade: '#3d5890', accent: '#c0c5cc', under: '#26262b' },
+    { name: 'Black Flannel', type: 'flannel', color: '#3a3a40', shade: '#2c2c31', accent: '#111114', under: '#26262b' },
+    { name: 'Moto Jersey', type: 'jersey', color: '#26262b', shade: '#1c1c20', accent: '#e2553f' },
   ],
   pants: [
     { name: 'Baggy Cargos', type: 'cargo', color: '#6b7a3a', shade: '#59662f' },
@@ -63,6 +75,11 @@ const OUTFIT_OPTIONS = {
     { name: 'Ripped Jeans', type: 'jeans', color: '#5a7bbf', shade: '#4a69a6', ripped: true },
     { name: 'Camo Pants', type: 'cargo', color: '#7a8a4a', shade: '#66753d', spots: ['#4e5a30', '#a39a6a'] },
     { name: 'Plaid Pants', type: 'jeans', color: '#c8463d', shade: '#a73930', plaid: '#26262b' },
+    { name: 'Black Cargos', type: 'cargo', color: '#2e2e34', shade: '#232328' },
+    { name: 'Ripped Black Jeans', type: 'jeans', color: '#2e2e34', shade: '#232328', ripped: true },
+    { name: 'Leather Pants', type: 'jeans', color: '#1f1f23', shade: '#17171a', shine: '#5a5a64' },
+    { name: 'Chain Jeans', type: 'jeans', color: '#3f5fa8', shade: '#33508f', chain: '#c0c5cc' },
+    { name: 'Flame Pants', type: 'jeans', color: '#26262b', shade: '#1c1c20', flames: ['#e2553f', '#f4c542'] },
   ],
   shoes: [
     { name: 'White / Red', color: '#f4f1ea', sole: '#d8c9a3', accent: '#e2553f' },
@@ -75,6 +92,9 @@ const OUTFIT_OPTIONS = {
     { name: 'Neon Kicks', color: '#c6ff3d', sole: '#26262b', accent: '#ff3dbb' },
     { name: 'Light-Ups', color: '#26262b', sole: '#f4f1ea', accent: '#2f80ed', glow: ['#ff3dbb', '#3dd6ff', '#c6ff3d'] },
     { name: 'Combat Boots', color: '#5a3d24', sole: '#26262b', accent: '#26262b', high: true },
+    { name: 'Black High-Tops', color: '#26262b', sole: '#f4f1ea', accent: '#e2553f', high: true },
+    { name: 'Steel-Toe Boots', color: '#3a2a1c', sole: '#26262b', accent: '#9aa0a6', high: true, toecap: '#c0c5cc' },
+    { name: 'Flame Kicks', color: '#26262b', sole: '#f4c542', accent: '#e2553f' },
   ],
   board: [
     { name: 'Flames', grip: '#2f2f33', graphic: '#e2553f', art: 'flame', accent: '#f4c542', wheel: '#f1e8cf' },
@@ -95,6 +115,11 @@ const OUTFIT_OPTIONS = {
     { name: 'Camo', grip: '#2f2f33', graphic: '#7a8a4a', art: 'dots', accent: '#4e5a30', wheel: '#a39a6a',
       artColors: ['#4e5a30', '#a39a6a', '#3d4a26'] },
     { name: 'Golden Letters', grip: '#4a3a10', graphic: '#26262b', art: 'checker', accent: '#e0b23c', wheel: '#e0b23c', secret: 'letters' },
+    { name: 'Skull', grip: '#2f2f33', graphic: '#26262b', art: 'skull', accent: '#f4f1ea', wheel: '#f4f1ea',
+      artColors: ['#f4f1ea', '#f4f1ea', '#f4f1ea', '#f4f1ea', '#26262b', '#26262b'] },
+    { name: 'Crossbones', grip: '#2f2f33', graphic: '#c8463d', art: 'skull', accent: '#26262b', wheel: '#26262b',
+      artColors: ['#26262b', '#26262b', '#26262b', '#26262b', '#c8463d', '#c8463d'] },
+    { name: 'Black Flames', grip: '#2f2f33', graphic: '#1c1c20', art: 'flame', accent: '#e2553f', wheel: '#e2553f' },
   ],
   // accessories on top of everything else
   extra: [
@@ -105,24 +130,64 @@ const OUTFIT_OPTIONS = {
     { name: 'Scarf', type: 'scarf', color: '#e2553f', accent: '#f4f1ea' },
     { name: 'Gold Chain', type: 'chain', color: '#e0b23c' },
     { name: 'Hero Cape', type: 'cape', color: '#d64545', accent: '#a73930' },
+    { name: 'Spiked Collar', type: 'collar', color: '#26262b', accent: '#c0c5cc' },
+    { name: 'Eye Patch', type: 'patch', color: '#1c1c20' },
+    { name: 'Band-Aid', type: 'bandaid', color: '#e8c39a' },
   ],
   // which foot goes forward; goofy flicks flips and shove-its the other way round
   stance: [
     { name: 'Regular', goofy: false },
     { name: 'Goofy', goofy: true },
   ],
+  // griptape on top of the board ("Board Default" keeps the board's own)
+  grip: [
+    { name: 'Board Default', color: null },
+    { name: 'Black', color: '#2f2f33' },
+    { name: 'Red', color: '#c8463d' },
+    { name: 'Blue', color: '#2f80ed' },
+    { name: 'Green', color: '#5aa84a' },
+    { name: 'Purple', color: '#6c4bd1' },
+    { name: 'Pink', color: '#ff8fb8' },
+    { name: 'Orange', color: '#ff9f43' },
+    { name: 'Yellow', color: '#f4c542' },
+    { name: 'White', color: '#ece8de' },
+    { name: 'Teal', color: '#2fb5b0' },
+    { name: 'Camo', color: '#7a8a4a', speckle: ['#4e5a30', '#a39a6a'] },
+    { name: 'Galaxy', color: '#2b1d4a', speckle: ['#f4f1ea', '#a593e6'] },
+    { name: 'Gold', color: '#e0b23c', speckle: ['#fff4c2'] },
+  ],
+  // shapes cut out of the griptape so the wood shows through (see GRIP_CUTS in render.js)
+  cutout: [
+    { name: 'None', cut: null },
+    { name: 'Stripe', cut: 'stripe' },
+    { name: 'Center Line', cut: 'line' },
+    { name: 'Two Bars', cut: 'bars' },
+    { name: 'Smiley', cut: 'smiley' },
+    { name: 'Heart', cut: 'heart' },
+    { name: 'Star', cut: 'star' },
+    { name: 'Lightning', cut: 'bolt' },
+    { name: 'Cross', cut: 'cross' },
+    { name: 'Diamond', cut: 'diamond' },
+    { name: 'X', cut: 'x' },
+    { name: 'Skull', cut: 'skull' },
+  ],
 };
 
+// 'sag' isn't a list of looks, it's a slider in the closet (see SAG_MAX).
 const OUTFIT_CATEGORIES = [
-  ['skin', 'Skin'], ['hat', 'Head'], ['top', 'Top'], ['pants', 'Pants'], ['shoes', 'Shoes'], ['board', 'Board'],
-  ['extra', 'Extra'], ['stance', 'Stance'],
+  ['skin', 'Skin'], ['hat', 'Head'], ['top', 'Top'], ['pants', 'Pants'], ['sag', 'Sag'], ['shoes', 'Shoes'], ['board', 'Board'],
+  ['grip', 'Grip'], ['cutout', 'Grip Cut'], ['extra', 'Extra'], ['stance', 'Stance'],
 ];
+
+// How high or low you wear your pants: 0 = pulled way up, SAG_NORMAL = regular, SAG_MAX = boxers out.
+const SAG_NORMAL = 3, SAG_MAX = 10;
 
 const Outfit = (() => {
   const KEY = 'shredHed.outfit';
-  const pick = { skin: 1, hat: 0, top: 0, pants: 0, shoes: 0, board: 0, extra: 0, stance: 0 };
+  const pick = { skin: 1, hat: 0, top: 0, pants: 0, shoes: 0, board: 0, extra: 0, stance: 0, grip: 0, cutout: 0, sag: SAG_NORMAL };
   try { Object.assign(pick, JSON.parse(localStorage.getItem(KEY)) || {}); } catch (e) { /* no saved outfit */ }
-  for (const cat in pick) pick[cat] = ((pick[cat] % OUTFIT_OPTIONS[cat].length) + OUTFIT_OPTIONS[cat].length) % OUTFIT_OPTIONS[cat].length;
+  for (const cat in OUTFIT_OPTIONS) pick[cat] = ((pick[cat] % OUTFIT_OPTIONS[cat].length) + OUTFIT_OPTIONS[cat].length) % OUTFIT_OPTIONS[cat].length;
+  pick.sag = Math.max(0, Math.min(SAG_MAX, Math.round(+pick.sag) || 0));
 
   return {
     pick,
@@ -130,6 +195,10 @@ const Outfit = (() => {
     get(cat) {
       const from = this.override && this.override[cat] !== undefined ? this.override : pick;
       return OUTFIT_OPTIONS[cat][from[cat]];
+    },
+    // skaters who don't say how they wear their pants wear them normal
+    sag() {
+      return this.override ? this.override.sag ?? SAG_NORMAL : pick.sag;
     },
     set(cat, index) {
       pick[cat] = index;

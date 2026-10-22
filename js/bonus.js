@@ -26,11 +26,11 @@ const LETTER_SPOTS = {
     copingSpot(T, 1, 150),           // E: out of the gym bank
   ],
   mega: T => {
-    const lip = T.points.find(p => p.x > 1000 && p.y <= -119.5) || { x: 1900, y: -120 };
+    const lip = T.kickerLip;
     return [
       aboveGround(T, 150, 90),         // S: up on the tower
-      { x: lip.x + 300, y: -290 },     // K: way up off the mega kicker
-      aboveGround(T, lip.x + 900, 120), // A: over the landing ramp
+      { x: lip.x + 560, y: lip.y - 420 }, // K: way, way up off the mega kicker (ollie at the lip)
+      aboveGround(T, lip.x + 1350, 140), // A: over the landing ramp
       railSpot(T, 0, 0.5, 60),         // T: over the DIY ledge
       copingSpot(T, 1, 200),           // E: out of the mega quarter
     ];

@@ -172,7 +172,8 @@ class Skater {
     this.v += a * dt;
     const drag = (C.rollingFriction + C.airDrag * this.v * this.v) * dt;
     this.v = Math.abs(this.v) <= drag ? 0 : this.v - Math.sign(this.v) * drag;
-    this.v = clamp(this.v, -C.maxSpeed, C.maxSpeed);
+    const top = this.terrain.maxSpeed || C.maxSpeed;
+    this.v = clamp(this.v, -top, top);
     this.advance(dt);
 
     // a manual ends (and banks the combo) if you stop or roll onto a ramp

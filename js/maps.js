@@ -192,31 +192,37 @@ function buildSchool() {
   return b.build({ spawn: { x: 140, y: 0 }, theme: THEMES.school, name: 'School Yard' });
 }
 
+const MEGA = { tower: 900, kicker: 200, gap: 520, landing: 1150 };
+
 function buildMega() {
-  const b = MapBuilder.wallStart(0, -560, 300);
+  const b = MapBuilder.wallStart(0, -MEGA.tower, 320);
   b.flat(260);
   // roll-in: rounded lip, a long steep drop, and a big transition to the runway
-  b.bend(140, 0.9);
-  const drop = (0 - 520 * (1 - Math.cos(0.9))) - b.cur.y;
-  b.line(drop / Math.sin(0.9), 0.9).bend(520, 0);
+  b.bend(160, 0.9);
+  const drop = (0 - 700 * (1 - Math.cos(0.9))) - b.cur.y;
+  b.line(drop / Math.sin(0.9), 0.9).bend(700, 0);
   const runway = b.cur.x;
-  b.flat(600);
+  b.flat(900);
   // the mega kicker, the pit, and a long landing ramp
-  b.bend(320, -0.6);
-  b.line((120 - 320 * (1 - Math.cos(0.6))) / Math.sin(0.6), -0.6);
+  b.bend(420, -0.62);
+  b.line((MEGA.kicker - 420 * (1 - Math.cos(0.62))) / Math.sin(0.62), -0.62);
   const lip = { ...b.cur };
-  b.line(146, 0.96).flat(260).line(146, -0.96).flat(30);
-  b.to(720, -b.cur.y);
+  const wall = MEGA.kicker / Math.sin(0.96);
+  b.line(wall, 0.96).flat(MEGA.gap).line(wall, -0.96).flat(30);
+  b.to(MEGA.landing, -b.cur.y);
   // the DIY spot under the bridge
   const diy = b.cur.x;
   b.flat(250).to(90, -32).flat(60).to(90, 32).flat(120);
   b.prop('ledge', 0, 240, 28).flat(300).prop('rail', 60, 200, 30).flat(340);
-  b.qpEnd(280, 12);
-  b.front.push({ type: 'scaffold', x0: -160, x1: runway, top: -560 });
-  b.front.push({ type: 'paint', x: lip.x - 160, y: -40, text: 'SEND IT' });
+  b.qpEnd(340, 14);
+  b.front.push({ type: 'scaffold', x0: -160, x1: runway, top: -MEGA.tower });
+  b.front.push({ type: 'paint', x: lip.x - 200, y: -40, text: 'SEND IT' });
   b.scenery({ type: 'bridge', x0: diy - 200, x1: b.cur.x - 120, y: -430 });
   for (const [x, c] of [[diy + 140, '#e2553f'], [diy + 820, '#6c4bd1']]) b.scenery({ type: 'graffiti', x, y: -120, color: c });
-  return b.build({ spawn: { x: 120, y: -560 }, theme: THEMES.mega, name: 'Mega Ramp' });
+  const T = b.build({ spawn: { x: 120, y: -MEGA.tower }, theme: THEMES.mega, name: 'Mega Ramp' });
+  T.maxSpeed = 1950; // you can go faster than anywhere else down the big roll-in
+  T.kickerLip = lip;
+  return T;
 }
 
 // ---------------------------------------------------------------- the hidden ones
