@@ -398,12 +398,20 @@ class Menu {
   }
 
   drawMain(ctx, w, h, time) {
-    const size = Math.min(w / 6.2, h / 5.5, 140);
-    markerText(ctx, 'SHRED HED', w / 2, h * 0.2, size, '#f4c542', -0.06 + Math.sin(time * 3) * 0.015);
+    // the cracked skull logo: beside the title on wide screens, on top of it on tall ones
+    const stacked = w < h;
+    const size = Math.min(stacked ? w / 6.2 : w / 8, h / 5.5, 140);
+    const tilt = -0.06 + Math.sin(time * 3) * 0.015;
+    // (the title is about 5.6 × size wide; the skull about 0.87 × its height)
+    const skullH = stacked ? size * 1.2 : size * 1.55, side = stacked ? 0 : size * 0.72;
+    const tx = w / 2 + side;
+    if (stacked) drawSkullLogo(ctx, w / 2, h * 0.2 - size * 0.6 - skullH / 2, skullH, tilt * 1.5);
+    else drawSkullLogo(ctx, tx - size * 2.9 - skullH * 0.43, h * 0.2 + size * 0.05, skullH, tilt * 1.5 - 0.08);
+    markerText(ctx, 'SHRED HED', tx, h * 0.2, size, '#f4c542', tilt);
     Sketch.seedFor(95);
     Sketch.stroke(ctx, [
-      { x: w / 2 - size * 2.5, y: h * 0.2 + size * 0.72 },
-      { x: w / 2 + size * 2.3, y: h * 0.2 + size * 0.42 },
+      { x: tx - size * 2.5, y: h * 0.2 + size * 0.72 },
+      { x: tx + size * 2.3, y: h * 0.2 + size * 0.42 },
     ], { color: '#e2553f', width: size * 0.08, amp: 3 });
 
     // your level and how close you are to the next one
