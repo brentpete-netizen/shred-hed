@@ -543,6 +543,13 @@ function drawHead(ctx, h, up, F) {
   ctx.fill();
   Sketch.stroke(ctx, [add(add(h, F, 6), up, -5.8), add(add(h, F, 9), up, -4.6)], thin(INK, 1.4));
 
+  // Fit: tip the hat back or forward, and wear it pulled down or perched up (hair comes along)
+  const tipSide = Math.sign(up.y * F.x - up.x * F.y) || 1, lift = Outfit.fit('hatHeight') * 1.8;
+  ctx.save();
+  ctx.translate(h.x + up.x * lift, h.y + up.y * lift);
+  ctx.rotate(Outfit.fit('hatTilt') * 0.13 * tipSide);
+  ctx.translate(-h.x, -h.y);
+
   if (hat.type === 'beanie') {
     Sketch.shape(ctx, cap(R + 1.5), hat.color, HAT_LINE);
     Sketch.limb(ctx, [add(add(h, up, 1), back, R + 0.5), add(add(h, up, 1), F, R + 0.5)], 3, hat.accent, { amp: 0.2 });
@@ -639,6 +646,7 @@ function drawHead(ctx, h, up, F) {
       Sketch.circle(ctx, ear.x, ear.y, 4.3, hat.accent, { width: 2 });
     }
   }
+  ctx.restore();
 }
 
 const LONG_SLEEVES = new Set(['hoodie', 'flannel', 'varsity', 'tux', 'leather']);
@@ -665,9 +673,17 @@ function drawTorso(ctx, f, top) {
     const hood = add(add(neck, F, -6), up, 1);
     Sketch.circle(ctx, hood.x, hood.y, 7, top.shade, { width: 2 });
   }
+  // Fit: a cropped shirt shows your stomach, a long one hangs down over your pants
+  const len = Outfit.fit('shirtLen'), hem = -2 - len * (len < 0 ? 5 : 3.5);
   // a vest is open at the front, over a tee
-  Sketch.limb(ctx, [add(hip, up, -2), neck], width, top.type === 'vest' ? top.under : top.color);
+  Sketch.limb(ctx, [add(hip, up, Math.min(hem, -2)), neck], width, top.type === 'vest' ? top.under : top.color);
   const at = (k, side) => add(add(hip, up, k), F, side);
+  if (hem > 0) {
+    // cropped: bare stomach from the waistband up to a squared-off hem
+    const s = width / 2 - 0.5;
+    Sketch.shape(ctx, [at(-1, -s), at(-1, s), at(hem, s), at(hem, -s)], Outfit.get('skin').color, { color: INK, width: 2, amp: 0.4 });
+    Sketch.stroke(ctx, [at(hem * 0.45, s - 2.5), at(hem * 0.45 + 0.8, s - 3.5)], thin(INK, 1)); // belly button
+  }
   if (top.stripes) top.stripes.forEach((c, i) => Sketch.stroke(ctx, [at(10 + i * 5, -7.5), at(10 + i * 5, 7.5)], thin(c, 3)));
   if (top.swirl) top.swirl.forEach((c, i) => {
     const s = at(9 + i * 11, i ? -2 : 3);
@@ -725,19 +741,40 @@ function drawTorso(ctx, f, top) {
   }
 }
 
-function drawArm(ctx, arm, top, color, skin) {
+// The first `f` (0..1) of an arm [shoulder, elbow, hand], measured along it.
+function armPart(arm, f) {
   const [s, e, hand] = arm;
+  const l1 = Math.hypot(e.x - s.x, e.y - s.y), l2 = Math.hypot(hand.x - e.x, hand.y - e.y), d = f * (l1 + l2);
+  return d <= l1 ? [s, mix(s, e, d / Math.max(l1, 0.01))] : [s, e, mix(e, hand, (d - l1) / Math.max(l2, 0.01))];
+}
+
+function drawArm(ctx, arm, top, color, skin) {
+  const hand = arm[2];
   if (top.type === 'vest') color = top.under; // the tee's sleeves
-  if (LONG_SLEEVES.has(top.type)) {
-    Sketch.limb(ctx, arm, 6.5, top.sleeve || color);
-  } else if (top.type === 'tank') {
+  // Fit: sleeves rolled up, or pulled down long (over your hands, for long sleeves)
+  const roll = Outfit.fit('sleeves');
+  let handR = 3.2;
+  if (top.type === 'tank') {
     Sketch.limb(ctx, arm, 5, skin);
+  } else if (LONG_SLEEVES.has(top.type)) {
+    const len = 1 + 0.2 * roll;
+    if (len < 1) {
+      Sketch.limb(ctx, arm, 5, skin);
+      const part = armPart(arm, len), end = part[part.length - 1];
+      Sketch.limb(ctx, part, 6.5, top.sleeve || color);
+      Sketch.limb(ctx, [armPart(arm, len - 0.06).pop(), end], 8, top.sleeve || color, { amp: 0.2 }); // the rolled cuff
+    } else {
+      Sketch.limb(ctx, arm, 6.5, top.sleeve || color);
+      handR = 3.2 * (1 - (len - 1) * 1.2); // sweater paws
+    }
   } else {
-    Sketch.limb(ctx, [mix(s, e, 0.5), e, hand], 5, skin);
-    Sketch.limb(ctx, [s, mix(s, e, 0.6)], 7.5, color);
-    if (top.type === 'jersey') Sketch.limb(ctx, [mix(s, e, 0.5), mix(s, e, 0.6)], 7.5, top.accent, { amp: 0.1 });
+    const len = clamp(0.31 + 0.12 * roll, 0.06, 0.6);
+    Sketch.limb(ctx, arm, 5, skin);
+    const part = armPart(arm, len);
+    Sketch.limb(ctx, part, 7.5, color);
+    if (top.type === 'jersey') Sketch.limb(ctx, [armPart(arm, len - 0.03).pop(), part[part.length - 1]], 7.5, top.accent, { amp: 0.1 });
   }
-  Sketch.circle(ctx, hand.x, hand.y, 3.2, skin, { width: 1.5 });
+  if (handR > 0.6) Sketch.circle(ctx, hand.x, hand.y, handR, skin, { width: 1.5 });
 }
 
 // How you wear your pants, from the closet's Sag slider: `low` is 0..1 of sag below normal,
@@ -759,37 +796,47 @@ function drawLeg(ctx, f, leg, pants, color, skin, shoe, front) {
     Sketch.limb(ctx, [f.hip, top], 11, front ? BOXERS.color : BOXERS.shade, { amp: 0.3 });
     for (const k of [-2.5, 2]) Sketch.stroke(ctx, [add(f.hip, n, k), add(top, n, k)], thin(BOXERS.stripe, 1.1));
   }
+  // Fit: skinny or baggy, and the legs rolled up or stacked long over your shoes
+  const widen = 1 + 0.15 * Outfit.fit('pantsWidth'), cuffs = Outfit.fit('cuffs');
   if (pants.type === 'shorts') {
     Sketch.limb(ctx, [leg.knee, leg.foot], 6, skin);
     Sketch.limb(ctx, [mix(leg.foot, leg.knee, 0.3), leg.foot], 6, pants.sock);
     // saggy shorts end up hanging past your knees
-    if (low > 0) Sketch.limb(ctx, [hip, leg.knee, mix(leg.knee, leg.foot, 0.1 + 0.35 * low)], 11, color);
-    else Sketch.limb(ctx, [hip, mix(hip, leg.knee, 1.1)], 11, color);
+    if (low > 0) Sketch.limb(ctx, [hip, leg.knee, mix(leg.knee, leg.foot, 0.1 + 0.35 * low)], 11 * widen, color);
+    else Sketch.limb(ctx, [hip, mix(hip, leg.knee, 1.1)], 11 * widen, color);
   } else {
-    const w = pants.type === 'cargo' ? 11 : 9;
-    Sketch.limb(ctx, [hip, leg.knee, leg.foot], w, color);
+    const w = (pants.type === 'cargo' ? 11 : 9) * widen;
+    // rolled up: the leg ends partway down the shin, with your sock and ankle showing under the cuff
+    const endT = cuffs > 0 ? 1 - 0.2 * cuffs : 1, foot = mix(leg.knee, leg.foot, endT);
+    if (cuffs > 0) {
+      Sketch.limb(ctx, [mix(leg.knee, leg.foot, endT - 0.1), leg.foot], 6, skin);
+      Sketch.limb(ctx, [mix(leg.foot, leg.knee, 0.32), leg.foot], 6, '#f4f1ea');
+    }
+    Sketch.limb(ctx, [hip, leg.knee, foot], w, color);
+    if (cuffs > 0) Sketch.limb(ctx, [mix(leg.knee, foot, 0.9), foot], w + 2, color, { amp: 0.2 });
     if (pants.type === 'cargo') {
       const m = mix(hip, leg.knee, 0.62);
       const d = Math.hypot(leg.knee.x - hip.x, leg.knee.y - hip.y) || 1;
       const dx = (leg.knee.x - hip.x) / d, dy = (leg.knee.y - hip.y) / d;
       const sq = [[-3, -2.5], [3, -2.5], [3, 2.5], [-3, 2.5]].map(([a, b]) => ({ x: m.x + dx * a - dy * b, y: m.y + dy * a + dx * b }));
       Sketch.stroke(ctx, sq, { ...thin(INK, 1.2), closed: true });
-      Sketch.limb(ctx, [mix(leg.knee, leg.foot, 0.8), mix(leg.knee, leg.foot, 0.93)], w + 1.5, color, { amp: 0.2 });
+      if (cuffs <= 0) Sketch.limb(ctx, [mix(leg.knee, foot, 0.8), mix(leg.knee, foot, 0.93)], w + 1.5, color, { amp: 0.2 });
     }
-    // the lower you wear them, the more they bunch up over your shoes
-    if (low > 0.3) Sketch.limb(ctx, [mix(leg.knee, leg.foot, 0.78), mix(leg.knee, leg.foot, 0.95)], w + 1 + 2.5 * low, color, { amp: 0.4 });
-    if (pants.stripe) Sketch.stroke(ctx, [hip, leg.knee, mix(leg.knee, leg.foot, 0.85)], thin(pants.stripe, 1.8));
-    if (pants.spots) [[hip, leg.knee, 0.3], [hip, leg.knee, 0.72], [leg.knee, leg.foot, 0.35], [leg.knee, leg.foot, 0.72]].forEach(([a, b, t], i) => {
+    // the lower you wear them (or the longer the legs), the more they bunch up over your shoes
+    const bunch = cuffs > 0 ? 0 : Math.max(low > 0.3 ? 2.5 * low : 0, -cuffs * 0.9);
+    if (bunch > 0) Sketch.limb(ctx, [mix(leg.knee, foot, 0.8), mix(leg.knee, foot, 0.93)], Math.min(w + 1 + bunch, 15), color, { amp: 0.4 });
+    if (pants.stripe) Sketch.stroke(ctx, [hip, leg.knee, mix(leg.knee, foot, 0.85)], thin(pants.stripe, 1.8));
+    if (pants.spots) [[hip, leg.knee, 0.3], [hip, leg.knee, 0.72], [leg.knee, foot, 0.35], [leg.knee, foot, 0.72]].forEach(([a, b, t], i) => {
       const p = add(mix(a, b, t), perp(a, b), i % 2 ? 1.5 : -1.5);
       Sketch.circle(ctx, p.x, p.y, 2.4, pants.spots[i % pants.spots.length], { width: 0.8, amp: 0.4 });
     });
-    if (pants.plaid) for (const [a, b] of [[hip, leg.knee], [leg.knee, leg.foot]]) {
+    if (pants.plaid) for (const [a, b] of [[hip, leg.knee], [leg.knee, foot]]) {
       const n = perp(a, b);
-      for (const t of [0.3, 0.7]) { const p = mix(a, b, t); Sketch.stroke(ctx, [add(p, n, -4.5), add(p, n, 4.5)], thin(pants.plaid, 1.2)); }
+      for (const t of [0.3, 0.7]) { const p = mix(a, b, t); Sketch.stroke(ctx, [add(p, n, -4.5 * widen), add(p, n, 4.5 * widen)], thin(pants.plaid, 1.2)); }
       Sketch.stroke(ctx, [add(mix(a, b, 0.1), n, 1.5), add(mix(a, b, 0.9), n, 1.5)], thin(pants.plaid, 1));
     }
     if (pants.ripped) {
-      const n = perp(leg.knee, leg.foot);
+      const n = perp(leg.knee, foot);
       Sketch.stroke(ctx, [add(leg.knee, n, -3), add(leg.knee, n, 3)], thin(skin, 2.6));
       const t = mix(hip, leg.knee, 0.45), n2 = perp(hip, leg.knee);
       Sketch.stroke(ctx, [add(t, n2, -2), add(t, n2, 2.5)], thin(skin, 1.8));
@@ -797,13 +844,13 @@ function drawLeg(ctx, f, leg, pants, color, skin, shoe, front) {
     if (pants.shine) {
       const n = perp(hip, leg.knee);
       Sketch.stroke(ctx, [add(mix(hip, leg.knee, 0.15), n, 2), add(mix(hip, leg.knee, 0.85), n, 2)], thin(pants.shine, 1.6));
-      Sketch.stroke(ctx, [add(mix(leg.knee, leg.foot, 0.1), n, 1.5), add(mix(leg.knee, leg.foot, 0.6), n, 1.5)], thin(pants.shine, 1.3));
+      Sketch.stroke(ctx, [add(mix(leg.knee, foot, 0.1), n, 1.5), add(mix(leg.knee, foot, 0.6), n, 1.5)], thin(pants.shine, 1.3));
     }
     if (pants.flames) {
       // flames licking up from the cuffs
-      const n = perp(leg.knee, leg.foot);
+      const n = perp(leg.knee, foot);
       [-1, 0, 1].forEach((k, i) => {
-        const base = add(mix(leg.knee, leg.foot, 0.97), n, k * 3), tip = add(mix(leg.knee, leg.foot, k ? 0.55 : 0.35), n, k * 1.2);
+        const base = add(mix(leg.knee, foot, 0.97), n, k * 3), tip = add(mix(leg.knee, foot, k ? 0.55 : 0.35), n, k * 1.2);
         Sketch.stroke(ctx, [base, add(mix(base, tip, 0.5), n, k ? -k * 1.5 : 1.5), tip], thin(pants.flames[i % 2], 2.4));
       });
     }

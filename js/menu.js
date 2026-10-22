@@ -6,6 +6,14 @@ const PX_PER_FT = 23; // the skater is about 5.5 ft tall
 const MAIN_ITEMS = ['FREE SKATE', 'S.K.A.T.E.', 'PARK BUILDER', 'CLOSET', 'STATS', 'AUDIO'];
 const VERSUS_ITEMS = ['VS CPU', '2 PLAYERS'];
 
+// What a Fit slider's setting looks like in words: "normal", "a bit baggy", "skinny"...
+function fitWords(f, v) {
+  if (f.key === 'sag') return v === SAG_NORMAL ? 'normal' : v < SAG_NORMAL ? 'pulled up' : v >= SAG_MAX - 1 ? 'mega sag' : 'saggy';
+  if (v === f.normal) return 'normal';
+  const end = f.ends[v < f.normal ? 0 : 1], far = Math.abs(v - f.normal) >= (f.max - f.normal) * 0.66;
+  return far ? end : `a bit ${end}`;
+}
+
 class Menu {
   constructor(preview, mapId = 'park') {
     this.preview = preview;   // a second skater who models outfits in the closet
@@ -65,7 +73,16 @@ class Menu {
         if (e === 'up') { this.row = (this.row + n - 1) % n; Sound.play('menuMove'); }
         else if (e === 'down') { this.row = (this.row + 1) % n; Sound.play('menuMove'); }
         else if (e === 'left' || e === 'right') this.change(this.row, e === 'right' ? 1 : -1);
+        else if (e === 'carry') this.openFit();
         else if (e === 'start' || e === 'menu') this.back();
+      } else if (this.screen === 'fit') {
+        const n = FIT_SLIDERS.length;
+        if (e === 'up') { this.fitRow = (this.fitRow + n - 1) % n; Sound.play('menuMove'); }
+        else if (e === 'down') { this.fitRow = (this.fitRow + 1) % n; Sound.play('menuMove'); }
+        else if (e === 'left' || e === 'right') {
+          const key = FIT_SLIDERS[this.fitRow].key;
+          this.setFit(key, this.trying[key] + (e === 'right' ? 1 : -1));
+        } else if (e === 'start' || e === 'menu' || e === 'carry') this.closeFit();
       } else if (e === 'start' || e === 'menu' || e === 'left') {
         this.back();
       }
@@ -186,7 +203,7 @@ class Menu {
   change(row, dir) {
     this.row = row;
     const cat = OUTFIT_CATEGORIES[row][0];
-    if (cat === 'sag') return this.setSag(this.trying.sag + dir);
+    if (cat === 'sag') return this.setFit('sag', this.trying.sag + dir);
     const n = OUTFIT_OPTIONS[cat].length;
     // secret items don't even show up until you've earned them
     do { this.trying[cat] = (this.trying[cat] + dir + n) % n; } while (!Progress.secretOwned(OUTFIT_OPTIONS[cat][this.trying[cat]]));
@@ -195,20 +212,33 @@ class Menu {
     if (cat === 'board' || cat === 'stance') this.kickflip(true); // show off the graphic underneath
   }
 
-  // the Sag slider: anything goes, nothing to unlock
-  setSag(v) {
-    v = clamp(Math.round(v), 0, SAG_MAX);
-    if (v === this.trying.sag) return;
-    this.trying.sag = v;
-    Outfit.set('sag', v);
+  // The Fit sliders (Sag, hat tilt, sleeves...): anything goes, nothing to unlock.
+  setFit(key, v) {
+    const f = FIT_BY_KEY[key];
+    v = clamp(Math.round(v), f.min, f.max);
+    if (v === this.trying[key]) return;
+    this.trying[key] = v;
+    Outfit.set(key, v);
     Sound.play('menuMove');
   }
 
-  // Dragging the Sag slider's knob (or clicking anywhere along the bar).
+  openFit() {
+    this.screen = 'fit';
+    this.fitRow = this.fitRow || 0;
+    Sound.play('menuPick');
+  }
+
+  closeFit() {
+    this.screen = 'closet';
+    this.dragging = null;
+    Sound.play('menuMove');
+  }
+
+  // Dragging a slider's knob (or clicking anywhere along its bar).
   pointerMove(x, y, down) {
-    if (!down) { this.dragging = false; return; }
-    const s = this.sagBar;
-    if (this.dragging && s) this.setSag(((x - s.x) / s.w) * SAG_MAX);
+    if (!down) { this.dragging = null; return; }
+    const bar = this.dragging && this.fitBars?.[this.dragging];
+    if (bar) this.setFit(this.dragging, bar.min + ((x - bar.x) / bar.w) * (bar.max - bar.min));
   }
 
   kickflip(loud = false) {
@@ -254,6 +284,7 @@ class Menu {
     else if (this.screen === 'parks') this.drawParks(ctx, w, h);
     else if (this.screen === 'audio') this.drawAudio(ctx, w, h);
     else if (this.screen === 'closet') this.drawCloset(ctx, w, h, dpr);
+    else if (this.screen === 'fit') this.drawFit(ctx, w, h, dpr);
     else this.drawStats(ctx, w, h);
     if (this.msg) {
       ctx.globalAlpha = clamp((2 - this.msg.t) / 0.4, 0, 1);
@@ -445,21 +476,25 @@ class Menu {
       w / 2, y0 + MAIN_ITEMS.length * (bh + gap) + 6);
   }
 
-  drawCloset(ctx, w, h, dpr) {
-    const wide = w > h * 1.1;
-    markerText(ctx, 'CLOSET', wide ? w * 0.3 : w / 2, Math.min(60, h * 0.09), Math.min(52, w / 9), '#ffffff', -0.04);
-
-    // the skater modelling the fit
+  // The skater modelling what you're trying on (locked or not). Returns where it's drawn.
+  drawPreview(ctx, w, h, dpr, wide, zoom = 1) {
     const p = this.preview;
-    const k = Math.min(wide ? h * 0.0042 : h * 0.0026, wide ? w * 0.0026 : w * 0.006);
+    const k = zoom * Math.min(wide ? h * 0.0042 : h * 0.0026, wide ? w * 0.0026 : w * 0.006);
     const cx = wide ? w * 0.3 : w / 2, gy = wide ? h * 0.82 : h * 0.47;
     ctx.save();
     ctx.setTransform(dpr * k, 0, 0, dpr * k, dpr * cx - p.pos.x * dpr * k, dpr * gy - p.pos.y * dpr * k);
     Sketch.seedFor(7);
     Sketch.stroke(ctx, [{ x: p.pos.x - 90, y: p.pos.y }, { x: p.pos.x + 90, y: p.pos.y }], { color: INK, width: 3, amp: 1 });
-    p.outfit = this.trying; // shows what you're trying on, locked or not
+    p.outfit = this.trying;
     drawSkater(ctx, p);
     ctx.restore();
+    return { cx, gy };
+  }
+
+  drawCloset(ctx, w, h, dpr) {
+    const wide = w > h * 1.1;
+    markerText(ctx, 'CLOSET', wide ? w * 0.3 : w / 2, Math.min(60, h * 0.09), Math.min(52, w / 9), '#ffffff', -0.04);
+    const { cx } = this.drawPreview(ctx, w, h, dpr, wide);
 
     // picking a board or grip: hold the board up so you can see it properly
     const rowCat = OUTFIT_CATEGORIES[this.row][0];
@@ -493,7 +528,7 @@ class Menu {
       ctx.fillStyle = INK;
       ctx.font = `${fs * 0.9}px ${HAND}`;
       ctx.fillText(label, rx + 12, y + rh * 0.42);
-      if (cat === 'sag') return this.drawSagRow(ctx, i, rx, y, rw, rh, fs);
+      if (cat === 'sag') return this.drawFitRow(ctx, FIT_BY_KEY.sag, rx, y, rw, rh, fs, () => { this.row = i; });
       const visible = OUTFIT_OPTIONS[cat].filter(o => Progress.secretOwned(o));
       const opt = OUTFIT_OPTIONS[cat][this.trying[cat]], n = visible.length;
       const locked = !Progress.isUnlocked(cat, opt.name);
@@ -509,42 +544,79 @@ class Menu {
       this.hit(rx + rw * 0.45, y, rw * 0.55, rh, () => this.change(i, 1));
     });
 
-    const by = top + rows * rh + 12, bw = Math.min(220, rw), bh = Math.min(50, h * 0.08);
-    this.button(ctx, 'DONE', rx + (rw - bw) / 2, by, bw, bh, false, 300, () => { this.screen = 'main'; });
+    const by = top + rows * rh + 12, bw = Math.min(160, (rw - 14) / 2), bh = Math.min(50, h * 0.08);
+    this.button(ctx, 'FIT', rx + rw / 2 - bw - 7, by, bw, bh, false, 301, () => this.openFit());
+    this.button(ctx, 'DONE', rx + rw / 2 + 7, by, bw, bh, false, 300, () => { this.screen = 'main'; });
     ctx.font = `${Math.max(13, fs * 0.65)}px ${HAND}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     ctx.fillStyle = INK;
-    ctx.fillText('↑ ↓ pick  ·  ← → change  ·  Esc done', rx + rw / 2, by + bh + 8);
+    ctx.fillText('↑ ↓ pick  ·  ← → change  ·  F fit  ·  Esc done', rx + rw / 2, by + bh + 8);
   }
 
-  // A slider: drag the knob (or press ← →) to wear your pants higher or lower.
-  drawSagRow(ctx, i, rx, y, rw, rh, fs) {
-    const v = this.trying.sag;
-    const x0 = rx + rw * 0.3, x1 = rx + rw - 24, cy = y + rh * 0.5;
-    this.sagBar = { x: x0, w: x1 - x0 };
-    Sketch.seedFor(260);
-    Sketch.stroke(ctx, [{ x: x0, y: cy }, { x: x1, y: cy }], { color: INK, width: 4, amp: 0.6 });
-    for (let k = 0; k <= SAG_MAX; k++) {
-      const tx = x0 + ((x1 - x0) * k) / SAG_MAX;
-      Sketch.stroke(ctx, [{ x: tx, y: cy - (k === SAG_NORMAL ? 7 : 4) }, { x: tx, y: cy + (k === SAG_NORMAL ? 7 : 4) }], thin(INK, k === SAG_NORMAL ? 2 : 1.2));
-    }
-    const kx = x0 + ((x1 - x0) * v) / SAG_MAX;
-    Sketch.circle(ctx, kx, cy, Math.min(11, rh * 0.22), this.dragging ? '#ef5a4a' : '#ffffff', { width: 2.2 });
-    ctx.font = `${fs * 0.5}px ${HAND}`;
-    ctx.fillStyle = INK;
+  // Fit: how your clothes sit on you, with a slider for each.
+  drawFit(ctx, w, h, dpr) {
+    const wide = w > h * 1.1;
+    markerText(ctx, 'FIT', wide ? w * 0.3 : w / 2, Math.min(60, h * 0.09), Math.min(52, w / 9), '#ffffff', -0.04);
+    this.drawPreview(ctx, w, h, dpr, wide, wide ? 1.15 : 0.95);
+    const rows = FIT_SLIDERS.length;
+    const rx = wide ? w * 0.56 : 16, rw = wide ? Math.min(w * 0.4, 420) : w - 32;
+    const top = wide ? h * 0.16 : h * 0.52;
+    const rh = Math.min(64, ((wide ? h * 0.62 : h * 0.34)) / rows);
+    const fs = Math.min(rh * 0.42, 24);
+    FIT_SLIDERS.forEach((f, i) => {
+      const y = top + i * rh, sel = i === this.fitRow;
+      Sketch.seedFor(320 + i);
+      const box = [{ x: rx, y: y + 3 }, { x: rx + rw, y: y + 3 }, { x: rx + rw, y: y + rh - 3 }, { x: rx, y: y + rh - 3 }];
+      Sketch.fill(ctx, box, sel ? '#f4c542' : '#fbf8f0', 1.5);
+      Sketch.stroke(ctx, box, { color: INK, width: sel ? 2.8 : 1.8, amp: 1, closed: true });
+      ctx.textBaseline = 'middle';
+      ctx.textAlign = 'left';
+      ctx.fillStyle = INK;
+      ctx.font = `${fs * 0.9}px ${HAND}`;
+      ctx.fillText(f.label, rx + 12, y + rh * 0.42);
+      this.drawFitRow(ctx, f, rx, y, rw, rh, fs, () => { this.fitRow = i; });
+    });
+    const by = top + rows * rh + 12, bw = Math.min(160, (rw - 14) / 2), bh = Math.min(50, h * 0.08);
+    this.button(ctx, 'RESET', rx + rw / 2 - bw - 7, by, bw, bh, false, 340, () => {
+      for (const f of FIT_SLIDERS) this.setFit(f.key, f.normal);
+    });
+    this.button(ctx, 'BACK', rx + rw / 2 + 7, by, bw, bh, false, 341, () => this.closeFit());
+    ctx.font = `${Math.max(13, fs * 0.65)}px ${HAND}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    ctx.fillText('high', x0, cy + 8);
-    ctx.fillText('low', x1, cy + 8);
+    ctx.fillStyle = INK;
+    ctx.fillText('↑ ↓ pick  ·  ← → or drag to adjust  ·  Esc back', rx + rw / 2, by + bh + 8);
+  }
+
+  // A slider row (the label is already drawn): drag the knob, click along the bar, or press ← →.
+  drawFitRow(ctx, f, rx, y, rw, rh, fs, select) {
+    const v = this.trying[f.key], span = f.max - f.min;
+    const x0 = rx + rw * 0.36, x1 = rx + rw - 30, cy = y + rh * 0.45;
+    (this.fitBars ||= {})[f.key] = { x: x0, w: x1 - x0, min: f.min, max: f.max };
+    Sketch.seedFor(260);
+    Sketch.stroke(ctx, [{ x: x0, y: cy }, { x: x1, y: cy }], { color: INK, width: 4, amp: 0.6 });
+    for (let k = f.min; k <= f.max; k++) {
+      const tx = x0 + ((x1 - x0) * (k - f.min)) / span, mid = k === f.normal;
+      Sketch.stroke(ctx, [{ x: tx, y: cy - (mid ? 7 : 4) }, { x: tx, y: cy + (mid ? 7 : 4) }], thin(INK, mid ? 2 : 1.2));
+    }
+    const kx = x0 + ((x1 - x0) * (v - f.min)) / span;
+    Sketch.circle(ctx, kx, cy, Math.min(11, rh * 0.22), this.dragging === f.key ? '#ef5a4a' : '#ffffff', { width: 2.2 });
+    ctx.font = `${fs * 0.5}px ${HAND}`;
+    ctx.fillStyle = INK;
+    ctx.textBaseline = 'top';
+    ctx.textAlign = 'left';
+    ctx.fillText(f.ends[0], x0 - 6, cy + 9);
+    ctx.textAlign = 'right';
+    ctx.fillText(f.ends[1], x1 + 6, cy + 9);
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
     ctx.font = `${fs * 0.6}px ${HAND}`;
-    ctx.fillText(v === SAG_NORMAL ? 'normal' : v < SAG_NORMAL ? 'pulled up' : v >= SAG_MAX - 1 ? 'mega sag' : 'saggy', rx + 12, y + rh * 0.74);
-    this.hit(rx + rw * 0.25, y, rw * 0.75, rh, x => {
-      this.row = i;
-      this.dragging = true;
-      this.setSag(((x - x0) / (x1 - x0)) * SAG_MAX);
+    ctx.fillText(fitWords(f, v), rx + 12, y + rh * 0.74);
+    this.hit(rx + rw * 0.3, y, rw * 0.7, rh, x => {
+      select();
+      this.dragging = f.key;
+      this.setFit(f.key, f.min + ((x - x0) / (x1 - x0)) * span);
     });
   }
 

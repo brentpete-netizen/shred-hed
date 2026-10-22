@@ -182,12 +182,29 @@ const OUTFIT_CATEGORIES = [
 // How high or low you wear your pants: 0 = pulled way up, SAG_NORMAL = regular, SAG_MAX = boxers out.
 const SAG_NORMAL = 3, SAG_MAX = 10;
 
+// How your clothes sit on you: sliders on the closet's Fit screen. `normal` is how things come;
+// `ends` label the two ends of the slider.
+const FIT_SLIDERS = [
+  { key: 'sag', label: 'Sag', min: 0, max: SAG_MAX, normal: SAG_NORMAL, ends: ['high', 'low'] },
+  { key: 'hatTilt', label: 'Hat tilt', min: -3, max: 3, normal: 0, ends: ['back', 'forward'] },
+  { key: 'hatHeight', label: 'Hat height', min: -2, max: 2, normal: 0, ends: ['pulled down', 'perched up'] },
+  { key: 'shirtLen', label: 'Shirt length', min: -2, max: 2, normal: 0, ends: ['cropped', 'long'] },
+  { key: 'sleeves', label: 'Sleeves', min: -2, max: 2, normal: 0, ends: ['rolled up', 'long'] },
+  { key: 'pantsWidth', label: 'Pants width', min: -2, max: 2, normal: 0, ends: ['skinny', 'baggy'] },
+  { key: 'cuffs', label: 'Pant legs', min: -2, max: 2, normal: 0, ends: ['stacked', 'rolled up'] },
+];
+const FIT_BY_KEY = Object.fromEntries(FIT_SLIDERS.map(f => [f.key, f]));
+
 const Outfit = (() => {
   const KEY = 'shredHed.outfit';
-  const pick = { skin: 1, hat: 0, top: 0, pants: 0, shoes: 0, board: 0, extra: 0, stance: 0, grip: 0, cutout: 0, sag: SAG_NORMAL };
+  const pick = { skin: 1, hat: 0, top: 0, pants: 0, shoes: 0, board: 0, extra: 0, stance: 0, grip: 0, cutout: 0 };
+  for (const f of FIT_SLIDERS) pick[f.key] = f.normal;
   try { Object.assign(pick, JSON.parse(localStorage.getItem(KEY)) || {}); } catch (e) { /* no saved outfit */ }
   for (const cat in OUTFIT_OPTIONS) pick[cat] = ((pick[cat] % OUTFIT_OPTIONS[cat].length) + OUTFIT_OPTIONS[cat].length) % OUTFIT_OPTIONS[cat].length;
-  pick.sag = Math.max(0, Math.min(SAG_MAX, Math.round(+pick.sag) || 0));
+  for (const f of FIT_SLIDERS) {
+    const v = Math.round(+pick[f.key]);
+    pick[f.key] = Number.isFinite(v) ? Math.max(f.min, Math.min(f.max, v)) : f.normal;
+  }
 
   return {
     pick,
@@ -196,10 +213,11 @@ const Outfit = (() => {
       const from = this.override && this.override[cat] !== undefined ? this.override : pick;
       return OUTFIT_OPTIONS[cat][from[cat]];
     },
-    // skaters who don't say how they wear their pants wear them normal
-    sag() {
-      return this.override ? this.override.sag ?? SAG_NORMAL : pick.sag;
+    // a Fit slider's value; skaters who don't say how they wear things wear them normal
+    fit(key) {
+      return this.override ? this.override[key] ?? FIT_BY_KEY[key].normal : pick[key];
     },
+    sag() { return this.fit('sag'); },
     set(cat, index) {
       pick[cat] = index;
       try { localStorage.setItem(KEY, JSON.stringify(pick)); } catch (e) { /* storage blocked */ }
