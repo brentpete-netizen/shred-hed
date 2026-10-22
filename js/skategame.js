@@ -11,7 +11,7 @@ const ATTEMPT_TIME = 25;   // seconds to make an attempt
 const RIDE_AWAY = 0.7;     // seconds you have to stay on your board after landing
 
 // The CPU always wears this, so you can tell who's who.
-const CPU_OUTFIT = { skin: 3, hat: 5, top: 4, pants: 2, shoes: 3, board: 2 };
+const CPU_OUTFIT = { skin: 3, hat: 5, top: 4, pants: 2, shoes: 3, board: 2, extra: 0, stance: 0 };
 
 function secondOutfit() {
   const pick = {};

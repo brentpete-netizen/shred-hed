@@ -82,6 +82,8 @@ const BOARD_ART = {
     }
     return squares;
   })(),
+  rainbow: [0, 1, 2, 3, 4, 5].map(i => { const l = -27 + i * 9; return [[l, -10], [l + 9, -10], [l + 9, 10], [l, 10]]; }),
+  bolt: [[[-28, -6], [-3, -9], [-7, -2], [26, -5], [1, 9], [4, 2], [-28, 5]]],
   stars: [[-24, -3, 4], [-10, 5, 3], [4, -5, 5], [18, 3, 3], [27, -4, 2.5]].map(([l, w, r]) => {
     const pts = [];
     for (let i = 0; i < 8; i++) { const rr = i % 2 ? r * 0.35 : r; pts.push([l + Math.cos(i * TAU / 8) * rr, w + Math.sin(i * TAU / 8) * rr]); }
@@ -118,9 +120,10 @@ function drawBoard(ctx, B) {
     Sketch.shape(ctx, top, COLORS.wood, line);
     Sketch.shape(ctx, bot, look.graphic, line);
     const n = -DECK_TH / 2 - 0.2;
-    for (const art of BOARD_ART[look.art]) {
-      Sketch.shape(ctx, art.map(([l, w]) => X(l, n, w)), look.accent, { ...line, width: 1.2 });
-    }
+    BOARD_ART[look.art].forEach((art, i) => {
+      const color = look.artColors ? look.artColors[i % look.artColors.length] : look.accent;
+      Sketch.shape(ctx, art.map(([l, w]) => X(l, n, w)), color, { ...line, width: 1.2 });
+    });
     running();
   }
 }
@@ -317,7 +320,8 @@ function riderPose(sk) {
 
   return {
     board,
-    fig: { hip, neck, shoulder, head, torsoDir, F, legs, backArm, frontArm },
+    // flow: how much capes and scarves stream out behind you
+    fig: { hip, neck, shoulder, head, torsoDir, F, legs, backArm, frontArm, flow: clamp(Math.hypot(sk.vel.x, sk.vel.y) / 900, 0.1, 1) },
   };
 }
 
@@ -351,13 +355,44 @@ function drawShoe(ctx, foot, F, up, shoe) {
   const heel = add(foot, F, -5), toe = add(foot, F, 6.5), down = { x: -up.x, y: -up.y };
   if (shoe.high) Sketch.limb(ctx, [add(heel, F, 2), add(add(heel, F, 2), up, 6)], 6, shoe.color, { amp: 0.3 });
   Sketch.limb(ctx, [heel, toe], 6.5, shoe.color, { amp: 0.3 });
-  Sketch.stroke(ctx, [add(heel, down, 3), add(toe, down, 3)], thin(shoe.sole, 2.2));
-  Sketch.stroke(ctx, [add(add(heel, F, 1.5), up, 0.5), add(add(toe, F, -3), up, 1.2)], thin(shoe.accent, 1.5));
+  if (shoe.checker) {
+    ctx.fillStyle = shoe.accent;
+    for (let k = 0; k < 4; k++) {
+      const p = add(add(heel, F, 1 + k * 3), up, k % 2 ? 1.2 : -0.8);
+      ctx.fillRect(p.x - 1.3, p.y - 1.3, 2.6, 2.6);
+    }
+  } else Sketch.stroke(ctx, [add(add(heel, F, 1.5), up, 0.5), add(add(toe, F, -3), up, 1.2)], thin(shoe.accent, 1.5));
+  // light-up soles blink through their colours
+  const sole = shoe.glow ? shoe.glow[Math.floor(performance.now() / 180) % shoe.glow.length] : shoe.sole;
+  Sketch.stroke(ctx, [add(heel, down, 3), add(toe, down, 3)], thin(sole, shoe.glow ? 2.8 : 2.2));
+}
+
+// Spiky hair swept back (used by a few of the head looks).
+function drawHair(ctx, h, up, F, color) {
+  const R = HEAD_R, ua = Math.atan2(up.y, up.x), half = Math.PI / 2, spikes = [];
+  const k = 9, a0 = ua - half - 0.2, a1 = ua + half + 0.2;
+  const sweep = wrapAngle(Math.atan2(F.y, F.x) - ua) > 0 ? -0.16 : 0.16; // tips lean toward the back
+  for (let i = 0; i <= k; i++) {
+    const a = a0 + ((a1 - a0) * i) / k + (i % 2 ? sweep : 0);
+    const r = i % 2 ? R + 6 : R + 1;
+    spikes.push({ x: h.x + Math.cos(a) * r, y: h.y + Math.sin(a) * r });
+  }
+  Sketch.shape(ctx, spikes, color, HAT_LINE);
 }
 
 function drawHead(ctx, h, up, F) {
   const hat = Outfit.get('hat'), skin = Outfit.get('skin').color;
   const R = HEAD_R, ua = Math.atan2(up.y, up.x), back = { x: -F.x, y: -F.y }, half = Math.PI / 2;
+  const cap = (r, a = 0.15, center = h) => arcPts(center, r, ua - half - a, ua + half + a); // covers the top of the head
+
+  // things that sit behind the head
+  if (hat.type === 'afro') {
+    const c = add(add(h, up, 7), back, 4);
+    Sketch.circle(ctx, c.x, c.y, R + 6, hat.color, { width: 2.2, amp: 1.4 });
+  } else if (hat.type === 'ponytail') {
+    const root = add(add(h, back, R - 2), up, 3);
+    Sketch.limb(ctx, [root, add(add(root, back, 9), up, -6), add(add(root, back, 11), up, -16)], 6, hat.color, { amp: 0.5 });
+  }
 
   Sketch.circle(ctx, h.x, h.y, R, skin, { width: 2.2 });
   const ear = add(add(h, back, 3), up, -1);
@@ -371,14 +406,14 @@ function drawHead(ctx, h, up, F) {
   Sketch.stroke(ctx, [add(add(h, F, 6), up, -5.8), add(add(h, F, 9), up, -4.6)], thin(INK, 1.4));
 
   if (hat.type === 'beanie') {
-    Sketch.shape(ctx, arcPts(h, R + 1.5, ua - half - 0.15, ua + half + 0.15), hat.color, HAT_LINE);
+    Sketch.shape(ctx, cap(R + 1.5), hat.color, HAT_LINE);
     Sketch.limb(ctx, [add(add(h, up, 1), back, R + 0.5), add(add(h, up, 1), F, R + 0.5)], 3, hat.accent, { amp: 0.2 });
     const pom = add(h, up, R + 4);
     Sketch.circle(ctx, pom.x, pom.y, 3.2, hat.accent, { width: 1.6 });
   } else if (hat.type === 'capBack') {
     const c = add(h, up, 1);
     Sketch.limb(ctx, [add(c, back, R - 3), add(add(c, back, R + 8), up, -1.5)], 2.5, hat.accent, { amp: 0.2 });
-    Sketch.shape(ctx, arcPts(c, R + 1, ua - half, ua + half), hat.color, HAT_LINE);
+    Sketch.shape(ctx, cap(R + 1, 0, c), hat.color, HAT_LINE);
     const btn = add(c, up, R + 1);
     Sketch.circle(ctx, btn.x, btn.y, 1.8, hat.accent, { width: 1.2 });
   } else if (hat.type === 'bucket') {
@@ -386,6 +421,56 @@ function drawHead(ctx, h, up, F) {
     Sketch.shape(ctx, arcPts(c, R, ua - half + 0.2, ua + half - 0.2), hat.color, HAT_LINE);
     Sketch.limb(ctx, [add(c, back, R - 1), add(c, F, R - 1)], 1.8, hat.accent, { amp: 0.2 });
     Sketch.limb(ctx, [add(add(c, back, R + 6), up, -3), add(c, up, -0.5), add(add(c, F, R + 6), up, -3)], 2.5, hat.color, { amp: 0.3 });
+  } else if (hat.type === 'cowboy') {
+    const c = add(h, up, 3);
+    const crown = [add(c, back, R - 2), add(add(c, back, R - 4), up, 11), add(c, up, 8), add(add(c, F, R - 4), up, 11), add(c, F, R - 2)];
+    Sketch.shape(ctx, crown, hat.color, HAT_LINE);
+    Sketch.limb(ctx, [add(add(c, back, R - 2), up, 2.5), add(add(c, F, R - 2), up, 2.5)], 1.8, hat.accent, { amp: 0.2 });
+    Sketch.limb(ctx, [add(add(c, back, R + 11), up, 4), add(c, up, -1), add(add(c, F, R + 11), up, 4)], 3, hat.color, { amp: 0.3 });
+  } else if (hat.type === 'tophat') {
+    const c = add(h, up, R - 3);
+    Sketch.shape(ctx, [add(c, back, R - 3), add(add(c, back, R - 4), up, 22), add(add(c, F, R - 4), up, 22), add(c, F, R - 3)], hat.color, HAT_LINE);
+    Sketch.limb(ctx, [add(add(c, back, R - 3.5), up, 4), add(add(c, F, R - 3.5), up, 4)], 2.5, hat.accent, { amp: 0.2 });
+    Sketch.limb(ctx, [add(c, back, R + 4), add(c, F, R + 4)], 2.5, hat.color, { amp: 0.2 });
+  } else if (hat.type === 'propeller') {
+    Sketch.shape(ctx, cap(R + 1.5), hat.color, HAT_LINE);
+    Sketch.limb(ctx, [add(add(h, up, 2), back, R + 0.5), add(add(h, up, 2), F, R + 0.5)], 2.5, hat.stripe, { amp: 0.2 });
+    const top = add(h, up, R + 1.5), hub = add(top, up, 5);
+    Sketch.stroke(ctx, [top, hub], thin(INK, 1.6));
+    const spin = Math.cos(performance.now() / 55) * 10; // the blades turning, seen from the side
+    Sketch.limb(ctx, [add(hub, F, -spin), add(hub, F, spin)], 2, hat.accent, { amp: 0.1 });
+  } else if (hat.type === 'viking') {
+    for (const side of [F, back]) {
+      const base = add(add(h, up, R - 3), side, R - 1);
+      Sketch.shape(ctx, [base, add(base, up, 4), add(add(base, side, 8), up, 14)], hat.accent, { ...HAT_LINE, width: 1.6 });
+    }
+    Sketch.shape(ctx, cap(R + 2.5, 0.3), hat.color, HAT_LINE);
+    Sketch.stroke(ctx, [add(add(h, up, 1), back, R + 1), add(add(h, up, 1), F, R + 1)], thin('#6e747b', 2.2));
+  } else if (hat.type === 'bandana') {
+    Sketch.shape(ctx, cap(R + 1, 0.05), hat.hair, HAT_LINE);
+    const knot = add(add(h, up, 3.5), back, R);
+    Sketch.limb(ctx, [knot, add(add(h, up, 3.5), F, R + 0.5)], 3.5, hat.color, { amp: 0.2 });
+    Sketch.limb(ctx, [knot, add(add(knot, back, 7), up, -3)], 2.5, hat.color, { amp: 0.3 });
+    Sketch.limb(ctx, [knot, add(add(knot, back, 5), up, -8)], 2.5, hat.color, { amp: 0.3 });
+    for (const k of [0.3, 0.6]) { const d = add(mix(knot, add(add(h, up, 3.5), F, R), k), up, 0.3); Sketch.circle(ctx, d.x, d.y, 0.9, hat.accent, { width: 0.6 }); }
+  } else if (hat.type === 'afro') {
+    Sketch.shape(ctx, cap(R + 1.5, -0.25, add(h, up, 2.5)), hat.color, HAT_LINE);
+  } else if (hat.type === 'ponytail') {
+    Sketch.shape(ctx, cap(R + 1.2, 0.1), hat.color, HAT_LINE);
+  } else if (hat.type === 'halo') {
+    drawHair(ctx, h, up, F, hat.color);
+    const c = add(h, up, R + 11);
+    ctx.save();
+    ctx.translate(c.x, c.y);
+    ctx.rotate(ua + half);
+    ctx.strokeStyle = hat.accent;
+    ctx.lineWidth = 2.6;
+    ctx.shadowColor = '#fff4c2';
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 9, 3, 0, 0, TAU);
+    ctx.stroke();
+    ctx.restore();
   } else if (hat.type === 'mohawk') {
     const fin = [];
     for (let i = 0; i <= 8; i++) {
@@ -400,7 +485,7 @@ function drawHead(ctx, h, up, F) {
     const crown = [left, add(left, up, 13), add(mix(left, right, 0.25), up, 6), add(mix(left, right, 0.5), up, 15),
       add(mix(left, right, 0.75), up, 6), add(right, up, 13), right];
     Sketch.shape(ctx, crown, hat.color, HAT_LINE);
-    const gem = add(add(base, up, 5), F, 0);
+    const gem = add(base, up, 5);
     Sketch.circle(ctx, gem.x, gem.y, 2.4, hat.accent, { width: 1.2 });
   } else if (hat.type === 'helmet') {
     Sketch.stroke(ctx, [add(add(h, back, R - 3), up, -2), add(add(h, F, 2), up, -R + 0.5)], thin(INK, 1.3));
@@ -409,16 +494,8 @@ function drawHead(ctx, h, up, F) {
       Sketch.stroke(ctx, [add(add(h, up, R + 1.5), F, k), add(add(h, up, R - 3), F, k * 1.3)], thin(hat.accent, 2));
     }
   } else {
-    // hair (spikes swept back), optionally with headphones on top
-    const color = hat.type === 'hair' ? hat.color : hat.hair, spikes = [];
-    const k = 9, a0 = ua - half - 0.2, a1 = ua + half + 0.2;
-    const sweep = wrapAngle(Math.atan2(F.y, F.x) - ua) > 0 ? -0.16 : 0.16; // tips lean toward the back
-    for (let i = 0; i <= k; i++) {
-      const a = a0 + ((a1 - a0) * i) / k + (i % 2 ? sweep : 0);
-      const r = i % 2 ? R + 6 : R + 1;
-      spikes.push({ x: h.x + Math.cos(a) * r, y: h.y + Math.sin(a) * r });
-    }
-    Sketch.shape(ctx, spikes, color, HAT_LINE);
+    // hair, optionally with headphones on top
+    drawHair(ctx, h, up, F, hat.type === 'hair' ? hat.color : hat.hair);
     if (hat.type === 'headphones') {
       Sketch.limb(ctx, arcPts(h, R + 4, ua - half - 0.1, ua + half + 0.1, 8), 2.2, hat.color, { amp: 0.2 });
       Sketch.circle(ctx, ear.x, ear.y, 4.3, hat.accent, { width: 2 });
@@ -426,9 +503,11 @@ function drawHead(ctx, h, up, F) {
   }
 }
 
+const LONG_SLEEVES = new Set(['hoodie', 'flannel', 'varsity', 'tux']);
+
 function drawTorso(ctx, f, top) {
   const up = f.torsoDir, F = f.F, hip = f.hip, neck = f.neck;
-  const width = top.type === 'hoodie' ? 17 : 15;
+  const width = top.type === 'hoodie' ? 17 : top.type === 'tank' ? 13 : 15;
   if (top.type === 'hoodie') {
     const hood = add(add(neck, F, -6), up, 1);
     Sketch.circle(ctx, hood.x, hood.y, 7, top.shade, { width: 2 });
@@ -440,6 +519,10 @@ function drawTorso(ctx, f, top) {
     const s = at(9 + i * 11, i ? -2 : 3);
     Sketch.circle(ctx, s.x, s.y, 4.5 - i, null, { color: c, width: 2.4, amp: 1 });
   });
+  if (top.spots) [[5, -4], [12, 3], [18, -3], [24, 3.5], [29, -2]].forEach(([k, s], i) => {
+    const p = at(k, s);
+    Sketch.circle(ctx, p.x, p.y, 2.7, top.spots[i % top.spots.length], { width: 1, amp: 0.4 });
+  });
   if (top.type === 'hoodie') {
     Sketch.stroke(ctx, [at(7, -3), at(9, 8)], thin(INK, 1.3));
     for (const s of [3, 6]) Sketch.stroke(ctx, [at(29, s), at(20, s + 0.5)], thin(top.accent, 1.6));
@@ -450,7 +533,17 @@ function drawTorso(ctx, f, top) {
   } else if (top.type === 'jersey') {
     Sketch.stroke(ctx, [at(18, -7), at(18, 7)], thin(top.accent, 3));
     Sketch.stroke(ctx, [at(23, -7), at(23, 7)], thin(top.accent, 1.5));
-  } else {
+  } else if (top.type === 'varsity') {
+    Sketch.stroke(ctx, [at(0, -7.5), at(0, 7.5)], thin(top.accent, 3));
+    for (const k of [8, 15, 22]) { const b = at(k, 5.5); Sketch.circle(ctx, b.x, b.y, 1.1, top.accent, { width: 0.6 }); }
+    const patch = at(20, -1);
+    Sketch.circle(ctx, patch.x, patch.y, 4, top.accent, { width: 1.2 });
+  } else if (top.type === 'tux') {
+    Sketch.limb(ctx, [at(3, 4.5), at(30, 4.5)], 3.5, top.under, { outline: top.under, amp: 0.2 });
+    const bow = at(30.5, 5);
+    Sketch.shape(ctx, [add(bow, up, 2.5), add(bow, up, -2.5), add(add(bow, F, 3), up, 0)], top.accent, { ...thin(INK, 1), closed: true });
+    Sketch.shape(ctx, [add(bow, up, 2.5), add(bow, up, -2.5), add(add(bow, F, -3), up, 0)], top.accent, { ...thin(INK, 1), closed: true });
+  } else if (top.type !== 'tank' && !top.spots && !top.stripes) {
     const logo = at(19, 2.5);
     Sketch.circle(ctx, logo.x, logo.y, 3.6, top.accent, { width: 1.2 });
   }
@@ -458,8 +551,10 @@ function drawTorso(ctx, f, top) {
 
 function drawArm(ctx, arm, top, color, skin) {
   const [s, e, hand] = arm;
-  if (top.type === 'hoodie' || top.type === 'flannel') {
-    Sketch.limb(ctx, arm, 6.5, color);
+  if (LONG_SLEEVES.has(top.type)) {
+    Sketch.limb(ctx, arm, 6.5, top.sleeve || color);
+  } else if (top.type === 'tank') {
+    Sketch.limb(ctx, arm, 5, skin);
   } else {
     Sketch.limb(ctx, [mix(s, e, 0.5), e, hand], 5, skin);
     Sketch.limb(ctx, [s, mix(s, e, 0.6)], 7.5, color);
@@ -469,6 +564,7 @@ function drawArm(ctx, arm, top, color, skin) {
 }
 
 function drawLeg(ctx, f, leg, pants, color, skin, shoe) {
+  const perp = (a, b) => { const d = Math.hypot(b.x - a.x, b.y - a.y) || 1; return { x: -(b.y - a.y) / d, y: (b.x - a.x) / d }; };
   if (pants.type === 'shorts') {
     Sketch.limb(ctx, [leg.knee, leg.foot], 6, skin);
     Sketch.limb(ctx, [mix(leg.foot, leg.knee, 0.3), leg.foot], 6, pants.sock);
@@ -484,19 +580,80 @@ function drawLeg(ctx, f, leg, pants, color, skin, shoe) {
       Sketch.stroke(ctx, sq, { ...thin(INK, 1.2), closed: true });
       Sketch.limb(ctx, [mix(leg.knee, leg.foot, 0.8), mix(leg.knee, leg.foot, 0.93)], w + 1.5, color, { amp: 0.2 });
     }
+    if (pants.stripe) Sketch.stroke(ctx, [f.hip, leg.knee, mix(leg.knee, leg.foot, 0.85)], thin(pants.stripe, 1.8));
+    if (pants.spots) [[f.hip, leg.knee, 0.3], [f.hip, leg.knee, 0.72], [leg.knee, leg.foot, 0.35], [leg.knee, leg.foot, 0.72]].forEach(([a, b, t], i) => {
+      const p = add(mix(a, b, t), perp(a, b), i % 2 ? 1.5 : -1.5);
+      Sketch.circle(ctx, p.x, p.y, 2.4, pants.spots[i % pants.spots.length], { width: 0.8, amp: 0.4 });
+    });
+    if (pants.plaid) for (const [a, b] of [[f.hip, leg.knee], [leg.knee, leg.foot]]) {
+      const n = perp(a, b);
+      for (const t of [0.3, 0.7]) { const p = mix(a, b, t); Sketch.stroke(ctx, [add(p, n, -4.5), add(p, n, 4.5)], thin(pants.plaid, 1.2)); }
+      Sketch.stroke(ctx, [add(mix(a, b, 0.1), n, 1.5), add(mix(a, b, 0.9), n, 1.5)], thin(pants.plaid, 1));
+    }
+    if (pants.ripped) {
+      const n = perp(leg.knee, leg.foot);
+      Sketch.stroke(ctx, [add(leg.knee, n, -3), add(leg.knee, n, 3)], thin(skin, 2.6));
+      const t = mix(f.hip, leg.knee, 0.45), n2 = perp(f.hip, leg.knee);
+      Sketch.stroke(ctx, [add(t, n2, -2), add(t, n2, 2.5)], thin(skin, 1.8));
+    }
   }
   drawShoe(ctx, leg.foot, f.F, f.torsoDir, shoe);
+}
+
+// Accessories: some hang behind the body, the rest go on top.
+function drawExtraBehind(ctx, f, extra) {
+  const up = f.torsoDir, back = { x: -f.F.x, y: -f.F.y }, flow = f.flow ?? 0.5;
+  if (extra.type === 'cape') {
+    const n = f.neck;
+    const cape = [add(n, f.F, 1), add(add(n, back, 5), up, -1),
+      add(add(f.hip, back, 10 + 26 * flow), up, -6 + 18 * flow), add(add(f.hip, back, 2 + 14 * flow), up, -14 + 12 * flow)];
+    Sketch.shape(ctx, cape, extra.color, { color: INK, width: 2, amp: 0.8 });
+    Sketch.stroke(ctx, [mix(cape[1], cape[2], 0.3), mix(cape[0], cape[3], 0.5)], thin(extra.accent, 1.4));
+  }
+}
+
+function drawExtraBody(ctx, f, extra) {
+  const up = f.torsoDir, F = f.F, back = { x: -F.x, y: -F.y };
+  if (extra.type === 'backpack') {
+    const c = add(add(f.hip, up, 19), back, 9.5);
+    const box = [add(add(c, F, -4.5), up, 9), add(add(c, F, 4.5), up, 9), add(add(c, F, 4.5), up, -9), add(add(c, F, -4.5), up, -9)];
+    Sketch.shape(ctx, box, extra.color, { color: INK, width: 1.8, amp: 0.5 });
+    Sketch.stroke(ctx, [add(c, up, 2), add(add(c, up, 2), back, 4)], thin(extra.accent, 2.2));
+  }
+}
+
+function drawExtraFront(ctx, f, extra) {
+  const up = f.torsoDir, F = f.F, back = { x: -F.x, y: -F.y }, h = f.head, n = f.neck, flow = f.flow ?? 0.5;
+  const eye = add(add(h, F, 5.5), up, -1.5);
+  if (extra.type === 'shades') {
+    Sketch.limb(ctx, [add(eye, F, -2.5), add(eye, F, 2.5)], 3.5, extra.color, { amp: 0.1, outline: extra.color });
+    Sketch.stroke(ctx, [add(eye, F, -2.5), add(add(h, back, 2), up, -0.5)], thin(extra.color, 1.4));
+  } else if (extra.type === 'mustache') {
+    Sketch.limb(ctx, [add(add(h, F, 5.5), up, -3.6), add(add(h, F, 8), up, -4.2), add(add(h, F, 10), up, -3.2)], 1.6, extra.color, { amp: 0.1, outline: extra.color });
+  } else if (extra.type === 'scarf') {
+    Sketch.limb(ctx, [add(add(n, back, 4), up, 1), add(add(n, F, 4.5), up, 0)], 5, extra.color, { amp: 0.2 });
+    Sketch.limb(ctx, [add(n, back, 4), add(add(n, back, 9 + 12 * flow), up, -8 + 6 * flow)], 4, extra.color, { amp: 0.3 });
+    Sketch.stroke(ctx, [add(add(n, back, 1), up, 1), add(add(n, back, 1), up, -1)], thin(extra.accent, 1.6));
+  } else if (extra.type === 'chain') {
+    const pts = [add(n, back, 2), add(add(n, up, -6), F, 2), add(add(n, up, -8), F, 4.5)];
+    Sketch.stroke(ctx, pts, thin(extra.color, 1.8));
+    Sketch.circle(ctx, pts[2].x, pts[2].y, 2, extra.color, { width: 1 });
+  }
 }
 
 function drawFigure(ctx, f) {
   Sketch.seedFor(40);
   const skin = Outfit.get('skin').color, top = Outfit.get('top'), pants = Outfit.get('pants'), shoe = Outfit.get('shoes');
+  const extra = Outfit.get('extra') || { type: 'none' };
+  drawExtraBehind(ctx, f, extra);
   drawArm(ctx, f.backArm, top, top.shade, skin);
   drawLeg(ctx, f, f.legs.back, pants, pants.shade, skin, shoe);
   drawLeg(ctx, f, f.legs.front, pants, pants.color, skin, shoe);
+  drawExtraBody(ctx, f, extra);
   Sketch.limb(ctx, [f.neck, add(f.head, f.torsoDir, -HEAD_R + 2)], 4, skin, { amp: 0.2 });
   drawTorso(ctx, f, top);
   drawHead(ctx, f.head, f.torsoDir, f.F);
+  drawExtraFront(ctx, f, extra);
   drawArm(ctx, f.frontArm, top, top.color, skin);
 }
 

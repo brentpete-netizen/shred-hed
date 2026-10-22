@@ -8,18 +8,18 @@ const REP_LEVELS = [0, 50, 150, 300, 500, 750, 1050, 1400, 1800, 2250, 2750, 330
 // What each level unlocks. Anything not listed here is open from the start.
 //   map: a map id · piece / prop / end: a Park Builder part · anything else: a closet item by name
 const UNLOCKS = {
-  2:  [['map', 'street'], ['board', 'Black & Gold'], ['hat', 'Helmet']],
-  3:  [['hat', 'Bucket Hat'], ['top', 'Team Jersey'], ['piece', 'halfpipe']],
-  4:  [['map', 'school'], ['shoes', 'Red High-Tops'], ['top', 'Black Hoodie']],
-  5:  [['board', 'Ocean'], ['pants', 'Khaki Shorts'], ['prop', 'kinkRail']],
-  6:  [['hat', 'Headphones'], ['top', 'Red Flannel'], ['piece', 'bankLedge'], ['skin', 'Zombie']],
-  7:  [['map', 'mega'], ['board', 'Toxic'], ['top', 'Tie-Dye Tee']],
-  8:  [['hat', 'Spiky Hair'], ['shoes', 'Green High-Tops'], ['piece', 'diyQuarter'], ['pants', 'Red Pants']],
-  9:  [['end', 'rollin'], ['board', 'Checker'], ['hat', 'Mohawk']],
+  2:  [['map', 'street'], ['board', 'Black & Gold'], ['hat', 'Helmet'], ['hat', 'Cowboy Hat'], ['top', 'Hawaiian Shirt'], ['board', 'Pizza'], ['extra', 'Backpack']],
+  3:  [['hat', 'Bucket Hat'], ['top', 'Team Jersey'], ['piece', 'halfpipe'], ['hat', 'Afro'], ['pants', 'Ripped Jeans'], ['shoes', 'Neon Kicks'], ['extra', 'Mustache']],
+  4:  [['map', 'school'], ['shoes', 'Red High-Tops'], ['top', 'Black Hoodie'], ['top', 'Varsity Jacket'], ['pants', 'Camo Pants'], ['board', 'Lightning']],
+  5:  [['board', 'Ocean'], ['pants', 'Khaki Shorts'], ['prop', 'kinkRail'], ['hat', 'Top Hat'], ['top', 'Tuxedo'], ['extra', 'Scarf']],
+  6:  [['hat', 'Headphones'], ['top', 'Red Flannel'], ['piece', 'bankLedge'], ['skin', 'Zombie'], ['hat', 'Propeller Beanie'], ['top', 'Camo Hoodie'], ['pants', 'Plaid Pants'], ['board', 'Rainbow']],
+  7:  [['map', 'mega'], ['board', 'Toxic'], ['top', 'Tie-Dye Tee'], ['hat', 'Viking Helmet'], ['shoes', 'Light-Ups'], ['extra', 'Gold Chain'], ['skin', 'Ice']],
+  8:  [['hat', 'Spiky Hair'], ['shoes', 'Green High-Tops'], ['piece', 'diyQuarter'], ['pants', 'Red Pants'], ['hat', 'Halo'], ['board', 'Neon Grid'], ['extra', 'Hero Cape']],
+  9:  [['end', 'rollin'], ['board', 'Checker'], ['hat', 'Mohawk'], ['board', 'Camo'], ['shoes', 'Combat Boots']],
   10: [['skin', 'Robot'], ['top', 'Rainbow Hoodie'], ['pants', 'Tan Cargos']],
   11: [['hat', 'Gold Crown'], ['shoes', 'Gold Kicks']],
   12: [['skin', 'Alien'], ['board', 'Galaxy']],
-  13: [['board', 'Gold']],
+  13: [['board', 'Gold'], ['skin', 'Gold Statue']],
 };
 
 const UNLOCK_LEVEL = {};

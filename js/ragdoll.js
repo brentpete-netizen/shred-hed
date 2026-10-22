@@ -138,6 +138,7 @@ class Ragdoll {
       legs: { front: { knee: pt(p.kneeF), foot: pt(p.footF) }, back: { knee: pt(p.kneeB), foot: pt(p.footB) } },
       frontArm: [shoulder, pt(p.elbowF), pt(p.handF)],
       backArm: [shoulder, pt(p.elbowB), pt(p.handB)],
+      flow: clamp(Math.hypot(p.hip.vx, p.hip.vy) / 900, 0.2, 1),
     };
   }
 
