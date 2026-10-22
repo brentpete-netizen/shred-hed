@@ -195,19 +195,41 @@ const FIT_SLIDERS = [
 ];
 const FIT_BY_KEY = Object.fromEntries(FIT_SLIDERS.map(f => [f.key, f]));
 
+const OUTFIT_SAVE_SLOTS = 2;
+
 const Outfit = (() => {
-  const KEY = 'shredHed.outfit';
-  const pick = { skin: 1, hat: 0, top: 0, pants: 0, shoes: 0, board: 0, extra: 0, stance: 0, grip: 0, cutout: 0 };
-  for (const f of FIT_SLIDERS) pick[f.key] = f.normal;
-  try { Object.assign(pick, JSON.parse(localStorage.getItem(KEY)) || {}); } catch (e) { /* no saved outfit */ }
-  for (const cat in OUTFIT_OPTIONS) pick[cat] = ((pick[cat] % OUTFIT_OPTIONS[cat].length) + OUTFIT_OPTIONS[cat].length) % OUTFIT_OPTIONS[cat].length;
-  for (const f of FIT_SLIDERS) {
-    const v = Math.round(+pick[f.key]);
-    pick[f.key] = Number.isFinite(v) ? Math.max(f.min, Math.min(f.max, v)) : f.normal;
-  }
+  const KEY = 'shredHed.outfit', SAVES_KEY = 'shredHed.outfitSaves';
+  // Fills in anything missing and keeps every pick in range (lists can change between versions).
+  const clean = saved => {
+    const o = { skin: 1, hat: 0, top: 0, pants: 0, shoes: 0, board: 0, extra: 0, stance: 0, grip: 0, cutout: 0 };
+    for (const f of FIT_SLIDERS) o[f.key] = f.normal;
+    Object.assign(o, saved || {});
+    for (const cat in OUTFIT_OPTIONS) {
+      const n = OUTFIT_OPTIONS[cat].length, i = Math.round(+o[cat]) || 0;
+      o[cat] = ((i % n) + n) % n;
+    }
+    for (const f of FIT_SLIDERS) {
+      const v = Math.round(+o[f.key]);
+      o[f.key] = Number.isFinite(v) ? Math.max(f.min, Math.min(f.max, v)) : f.normal;
+    }
+    return o;
+  };
+  let stored = null;
+  try { stored = JSON.parse(localStorage.getItem(KEY)); } catch (e) { /* no saved outfit */ }
+  const pick = clean(stored);
+
+  // outfits saved for later, one per slot (null = empty)
+  let savedSlots = [];
+  try { savedSlots = JSON.parse(localStorage.getItem(SAVES_KEY)) || []; } catch (e) { /* none saved */ }
+  const saves = Array.from({ length: OUTFIT_SAVE_SLOTS }, (_, i) => (savedSlots[i] ? clean(savedSlots[i]) : null));
 
   return {
     pick,
+    saves,
+    saveTo(slot, outfit) {
+      saves[slot] = clean(outfit);
+      try { localStorage.setItem(SAVES_KEY, JSON.stringify(saves)); } catch (e) { /* storage blocked */ }
+    },
     override: null, // while drawing someone else (player 2, the CPU, the closet preview), their picks
     get(cat) {
       const from = this.override && this.override[cat] !== undefined ? this.override : pick;

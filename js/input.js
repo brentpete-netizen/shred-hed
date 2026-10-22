@@ -10,6 +10,7 @@ const Input = (() => {
     KeyD: 'right', ArrowRight: 'right',
     KeyQ: 'spinBack', KeyE: 'spinFront', Space: 'grab',
     KeyF: 'fit', // the closet's Fit screen
+    Digit1: 'slot1', Digit2: 'slot2', // load (or with Shift, save) a closet outfit
     KeyH: 'help', KeyR: 'reset', KeyM: 'mute', Backquote: 'debug',
     Enter: 'start', Escape: 'menu',
     // park builder
@@ -17,6 +18,8 @@ const Input = (() => {
     BracketLeft: 'shorter', BracketRight: 'longer', KeyN: 'rename', KeyT: 'test',
     ShiftLeft: 'shift', ShiftRight: 'shift',
   };
+  // with Shift held at the moment the key goes down
+  const SHIFTED = { Digit1: 'saveSlot1', Digit2: 'saveSlot2' };
   const heldCodes = new Set();
   let queue = [];
   const api = {
@@ -39,7 +42,7 @@ const Input = (() => {
       api.textCapture(e.key);
       return;
     }
-    const action = KEYS[e.code];
+    const action = (e.shiftKey && SHIFTED[e.code]) || KEYS[e.code];
     if (!action) return;
     e.preventDefault();
     if (e.repeat && action !== 'left' && action !== 'right' && action !== 'delete') return;

@@ -74,6 +74,8 @@ class Menu {
         else if (e === 'down') { this.row = (this.row + 1) % n; Sound.play('menuMove'); }
         else if (e === 'left' || e === 'right') this.change(this.row, e === 'right' ? 1 : -1);
         else if (e === 'fit') this.openFit();
+        else if (e === 'slot1' || e === 'slot2') this.loadOutfit(e === 'slot1' ? 0 : 1);
+        else if (e === 'saveSlot1' || e === 'saveSlot2') this.saveOutfit(e === 'saveSlot1' ? 0 : 1);
         else if (e === 'start' || e === 'menu') this.back();
       } else if (this.screen === 'fit') {
         const n = FIT_SLIDERS.length;
@@ -194,6 +196,33 @@ class Menu {
     ctx.fillText('↑ ↓ pick · ← → change · M mutes anytime · Esc back', w / 2, top + 3 * (rh + 10) + 6);
   }
 
+  // good news, in green
+  note(text) {
+    this.msg = { text, t: 0, color: '#7fd36b' };
+    Sound.play('menuPick');
+  }
+
+  // Saved outfits: two slots. Saving keeps exactly what you're trying on (fit and all);
+  // loading puts it back on. Anything still locked shows but isn't worn, same as browsing.
+  saveOutfit(slot) {
+    Outfit.saveTo(slot, this.trying);
+    this.note(`SAVED TO SLOT ${slot + 1}`);
+  }
+
+  loadOutfit(slot) {
+    const saved = Outfit.saves[slot];
+    if (!saved) return this.flash(`slot ${slot + 1} is empty · save an outfit there first`);
+    for (const cat in OUTFIT_OPTIONS) {
+      // a secret thing you don't have any more stays as it is
+      if (!Progress.secretOwned(OUTFIT_OPTIONS[cat][saved[cat]])) continue;
+      this.trying[cat] = saved[cat];
+      if (Progress.isUnlocked(cat, OUTFIT_OPTIONS[cat][saved[cat]].name)) Outfit.set(cat, saved[cat]);
+    }
+    for (const f of FIT_SLIDERS) { this.trying[f.key] = saved[f.key]; Outfit.set(f.key, saved[f.key]); }
+    this.note(`LOADED SLOT ${slot + 1}`);
+    this.kickflip(true);
+  }
+
   flash(text) {
     this.msg = { text, t: 0 };
     Sound.play('lost');
@@ -288,7 +317,7 @@ class Menu {
     else this.drawStats(ctx, w, h);
     if (this.msg) {
       ctx.globalAlpha = clamp((2 - this.msg.t) / 0.4, 0, 1);
-      markerText(ctx, this.msg.text, w / 2, h * 0.5, Math.min(30, w / 20), '#ef5a4a', -0.03);
+      markerText(ctx, this.msg.text, w / 2, h * 0.5, Math.min(30, w / 20), this.msg.color || '#ef5a4a', -0.03);
       ctx.globalAlpha = 1;
     }
   }
@@ -499,7 +528,7 @@ class Menu {
     // picking a board or grip: hold the board up so you can see it properly
     const rowCat = OUTFIT_CATEGORIES[this.row][0];
     if (rowCat === 'board' || rowCat === 'grip' || rowCat === 'cutout') {
-      const bk = Math.min(wide ? w * 0.3 : w * 0.7, 360) / DECK_L;
+      const bk = Math.min(wide ? w * 0.22 : w * 0.4, 360) / DECK_L; // leaves room for the saved-outfit slots
       const by = wide ? h * 0.25 : h * 0.15, rock = Math.sin(performance.now() / 700) * 0.12;
       // turned face-on to the camera: grip side for grip, the graphic for boards
       const roll = Math.PI / 2 - CAM_TILT + (rowCat === 'board' ? Math.PI : 0) + rock;
@@ -552,6 +581,48 @@ class Menu {
     ctx.textBaseline = 'top';
     ctx.fillStyle = INK;
     ctx.fillText('↑ ↓ pick  ·  ← → change  ·  F fit  ·  Esc done', rx + rw / 2, by + bh + 8);
+    ctx.fillText('1 / 2 load a saved outfit  ·  Shift + 1 / 2 save', rx + rw / 2, by + bh + 8 + Math.max(15, fs * 0.8));
+
+    // the two saved-outfit slots: beside the skater on wide screens, either side of it on tall ones
+    const sw = wide ? Math.min(190, w * 0.15) : Math.min(110, w * 0.25);
+    const sh = wide ? Math.min(h * 0.3, sw * 1.45) : Math.min(h * 0.26, sw * 1.75);
+    for (let i = 0; i < OUTFIT_SAVE_SLOTS; i++) {
+      const sx = wide ? 16 : i ? w - 16 - sw : 16;
+      const sy = wide ? h * 0.2 + i * (sh + 14) : h * 0.12;
+      this.drawSlot(ctx, i, sx, sy, sw, sh);
+    }
+  }
+
+  // One saved-outfit card: a little model wearing it (click it to put it on) and a SAVE button.
+  drawSlot(ctx, i, x, y, cw, ch) {
+    const saved = Outfit.saves[i];
+    const same = saved && Object.keys(saved).every(k => saved[k] === this.trying[k]);
+    const bh = Math.min(30, ch * 0.2), cardH = ch - bh - 6;
+    Sketch.seedFor(360 + i);
+    const box = [{ x, y }, { x: x + cw, y }, { x: x + cw, y: y + cardH }, { x, y: y + cardH }];
+    Sketch.fill(ctx, box, same ? '#f4c542' : '#fbf8f0', 1.5);
+    Sketch.stroke(ctx, box, { color: INK, width: same ? 2.8 : 1.8, amp: 1, closed: true });
+    markerText(ctx, `SLOT ${i + 1}`, x + cw / 2, y + 14, Math.min(18, cw * 0.14), '#ffffff', -0.02);
+    if (saved) {
+      if (!this.slotModel) { this.slotModel = new Skater(this.preview.terrain); this.slotModel.crouch = 0.2; }
+      const m = this.slotModel;
+      const k = Math.min((cardH - 30) / 125, cw / 95);
+      ctx.save();
+      ctx.translate(x + cw / 2, y + cardH - 8);
+      ctx.scale(k, k);
+      ctx.translate(-m.pos.x, -m.pos.y);
+      m.outfit = saved;
+      drawSkater(ctx, m);
+      ctx.restore();
+      this.hit(x, y, cw, cardH, () => this.loadOutfit(i));
+    } else {
+      ctx.font = `${Math.min(15, cw * 0.11)}px ${HAND}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = INK;
+      ctx.fillText('empty', x + cw / 2, y + cardH / 2);
+    }
+    this.button(ctx, 'SAVE', x, y + cardH + 6, cw, bh, false, 370 + i, () => this.saveOutfit(i));
   }
 
   // Fit: how your clothes sit on you, with a slider for each.
