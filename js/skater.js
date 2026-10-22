@@ -7,6 +7,7 @@
 // `ang` is the angle of the board's frame: the ground angle when rolling, and in the air it
 // eases toward the ground below so you come down level.
 // `spin` is how far you've turned around in the air (Q / E); every half turn flips `facing` on landing.
+// `foot` means you've picked your board up (F) and are walking with it under your arm.
 
 const HB = 13.5; // ground to the middle of the deck
 const SEQ_KEY = { up: 'U', down: 'D', left: 'L', right: 'R' };
@@ -64,11 +65,17 @@ class Skater {
     this.fakie = false;
     this.bail = null;
     this.chain = null;
+    this.foot = false;
+    this.walkPhase = 0;
+    this.caveAt = null;
+    this.boardMove = null; // 'pick', 'throw' or 'cave': the board moving between your hand and your feet
+    this.boardT = 9;
     this.combo.reset();
   }
 
   update(dt, events, held) {
     this.time += dt;
+    this.boardT += dt;
     this.held = held;
     if (this.state === 'ground') this.updateGround(dt, events);
     else if (this.state === 'air') this.updateAir(dt, events);
@@ -119,6 +126,7 @@ class Skater {
   // ---------------------------------------------------------------- ground
 
   updateGround(dt, events) {
+    if (this.foot) return this.updateWalk(dt, events);
     const C = CONFIG, held = this.held;
     // Just landed: a short window to link a manual or revert, otherwise the combo is banked.
     if (this.grace > 0 && !this.manual) {
@@ -135,6 +143,7 @@ class Skater {
         this.updateAir(0, events.slice(i + 1));
         return;
       }
+      if (e === 'carry' && !this.manual) { this.pickUp(); return; }
       if (e === 'down' && this.manual) { this.endManual(); continue; }
       if (e === 'down' && this.grace > 0) { this.startManual('manual'); continue; }
       if ((e === 'spinBack' || e === 'spinFront') && !this.manual) { this.revert(); continue; }
@@ -254,6 +263,110 @@ class Skater {
     this.bankCombo();
   }
 
+  // ---------------------------------------------------------------- on foot
+
+  // F while riding: step off and pick the board up. Running speed carries over (a little).
+  pickUp() {
+    const C = CONFIG;
+    this.bankCombo();
+    this.foot = true;
+    this.push = null;
+    this.pivot = null;
+    this.braking = false;
+    this.manual = null;
+    this.crouchHeld = false;
+    this.v = clamp(this.v, -C.walkSpeed * 1.4, C.walkSpeed * 1.4);
+    if (Math.abs(this.v) > 30) this.facing = Math.sign(this.v);
+    this.boardMove = 'pick';
+    this.boardT = 0;
+    this.out.push({ type: 'pickup' });
+  }
+
+  // ← → walk, ↑ jumps, F throws the board down and hops on.
+  updateWalk(dt, events) {
+    const C = CONFIG, held = this.held;
+    for (let i = 0; i < events.length; i++) {
+      const e = events[i];
+      if (e === 'up') {
+        this.footJump();
+        this.updateAir(0, events.slice(i + 1)); // F in the same instant is already a caveman
+        return;
+      }
+      if (e === 'carry') { this.throwDown(); return; }
+    }
+    const seg = this.terrain.segs[this.seg], steep = Math.abs(seg.ang);
+    const d = (held('right') ? 1 : 0) - (held('left') ? 1 : 0);
+    if (steep > 1) {
+      this.v += this.gravity * seg.ty * dt; // too steep to stand on: slide back down
+    } else {
+      if (d) this.facing = d;
+      const target = d * C.walkSpeed * (steep > C.walkSteep ? 0.5 : 1);
+      this.v += clamp(target - this.v, -C.walkAccel * dt, C.walkAccel * dt);
+      if (steep > C.walkSteep) this.v += this.gravity * seg.ty * dt * 0.6;
+    }
+    const stepBefore = Math.floor(this.walkPhase / Math.PI);
+    this.walkPhase += (Math.abs(this.v) * dt) / 14;
+    if (Math.floor(this.walkPhase / Math.PI) !== stepBefore) this.out.push({ type: 'footstep' });
+    this.advance(dt);
+  }
+
+  footJump() {
+    const C = CONFIG, seg = this.terrain.segs[this.seg];
+    this.vel = { x: seg.tx * this.v + seg.nx * C.footJumpSpeed, y: seg.ty * this.v + seg.ny * C.footJumpSpeed };
+    this.pos = { x: this.pos.x + seg.nx, y: this.pos.y + seg.ny };
+    this.goAir(true);
+    this.fakie = false;
+    this.ollieT = 9; // no tail snap: the board's in your hand
+    this.crouchVel -= 6;
+    this.out.push({ type: 'jump' });
+  }
+
+  // F while walking: drop the board and hop on. Running into it is a Throw Down.
+  throwDown() {
+    const C = CONFIG;
+    this.foot = false;
+    this.boardMove = 'throw';
+    this.boardT = 0;
+    this.crouchVel += 5;
+    if (Math.abs(this.v) > 60) {
+      const dir = Math.sign(this.v);
+      this.facing = dir;
+      this.v += dir * C.throwBoost;
+      this.addEntry('Throw Down', THROWDOWN_PTS);
+      this.grace = C.comboGrace; // room to manual or revert into it
+    }
+    this.dustFx(0.2);
+    this.out.push({ type: 'throwdown' });
+  }
+
+  // F in the air while carrying: put the board under your feet. From here it's a normal air,
+  // so you can still flip, spin, grab or grind before you land.
+  caveman() {
+    this.foot = false;
+    this.caveAt = this.airTime;
+    this.boardMove = 'cave';
+    this.boardT = 0;
+    this.addEntry('Caveman', CAVEMAN_PTS);
+    this.out.push({ type: 'flick' });
+  }
+
+  // Coming down on your feet (still carrying): no tricks to check, just don't jump off anything huge.
+  landOnFeet(seg, u, along) {
+    const impact = along === undefined ? Math.max(0, -(this.vel.x * seg.nx + this.vel.y * seg.ny)) : 300;
+    if (impact > 1400) return this.startBail('jumped down too far');
+    this.state = 'ground';
+    this.vert = null;
+    this.seg = seg.i;
+    this.s = seg.s0 + u * seg.len;
+    this.v = along ?? this.vel.x * seg.tx + this.vel.y * seg.ty;
+    this.ang = seg.ang;
+    this.pos = this.terrain.pointOnSeg(seg, u);
+    this.crouchVel += Math.min(impact, 1000) * 0.006;
+    this.dustFx(Math.min(1, impact / 1200) * 0.5);
+    this.endChain(true); // nothing in it, so it doesn't count as a S.K.A.T.E. attempt
+    this.out.push({ type: 'step', power: clamp(impact / 900, 0.2, 1) });
+  }
+
   // Roll along the chain, launching off lips and copings.
   advance(dt) {
     const T = this.terrain, segs = T.segs;
@@ -287,7 +400,8 @@ class Skater {
     const C = CONFIG;
     const drop = -(next.tx * dir * cur.nx + next.ty * dir * cur.ny);
     if (drop < Math.sin(C.launchMinAngle)) return false;
-    if (Math.abs(this.v) < C.launchMinSpeed && drop < Math.sin(0.7)) return false;
+    // walking, you just step over a lip; only real drops (ledges, steps) send you into the air
+    if ((Math.abs(this.v) < C.launchMinSpeed || this.foot) && drop < Math.sin(0.7)) return false;
     const sp = Math.abs(this.v);
     this.pos = dir > 0 ? { ...cur.b } : { ...cur.a };
     this.vel = { x: cur.tx * dir * sp, y: cur.ty * dir * sp };
@@ -301,7 +415,8 @@ class Skater {
     const d1x = cur.tx * dir, d1y = cur.ty * dir, d2x = next.tx * dir, d2y = next.ty * dir;
     const turn = Math.atan2(d2x * cur.nx + d2y * cur.ny, d2x * d1x + d2y * d1y);
     if (turn < CONFIG.wallAngle) return false;
-    if (Math.abs(this.v) > CONFIG.bonkSpeed) this.startBail('ran into a wall');
+    if (this.foot) this.v = 0; // walking into a wall: you just stop
+    else if (Math.abs(this.v) > CONFIG.bonkSpeed) this.startBail('ran into a wall');
     else {
       this.v = -this.v * 0.25;
       this.push = null;
@@ -368,6 +483,7 @@ class Skater {
     this.manual = null;
     this.grace = 0;
     this.slippedOff = null;
+    this.caveAt = null;
     if (!this.chain) this.chain = { entries: [] };
   }
 
@@ -378,6 +494,8 @@ class Skater {
     this.airTime += dt;
     this.ollieT += dt;
     for (const e of events) {
+      // carrying the board, your hands are full: all you can do is put it under your feet
+      if (this.foot) { if (e === 'carry') this.caveman(); continue; }
       if (e === 'grab') this.startGrab(this.heldDirKey());
       else if (e in SEQ_KEY) {
         if (e === 'up' && !this.popped && this.airTime <= C.coyoteTime) this.latePop();
@@ -397,7 +515,7 @@ class Skater {
         this.grab.entry.time = Math.max(0, this.grab.t - 0.15);
       }
     }
-    this.updateSpin(dt);
+    if (!this.foot) this.updateSpin(dt);
     if (dt === 0) return;
     if (this.vert) this.updateVert(dt);
     else this.updateFlight(dt);
@@ -486,7 +604,7 @@ class Skater {
     this.vel.y += this.gravity * dt;
     const p1 = { x: this.pos.x + this.vel.x * dt, y: this.pos.y + this.vel.y * dt };
     const hit = T.sweep(this.pos, p1);
-    const rail = T.sweepRails(this.pos, p1);
+    const rail = this.foot ? null : T.sweepRails(this.pos, p1); // no grinding in your sneakers
     if (rail && rail.seg === this.slippedOff && this.airTime < 0.3) rail.skip = true;
     if (rail && !rail.skip && (!hit || rail.t <= hit.t)) {
       this.pos = rail.p;
@@ -543,6 +661,7 @@ class Skater {
   finishAir(surfAng, buffer) {
     const C = CONFIG, tr = this.trick, g = this.grab;
     let why = null, late = null;
+    if (this.caveAt !== null && this.airTime - this.caveAt < C.cavemanTime) why = 'board not under your feet';
     if (tr && !tr.done) {
       if (tr.t < buffer) { late = tr.keys[0]; this.dropEntry(tr.entry); this.trick = null; }
       else if (tr.t / tr.dur >= C.lateCatch) { tr.done = true; tr.entry.sloppy = true; }
@@ -584,6 +703,7 @@ class Skater {
   }
 
   land(seg, u, along) {
+    if (this.foot) return this.landOnFeet(seg, u, along);
     const C = CONFIG;
     const res = this.finishAir(seg.ang, Math.max(C.landBuffer, C.manualBuffer));
     if (!res) return;
@@ -699,7 +819,8 @@ class Skater {
   // Crouch is a springy 0..1 value: 0 standing tall, 1 deep crouch.
   updateBody(dt) {
     let target;
-    if (this.state === 'air') target = this.grab ? 1 : this.trick && !this.trick.done ? 0.85 : 0.55;
+    if (this.foot) target = this.state === 'air' ? 0.4 : 0.1;
+    else if (this.state === 'air') target = this.grab ? 1 : this.trick && !this.trick.done ? 0.85 : 0.55;
     else if (this.state === 'grind') target = 0.6;
     else if (this.manual) target = 0.3;
     else if (this.crouchHeld) target = 1;

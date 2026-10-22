@@ -243,6 +243,7 @@ function trickRotation(sk) {
 }
 
 function riderPose(sk) {
+  if (sk.foot) return footPose(sk);
   const C = CONFIG, A = sk.ang;
   const N = { x: Math.sin(A), y: -Math.cos(A) };
   const T = { x: Math.cos(A), y: Math.sin(A) };
@@ -294,10 +295,15 @@ function riderPose(sk) {
   const control = { cx: center.x, cy: center.y, ang: A, facing: sk.facing, roll, yaw: yaw + turn, pitch, pivotL, pivotN };
   const rot = trickRotation(sk);
   const lift = rot.active ? Math.sin(rot.p * Math.PI) * 7 : 0;
-  const board = {
+  let board = {
     ...control, cx: center.x + N.x * lift, cy: center.y + N.y * lift,
     roll: roll + rot.roll + flip, yaw: control.yaw + rot.yaw, pitch: pitch + rot.imp,
   };
+  sk.lastRide = board;
+  // just thrown down (or put under your feet for a caveman): the board swings out of your hand
+  if ((sk.boardMove === 'throw' || sk.boardMove === 'cave') && sk.boardT < BOARD_SWAP && sk.lastCarry) {
+    board = lerpBoard(sk.lastCarry, board, smooth(sk.boardT / BOARD_SWAP));
+  }
 
   // Feet ride the board unless a flip is in progress, then they hover while it spins under them.
   const F = { x: nose.x * Math.cos(turn), y: nose.y * Math.cos(turn) };
@@ -384,6 +390,72 @@ function riderPose(sk) {
     board,
     // flow: how much capes and scarves stream out behind you
     fig: { hip, neck, shoulder, head, torsoDir, F, legs, backArm, frontArm, flow: clamp(Math.hypot(sk.vel.x, sk.vel.y) / 900, 0.1, 1) },
+  };
+}
+
+// ---------------------------------------------------------------- on foot
+
+const BOARD_SWAP = 0.15; // how long the board takes to go from your hand to your feet (or back)
+
+function lerpBoard(a, b, k) {
+  const out = { ...b };
+  for (const f of ['cx', 'cy', 'roll', 'yaw', 'pitch', 'pivotL', 'pivotN']) out[f] = lerp(a[f], b[f], k);
+  out.ang = a.ang + wrapAngle(b.ang - a.ang) * k;
+  return out;
+}
+
+// Walking with your board: legs stepping, the front arm swinging, the back hand holding the
+// board by its back truck with the nose up behind you, graphic out. In the air, knees tucked.
+function footPose(sk) {
+  const C = CONFIG, A = sk.ang;
+  const N = { x: Math.sin(A), y: -Math.cos(A) };
+  const F = { x: Math.cos(A) * sk.facing, y: Math.sin(A) * sk.facing };
+  const g = sk.pos, inAir = sk.state === 'air', ANKLE = 4;
+  const walk = inAir ? 0 : clamp(Math.abs(sk.v) / C.walkSpeed, 0, 1.4), ph = sk.walkPhase;
+
+  const crouch = clamp(sk.crouch, -0.1, 1.1);
+  const hip = add(g, N, lerp(50, 38, crouch) - Math.abs(Math.sin(ph)) * 2 * walk);
+  let front, back;
+  if (inAir) {
+    front = add(add(hip, N, -34), F, 9);
+    back = add(add(hip, N, -38), F, -5);
+  } else {
+    // each foot swings forward lifted, then pushes back along the ground
+    const step = s => add(add(g, F, Math.sin(ph + s) * 15 * walk), N, ANKLE + Math.max(0, Math.cos(ph + s)) * 7 * walk);
+    front = step(0);
+    back = step(Math.PI);
+  }
+
+  const lean = 0.08 + 0.1 * Math.min(1, walk) + (inAir ? 0.1 : 0);
+  const torsoDir = add({ x: N.x * Math.cos(lean), y: N.y * Math.cos(lean) }, F, Math.sin(lean));
+  const neck = add(hip, torsoDir, TORSO);
+  const shoulder = add(add(hip, torsoDir, TORSO - 6), F, 1);
+  const head = add(add(neck, torsoDir, HEAD_R + 4), F, 2);
+  const legs = { front: solveLeg(hip, front, F), back: solveLeg(hip, back, F) };
+
+  const D = { x: -torsoDir.x, y: -torsoDir.y };
+  const armDir = th => add({ x: D.x * Math.cos(th), y: D.y * Math.cos(th) }, F, Math.sin(th));
+  const arm = (th, bend) => {
+    const elbow = add(shoulder, armDir(th), UPPER_ARM);
+    return [shoulder, elbow, add(elbow, armDir(th + bend), FOREARM)];
+  };
+  const swing = Math.sin(ph) * 0.45 * Math.min(1, walk);
+  const frontArm = inAir ? arm(1.3, -0.7) : arm(0.15 - swing, -0.35);
+  const backArm = arm(inAir ? -0.45 : -0.35 + swing * 0.2, 0.3); // the hand holding the board
+  const hand = backArm[2];
+
+  // held by the back truck, nose pointing up behind your shoulder, graphic out
+  const up = 0.95 + Math.sin(ph) * 0.05 * walk;
+  const noseDir = add({ x: -F.x * Math.cos(up), y: -F.y * Math.cos(up) }, N, Math.sin(up));
+  const center = add(hand, noseDir, 16);
+  let board = { cx: center.x, cy: center.y, ang: Math.atan2(noseDir.y * sk.facing, noseDir.x * sk.facing), facing: sk.facing,
+    roll: Math.PI / 2 - CAM_TILT + Math.PI, yaw: 0, pitch: 0, pivotL: 0, pivotN: 0 };
+  sk.lastCarry = board;
+  if (sk.boardMove === 'pick' && sk.boardT < BOARD_SWAP && sk.lastRide) board = lerpBoard(sk.lastRide, board, smooth(sk.boardT / BOARD_SWAP));
+
+  return {
+    board,
+    fig: { hip, neck, shoulder, head, torsoDir, F, legs, backArm, frontArm, flow: clamp(Math.abs(sk.v) / 900, 0.1, 1) },
   };
 }
 
