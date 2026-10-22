@@ -11,7 +11,7 @@ const Secrets = (() => {
     recent = (recent + e.key.toLowerCase()).slice(-3);
     if (mix(recent) === LOCK) {
       recent = '';
-      Progress.unlockAll();
+      Progress.toggleSecret();
     }
   });
   return api;

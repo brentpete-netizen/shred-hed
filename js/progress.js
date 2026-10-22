@@ -65,11 +65,11 @@ const Progress = (() => {
       return !need || api.level >= need || data.owned.includes(`${type}:${key}`);
     },
     get everything() { return !!data.everything; },
-    unlockAll() {
-      const first = !data.everything;
-      data.everything = true;
+    // on, or back off again
+    toggleSecret() {
+      data.everything = !data.everything;
       store();
-      events.push({ type: 'secret', first });
+      events.push({ type: 'secret', on: data.everything });
     },
 
     add(amount, reason) {

@@ -56,7 +56,9 @@ class Hud {
     else if (ev.type === 'newTrick') this.news.push({ kind: 'trick', text: `NEW TRICK: ${ev.name}`, t: 0, dur: 2 });
     else if (ev.type === 'level') this.levelUp = { level: ev.level, unlocked: ev.unlocked, t: 0 };
     else if (ev.type === 'secret') {
-      this.levelUp = { title: 'SECRET UNLOCKED!', unlocked: ev.first ? ['everything', 'plus 3 hidden maps'] : ['you already have everything'], t: 0 };
+      this.levelUp = ev.on
+        ? { title: 'SECRET UNLOCKED!', unlocked: ['everything', 'plus 3 hidden maps'], t: 0 }
+        : { title: 'SECRET LOCKED', unlocked: ['back to normal'], t: 0 };
     }
   }
 
