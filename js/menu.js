@@ -576,8 +576,8 @@ class Menu {
     // category rows
     const rows = OUTFIT_CATEGORIES.length;
     const rx = wide ? w * 0.56 : 16, rw = wide ? Math.min(w * 0.4, 420) : w - 32;
-    const top = wide ? h * 0.16 : h * 0.52;
-    const rh = Math.min(58, ((wide ? h * 0.66 : h * 0.36)) / rows);
+    const top = wide ? h * 0.14 : h * 0.5;
+    const rh = Math.min(58, ((wide ? h * 0.7 : h * 0.4)) / rows);
     const fs = Math.min(rh * 0.42, 24);
     OUTFIT_CATEGORIES.forEach(([cat, label], i) => {
       const y = top + i * rh, sel = i === this.row;

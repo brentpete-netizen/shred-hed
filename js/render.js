@@ -451,32 +451,14 @@ function drawShoe(ctx, foot, F, up, shoe) {
   Sketch.stroke(ctx, [add(heel, down, 3), add(toe, down, 3)], thin(sole, shoe.glow ? 2.8 : 2.2));
 }
 
-// Spiky hair swept back (used by a few of the head looks).
-function drawHair(ctx, h, up, F, color) {
-  const R = HEAD_R, ua = Math.atan2(up.y, up.x), half = Math.PI / 2, spikes = [];
-  const k = 9, a0 = ua - half - 0.2, a1 = ua + half + 0.2;
-  const sweep = wrapAngle(Math.atan2(F.y, F.x) - ua) > 0 ? -0.16 : 0.16; // tips lean toward the back
-  for (let i = 0; i <= k; i++) {
-    const a = a0 + ((a1 - a0) * i) / k + (i % 2 ? sweep : 0);
-    const r = i % 2 ? R + 6 : R + 1;
-    spikes.push({ x: h.x + Math.cos(a) * r, y: h.y + Math.sin(a) * r });
-  }
-  Sketch.shape(ctx, spikes, color, HAT_LINE);
-}
-
 function drawHead(ctx, h, up, F) {
   const hat = Outfit.get('hat'), skin = Outfit.get('skin').color;
   const R = HEAD_R, ua = Math.atan2(up.y, up.x), back = { x: -F.x, y: -F.y }, half = Math.PI / 2;
   const cap = (r, a = 0.15, center = h) => arcPts(center, r, ua - half - a, ua + half + a); // covers the top of the head
 
-  // things that sit behind the head
-  if (hat.type === 'afro') {
-    const c = add(add(h, up, 7), back, 4);
-    Sketch.circle(ctx, c.x, c.y, R + 6, hat.color, { width: 2.2, amp: 1.4 });
-  } else if (hat.type === 'ponytail') {
-    const root = add(add(h, back, R - 2), up, 3);
-    Sketch.limb(ctx, [root, add(add(root, back, 9), up, -6), add(add(root, back, 11), up, -16)], 6, hat.color, { amp: 0.5 });
-  }
+  // hair (see hair.js): the long bits hang behind your head, the rest goes on top
+  const hair = hairLook(hat);
+  drawHairBack(ctx, h, up, F, hair);
 
   Sketch.circle(ctx, h.x, h.y, R, skin, { width: 2.2 });
   const ear = add(add(h, back, 3), up, -1);
@@ -488,6 +470,7 @@ function drawHead(ctx, h, up, F) {
   ctx.arc(eye.x, eye.y, 1.6, 0, TAU);
   ctx.fill();
   Sketch.stroke(ctx, [add(add(h, F, 6), up, -5.8), add(add(h, F, 9), up, -4.6)], thin(INK, 1.4));
+  drawHairTop(ctx, h, up, F, hair);
 
   // Fit: tip the hat back or forward, and wear it pulled down or perched up (hair comes along)
   const tipSide = Math.sign(up.y * F.x - up.x * F.y) || 1, lift = Outfit.fit('hatHeight') * 1.8;
@@ -538,18 +521,13 @@ function drawHead(ctx, h, up, F) {
     Sketch.shape(ctx, cap(R + 2.5, 0.3), hat.color, HAT_LINE);
     Sketch.stroke(ctx, [add(add(h, up, 1), back, R + 1), add(add(h, up, 1), F, R + 1)], thin('#6e747b', 2.2));
   } else if (hat.type === 'bandana') {
-    Sketch.shape(ctx, cap(R + 1, 0.05), hat.hair, HAT_LINE);
+    Sketch.shape(ctx, cap(R + 1, 0.05), hair.color, HAT_LINE);
     const knot = add(add(h, up, 3.5), back, R);
     Sketch.limb(ctx, [knot, add(add(h, up, 3.5), F, R + 0.5)], 3.5, hat.color, { amp: 0.2 });
     Sketch.limb(ctx, [knot, add(add(knot, back, 7), up, -3)], 2.5, hat.color, { amp: 0.3 });
     Sketch.limb(ctx, [knot, add(add(knot, back, 5), up, -8)], 2.5, hat.color, { amp: 0.3 });
     for (const k of [0.3, 0.6]) { const d = add(mix(knot, add(add(h, up, 3.5), F, R), k), up, 0.3); Sketch.circle(ctx, d.x, d.y, 0.9, hat.accent, { width: 0.6 }); }
-  } else if (hat.type === 'afro') {
-    Sketch.shape(ctx, cap(R + 1.5, -0.25, add(h, up, 2.5)), hat.color, HAT_LINE);
-  } else if (hat.type === 'ponytail') {
-    Sketch.shape(ctx, cap(R + 1.2, 0.1), hat.color, HAT_LINE);
   } else if (hat.type === 'halo') {
-    drawHair(ctx, h, up, F, hat.color);
     const c = add(h, up, R + 11);
     ctx.save();
     ctx.translate(c.x, c.y);
@@ -562,15 +540,6 @@ function drawHead(ctx, h, up, F) {
     ctx.ellipse(0, 0, 9, 3, 0, 0, TAU);
     ctx.stroke();
     ctx.restore();
-  } else if (hat.type === 'mohawk') {
-    const fin = [];
-    for (let i = 0; i <= 8; i++) {
-      const a = ua - 0.7 + (1.4 * i) / 8, r = i % 2 ? R + 4 : R + 12 - Math.abs(i - 4);
-      fin.push({ x: h.x + Math.cos(a) * r, y: h.y + Math.sin(a) * r });
-    }
-    fin.push({ x: h.x + Math.cos(ua + 0.7) * (R - 2), y: h.y + Math.sin(ua + 0.7) * (R - 2) });
-    fin.push({ x: h.x + Math.cos(ua - 0.7) * (R - 2), y: h.y + Math.sin(ua - 0.7) * (R - 2) });
-    Sketch.shape(ctx, fin, hat.color, HAT_LINE);
   } else if (hat.type === 'crown') {
     const base = add(h, up, R - 3), left = add(base, F, -(R - 1)), right = add(base, F, R - 1);
     const crown = [left, add(left, up, 13), add(mix(left, right, 0.25), up, 6), add(mix(left, right, 0.5), up, 15),
@@ -584,14 +553,11 @@ function drawHead(ctx, h, up, F) {
     for (const k of [-3, 3]) {
       Sketch.stroke(ctx, [add(add(h, up, R + 1.5), F, k), add(add(h, up, R - 3), F, k * 1.3)], thin(hat.accent, 2));
     }
-  } else {
-    // hair, optionally with headphones on top
-    drawHair(ctx, h, up, F, hat.type === 'hair' ? hat.color : hat.hair);
-    if (hat.type === 'headphones') {
-      Sketch.limb(ctx, arcPts(h, R + 4, ua - half - 0.1, ua + half + 0.1, 8), 2.2, hat.color, { amp: 0.2 });
-      Sketch.circle(ctx, ear.x, ear.y, 4.3, hat.accent, { width: 2 });
-    }
+  } else if (hat.type === 'headphones') {
+    Sketch.limb(ctx, arcPts(h, R + 4, ua - half - 0.1, ua + half + 0.1, 8), 2.2, hat.color, { amp: 0.2 });
+    Sketch.circle(ctx, ear.x, ear.y, 4.3, hat.accent, { width: 2 });
   }
+  // (no hat, or a head item that's a hairstyle itself: nothing more to draw)
   ctx.restore();
 }
 

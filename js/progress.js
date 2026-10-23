@@ -35,6 +35,18 @@ for (const [lvl, items] of Object.entries({
   11: [['grip', 'Gold'], ['hat', 'Black Helmet']],
   12: [['grip', 'Galaxy'], ['top', 'Black Flannel']],
 })) UNLOCKS[lvl].push(...items);
+// hairstyles and bright hair colors (the everyday ones are open from the start)
+for (const [lvl, items] of Object.entries({
+  2:  [['hair', 'Mullet'], ['hairColor', 'Red']],
+  3:  [['hair', 'Emo Fringe'], ['hairColor', 'Pink']],
+  4:  [['hair', 'Man Bun'], ['hairColor', 'Blue']],
+  5:  [['hair', 'Dreads'], ['hairColor', 'Purple']],
+  6:  [['hair', 'Space Buns'], ['hairColor', 'Teal']],
+  7:  [['hair', 'Flat Top'], ['hairColor', 'Green']],
+  8:  [['hair', 'Liberty Spikes'], ['hairColor', 'Lime']],
+  9:  [['hairColor', 'Orange']],
+  12: [['hairColor', 'Rainbow']],
+})) UNLOCKS[lvl].push(...items);
 // combo trails: a new one nearly every level (Glow and Off are yours from the start)
 ['Ice', 'Fire', 'Toxic', 'Bubblegum', 'Lightning', 'Rainbow', 'Galaxy', 'Shadow', 'Gold']
   .forEach((name, i) => UNLOCKS[i < 8 ? i + 2 : 11].push(['trail', name]));

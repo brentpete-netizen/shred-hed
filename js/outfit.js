@@ -40,6 +40,53 @@ const OUTFIT_OPTIONS = {
     { name: 'Black Mohawk', type: 'mohawk', color: '#26262b' },
     { name: 'Skull Bandana', type: 'bandana', color: '#26262b', accent: '#f4f1ea', hair: '#26262b' },
     { name: 'Black Helmet', type: 'helmet', color: '#1c1c20', accent: '#e2553f' },
+    { name: 'No Hat', type: 'none' }, // shows off your hair
+  ],
+  // hairstyles (drawn in hair.js); a hat hides the top of it
+  hair: [
+    { name: 'Short', style: 'short' },
+    { name: 'Buzz Cut', style: 'buzz' },
+    { name: 'Bald', style: 'bald' },
+    { name: 'Spiky', style: 'spiky' },
+    { name: 'Curly', style: 'curly' },
+    { name: 'Afro', style: 'afro' },
+    { name: 'Long', style: 'long' },
+    { name: 'Ponytail', style: 'ponytail' },
+    { name: 'Pigtails', style: 'pigtails' },
+    { name: 'Bowl Cut', style: 'bowl' },
+    { name: 'Side Swoop', style: 'swoop' },
+    { name: 'Slicked Back', style: 'slick' },
+    { name: 'Shaggy', style: 'shaggy' },
+    { name: 'Mullet', style: 'mullet' },
+    { name: 'Man Bun', style: 'bun' },
+    { name: 'Space Buns', style: 'spacebuns' },
+    { name: 'Emo Fringe', style: 'emo' },
+    { name: 'Flat Top', style: 'flattop' },
+    { name: 'Mohawk', style: 'mohawk' },
+    { name: 'Dreads', style: 'dreads' },
+    { name: 'Liberty Spikes', style: 'liberty' },
+  ],
+  hairColor: [
+    { name: 'Natural', color: null }, // whatever color the look comes in
+    { name: 'Black', color: '#1f1a17' },
+    { name: 'Dark Brown', color: '#3a2416' },
+    { name: 'Brown', color: '#6b4226' },
+    { name: 'Auburn', color: '#8a3b1e' },
+    { name: 'Ginger', color: '#d2691e' },
+    { name: 'Strawberry', color: '#e8875a' },
+    { name: 'Blonde', color: '#e8c06a' },
+    { name: 'Platinum', color: '#f1e6c4' },
+    { name: 'Grey', color: '#9a9a9a' },
+    { name: 'White', color: '#f4f1ea' },
+    { name: 'Red', color: '#d63a3a' },
+    { name: 'Orange', color: '#ff8c2e' },
+    { name: 'Pink', color: '#ff8fc4' },
+    { name: 'Purple', color: '#8e5bd6' },
+    { name: 'Blue', color: '#2f80ed' },
+    { name: 'Teal', color: '#2fb5b0' },
+    { name: 'Green', color: '#3fae4a' },
+    { name: 'Lime', color: '#b6f23d' },
+    { name: 'Rainbow', color: '#ff8fc4', rainbow: true },
   ],
   top: [
     { name: 'Purple Hoodie', type: 'hoodie', color: '#6c4bd1', shade: '#5639ad', accent: '#f4f1ea' },
@@ -191,7 +238,7 @@ const OUTFIT_OPTIONS = {
 
 // 'sag' isn't a list of looks, it's a slider in the closet (see SAG_MAX).
 const OUTFIT_CATEGORIES = [
-  ['skin', 'Skin'], ['hat', 'Head'], ['top', 'Top'], ['pants', 'Pants'], ['sag', 'Sag'], ['shoes', 'Shoes'], ['board', 'Board'],
+  ['skin', 'Skin'], ['hat', 'Head'], ['hair', 'Hair'], ['hairColor', 'Hair Color'], ['top', 'Top'], ['pants', 'Pants'], ['sag', 'Sag'], ['shoes', 'Shoes'], ['board', 'Board'],
   ['grip', 'Grip'], ['cutout', 'Grip Cut'], ['trail', 'Trail'], ['extra', 'Extra'], ['stance', 'Stance'],
 ];
 
