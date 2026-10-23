@@ -3,7 +3,8 @@
 
 const PX_PER_FT = 23; // the skater is about 5.5 ft tall
 
-const MAIN_ITEMS = ['FREE SKATE', 'S.K.A.T.E.', 'PARK BUILDER', 'CLOSET', 'STATS', 'AUDIO'];
+const MAIN_ITEMS = ['FREE SKATE', 'S.K.A.T.E.', 'ONLINE', 'PARK BUILDER', 'CLOSET', 'STATS', 'AUDIO'];
+const ONLINE_ITEMS = ['HOST FREE SKATE', 'HOST S.K.A.T.E.', 'JOIN A ROOM'];
 const VERSUS_ITEMS = ['VS CPU', '2 PLAYERS'];
 
 // What a Fit slider's setting looks like in words: "normal", "a bit baggy", "skinny"...
@@ -45,6 +46,16 @@ class Menu {
         if (e === 'up') { this.sel = (this.sel + MAIN_ITEMS.length - 1) % MAIN_ITEMS.length; Sound.play('menuMove'); }
         else if (e === 'down') { this.sel = (this.sel + 1) % MAIN_ITEMS.length; Sound.play('menuMove'); }
         else if (e === 'start' || e === 'grab' || e === 'right') this.choose(this.sel);
+      } else if (this.screen === 'online') {
+        const n = ONLINE_ITEMS.length;
+        if (e === 'up') { this.onSel = (this.onSel + n - 1) % n; Sound.play('menuMove'); }
+        else if (e === 'down') { this.onSel = (this.onSel + 1) % n; Sound.play('menuMove'); }
+        else if (e === 'start' || e === 'grab' || e === 'right') this.chooseOnline(this.onSel);
+        else if (e === 'rename') this.startTyping('name');
+        else if (e === 'menu' || e === 'left') this.back();
+      } else if (this.screen === 'lobby') {
+        if (e === 'start' && Net.role === 'host' && this.canStart()) Net.startGame();
+        else if (e === 'menu') this.leaveRoom();
       } else if (this.screen === 'versus') {
         if (e === 'up' || e === 'down') { this.vsSel = 1 - this.vsSel; Sound.play('menuMove'); }
         else if (e === 'start' || e === 'grab' || e === 'right') this.chooseVersus(this.vsSel);
@@ -98,12 +109,52 @@ class Menu {
   choose(i) {
     this.sel = i;
     Sound.play('menuPick');
-    if (i === 0) { this.game = 'free'; this.refreshMaps(); this.screen = 'maps'; }
-    else if (i === 1) { this.screen = 'versus'; this.vsSel = this.vsSel || 0; }
-    else if (i === 2) { this.screen = 'parks'; this.confirmDelete = false; }
-    else if (i === 3) { this.screen = 'closet'; this.showoff = 0; this.trying = { ...Outfit.pick }; }
-    else if (i === 4) this.screen = 'stats';
+    const item = MAIN_ITEMS[i];
+    if (item === 'FREE SKATE') { this.game = 'free'; this.refreshMaps(); this.screen = 'maps'; }
+    else if (item === 'S.K.A.T.E.') { this.screen = 'versus'; this.vsSel = this.vsSel || 0; }
+    else if (item === 'ONLINE') { this.screen = 'online'; this.onSel = this.onSel || 0; }
+    else if (item === 'PARK BUILDER') { this.screen = 'parks'; this.confirmDelete = false; }
+    else if (item === 'CLOSET') { this.screen = 'closet'; this.showoff = 0; this.trying = { ...Outfit.pick }; }
+    else if (item === 'STATS') this.screen = 'stats';
     else { this.screen = 'audio'; this.audioRow = 0; }
+  }
+
+  // ---------------------------------------------------------------- online
+
+  chooseOnline(i) {
+    this.onSel = i;
+    Sound.play('menuPick');
+    if (i === 2) { this.screen = 'join'; this.joinCode = ''; this.startTyping('code'); }
+    else { this.game = i === 0 ? 'online-free' : 'online-skate'; this.refreshMaps(); this.screen = 'maps'; }
+  }
+
+  // Typing your online name (it's the name on your Name Tag too) or a room code.
+  startTyping(what) {
+    this.typing = what;
+    Input.textCapture = key => {
+      if (key === 'Escape') { this.stopTyping(); if (what === 'code') this.screen = 'online'; return; }
+      if (what === 'code') {
+        if (key === 'Enter') { if (this.joinCode.length === 4) { this.stopTyping(); Net.join(this.joinCode); this.screen = 'lobby'; } return; }
+        if (key === 'Backspace') this.joinCode = this.joinCode.slice(0, -1);
+        else if (/^[a-z]$/i.test(key) && this.joinCode.length < 4) this.joinCode += key.toUpperCase();
+        Sound.play('menuMove');
+      } else {
+        if (key === 'Enter') { this.stopTyping(); Outfit.set('tagName', Outfit.pick.tagName.trim()); return; }
+        const name = key === 'Backspace' ? Outfit.pick.tagName.slice(0, -1) : key.length === 1 ? cleanTagName(Outfit.pick.tagName + key) : Outfit.pick.tagName;
+        Outfit.set('tagName', name);
+      }
+    };
+  }
+
+  stopTyping() {
+    this.typing = null;
+    Input.textCapture = null;
+  }
+
+  leaveRoom() {
+    Net.leave();
+    this.screen = 'online';
+    Sound.play('menuMove');
   }
 
   chooseVersus(i) {
@@ -120,9 +171,18 @@ class Menu {
     if (!Progress.isUnlocked('map', this.maps[i].id)) return this.flash(`reach level ${need} to unlock ${this.maps[i].name}`);
     this.mapId = this.maps[i].id;
     Sound.play('menuPick');
+    if (this.game.startsWith('online')) {
+      // open a room on this map; a custom park gets sent to everyone who joins
+      const m = this.maps[i], park = m.custom ? Parks.get(m.id.slice(5)) : null;
+      Net.host(this.game === 'online-free' ? 'free' : 'skate', m.id, park);
+      this.screen = 'lobby';
+      return;
+    }
     this.result = { map: this.mapId, game: this.game };
     this.screen = 'main';
   }
+
+  canStart() { return Net.role === 'host' && (Net.mode === 'free' || Net.players.length >= 2); }
 
   // My Parks: each saved park, then "new park" if there's room.
   parkRows() {
@@ -317,6 +377,7 @@ class Menu {
     if (this.msg && (this.msg.t += dt) > 2) this.msg = null;
     // clicked away from the name tag (or took it off) while writing on it
     if (this.naming && (this.screen !== 'closet' || !this.wearingTag())) this.finishTagName();
+    if (this.typing && this.screen !== 'online' && this.screen !== 'join') this.stopTyping();
   }
 
   click(x, y) {
@@ -343,6 +404,9 @@ class Menu {
     else if (this.screen === 'audio') this.drawAudio(ctx, w, h);
     else if (this.screen === 'closet') this.drawCloset(ctx, w, h, dpr);
     else if (this.screen === 'fit') this.drawFit(ctx, w, h, dpr);
+    else if (this.screen === 'online') this.drawOnline(ctx, w, h);
+    else if (this.screen === 'join') this.drawJoin(ctx, w, h);
+    else if (this.screen === 'lobby') this.drawLobby(ctx, w, h);
     else this.drawStats(ctx, w, h);
     if (this.msg) {
       ctx.globalAlpha = clamp((2 - this.msg.t) / 0.4, 0, 1);
@@ -356,6 +420,97 @@ class Menu {
     ctx.fillStyle = 'rgba(60, 56, 50, 0.45)';
     ctx.fillRect(x, y, w, h);
     markerText(ctx, `LEVEL ${level}`, x + w / 2, y + h / 2, Math.min(28, w / 7, h * 0.4), '#f4c542', -0.04);
+  }
+
+  // A few lines of small handwriting, centred.
+  note2(ctx, lines, w, y, fs) {
+    ctx.font = `${fs}px ${HAND}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = INK;
+    lines.forEach((l, i) => ctx.fillText(l, w / 2, y + i * fs * 1.35));
+  }
+
+  drawOnline(ctx, w, h) {
+    markerText(ctx, 'ONLINE', w / 2, Math.min(70, h * 0.11), Math.min(52, w / 9), '#f4c542', -0.04);
+    const fs = Math.max(14, Math.min(18, w / 60));
+    this.note2(ctx, ['Skate with friends on their own computers or phones.', 'Host a room and send them its code, or join theirs.'], w, Math.min(70, h * 0.11) + 36, fs);
+    // your name, as everyone else will see it
+    const bw = Math.min(360, w - 48), bh = Math.min(58, h * 0.085), x = (w - bw) / 2;
+    const ny = h * 0.3, typing = this.typing === 'name';
+    Sketch.seedFor(390);
+    const box = [{ x, y: ny }, { x: x + bw, y: ny }, { x: x + bw, y: ny + bh }, { x, y: ny + bh }];
+    Sketch.fill(ctx, box, typing ? '#f4c542' : '#fbf8f0', 1.5);
+    Sketch.stroke(ctx, box, { color: INK, width: 2, amp: 1, closed: true });
+    const caret = typing && Math.floor(performance.now() / 400) % 2 ? '|' : '';
+    markerText(ctx, `${onlineName()}${caret}`, w / 2, ny + bh * 0.42, Math.min(bh * 0.42, 26), '#ffffff');
+    ctx.font = `${fs * 0.75}px ${HAND}`;
+    ctx.fillStyle = INK;
+    ctx.fillText(typing ? 'type your name · Enter when done' : 'your name · click (or press N) to change it', w / 2, ny + bh * 0.72);
+    this.hit(x, ny, bw, bh, () => {
+      if (navigator.maxTouchPoints > 0) {
+        // no keyboard to type on: a pop-up instead
+        const name = window.prompt('Your name:', Outfit.pick.tagName);
+        if (name !== null) Outfit.set('tagName', cleanTagName(name).trim());
+      } else if (!this.typing) this.startTyping('name');
+    });
+    const y0 = ny + bh + 26;
+    ONLINE_ITEMS.forEach((label, i) => this.button(ctx, label, x, y0 + i * bh * 1.3, bw, bh, i === this.onSel, 392 + i, () => this.chooseOnline(i)));
+    this.note2(ctx, ['Free Skate: up to 4 skaters on one map · S.K.A.T.E.: you vs one friend', 'Esc back'], w, y0 + 3 * bh * 1.3 + 6, fs * 0.85);
+    if (Net.error) markerText(ctx, Net.error, w / 2, h * 0.94, Math.min(22, w / 30), '#ef5a4a');
+  }
+
+  drawJoin(ctx, w, h) {
+    markerText(ctx, 'JOIN A ROOM', w / 2, Math.min(70, h * 0.11), Math.min(52, w / 11), '#f4c542', -0.04);
+    const fs = Math.max(14, Math.min(18, w / 60));
+    this.note2(ctx, ['Type the 4-letter room code your friend sees on their screen.'], w, Math.min(70, h * 0.11) + 36, fs);
+    const s = Math.min(90, (w - 60) / 4.6), y = h * 0.42;
+    for (let i = 0; i < 4; i++) {
+      const x = w / 2 + (i - 2) * s * 1.12 + s * 0.06;
+      Sketch.seedFor(400 + i);
+      const box = [{ x, y }, { x: x + s, y }, { x: x + s, y: y + s }, { x, y: y + s }];
+      Sketch.fill(ctx, box, i === this.joinCode.length ? '#f4c542' : '#fbf8f0', 1.5);
+      Sketch.stroke(ctx, box, { color: INK, width: 2.4, amp: 1, closed: true });
+      if (this.joinCode[i]) markerText(ctx, this.joinCode[i], x + s / 2, y + s / 2, s * 0.6, '#ffffff');
+    }
+    this.note2(ctx, [this.joinCode.length === 4 ? 'Enter to join' : 'letters only · Backspace to fix it', 'no keyboard? tap the boxes', 'Esc back'], w, y + s + 24, fs);
+    // phones and tablets: ask for it in a pop-up instead
+    this.hit(w / 2 - s * 2.3, y, s * 4.6, s, () => {
+      const code = (window.prompt('Room code (4 letters):', this.joinCode) || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 4);
+      this.joinCode = code;
+      if (code.length === 4) { this.stopTyping(); Net.join(code); this.screen = 'lobby'; }
+    });
+  }
+
+  drawLobby(ctx, w, h) {
+    const fs = Math.max(14, Math.min(18, w / 60)), host = Net.role === 'host';
+    const mode = Net.mode === 'skate' ? 'S.K.A.T.E.' : 'FREE SKATE';
+    markerText(ctx, Net.code ? `ROOM ${Net.code}` : 'ONLINE', w / 2, Math.min(70, h * 0.11), Math.min(56, w / 9), '#f4c542', -0.04);
+    const map = Net.map ? (allMaps().find(m => m.id === Net.map) || findAnyMap(Net.map)).name : '';
+    const lines = Net.code ? [`${mode}${map ? ' on ' + map : ''}`] : [];
+    if (host && Net.code) lines.push('Tell your friends to press ONLINE,', `then JOIN A ROOM, and type ${Net.code}`);
+    lines.push(Net.error || Net.status);
+    this.note2(ctx, lines, w, Math.min(70, h * 0.11) + 38, fs);
+    // who's here
+    const bw = Math.min(360, w - 48), rh = Math.min(48, h * 0.07), x = (w - bw) / 2, y0 = h * 0.36;
+    const slots = Net.mode ? ROOM_SIZE[Net.mode] : 0;
+    for (let i = 0; i < slots; i++) {
+      const p = Net.players[i], y = y0 + i * (rh + 8);
+      Sketch.seedFor(410 + i);
+      const box = [{ x, y }, { x: x + bw, y }, { x: x + bw, y: y + rh }, { x, y: y + rh }];
+      Sketch.fill(ctx, box, p ? '#fbf8f0' : 'rgba(251, 248, 240, 0.4)', 1.5);
+      Sketch.stroke(ctx, box, { color: INK, width: 1.8, amp: 1, closed: true });
+      const label = p ? `${p.name}${p.id === Net.me ? ' (you)' : ''}${p.id === 'h' ? ' · host' : ''}` : 'waiting…';
+      markerText(ctx, label, w / 2, y + rh / 2, Math.min(rh * 0.42, 22), p ? '#ffffff' : '#b9b4aa');
+    }
+    const by = y0 + Math.max(slots, 1) * (rh + 8) + 16, bh = Math.min(54, h * 0.08), half = (bw - 14) / 2;
+    if (host && Net.code) {
+      const ready = this.canStart();
+      this.button(ctx, ready ? 'START' : 'WAITING', x, by, half, bh, ready, 420, () => { if (this.canStart()) Net.startGame(); });
+      this.button(ctx, 'CLOSE', x + half + 14, by, half, bh, false, 421, () => this.leaveRoom());
+    } else this.button(ctx, Net.error ? 'BACK' : 'LEAVE', x + bw / 4, by, bw / 2, bh, false, 421, () => this.leaveRoom());
+    const hint = !host ? 'Esc leave' : this.canStart() ? 'Enter start · Esc close the room' : 'S.K.A.T.E. needs 2 players · Esc close the room';
+    this.note2(ctx, [hint], w, by + bh + 10, fs * 0.85);
   }
 
   drawVersus(ctx, w, h) {
@@ -416,7 +571,8 @@ class Menu {
 
   // Map select: a card per spot with a little sketch of its layout and your best scores there.
   drawMaps(ctx, w, h) {
-    const title = this.game === 'free' ? 'PICK A SPOT' : this.game === 'cpu' ? 'S.K.A.T.E. VS CPU' : 'S.K.A.T.E. 2 PLAYERS';
+    const title = { free: 'PICK A SPOT', cpu: 'S.K.A.T.E. VS CPU', '2p': 'S.K.A.T.E. 2 PLAYERS',
+      'online-free': 'ONLINE · PICK A SPOT', 'online-skate': 'ONLINE S.K.A.T.E. · PICK A SPOT' }[this.game];
     markerText(ctx, title, w / 2, Math.min(60, h * 0.09), Math.min(52, w / 12), '#ffffff', -0.04);
     const cols = w > 900 ? 4 : 2, rows = Math.ceil(this.maps.length / cols);
     const gap = 16, top = Math.min(110, h * 0.17);
@@ -504,8 +660,9 @@ class Menu {
     ], { color: '#e2553f', width: size * 0.08, amp: 3 });
 
     // your level and how close you are to the next one
-    const bw = Math.min(320, w - 48), bh = Math.min(54, h * 0.07), gap = bh * 0.28;
-    const x = (w - bw) / 2, ly = h * 0.2 + size * 0.95;
+    const ly = h * 0.2 + size * 0.95;
+    const bw = Math.min(320, w - 48), bh = Math.min(54, h * 0.07, (h - ly - 74) / (MAIN_ITEMS.length * 1.28)), gap = bh * 0.28;
+    const x = (w - bw) / 2;
     const next = Progress.nextAt();
     markerText(ctx, `LEVEL ${Progress.level}${Progress.everything ? ' ★' : ''}`, x + 52, ly + 9, 20, Progress.everything ? '#f4c542' : '#ffffff', -0.03);
     Sketch.seedFor(96);

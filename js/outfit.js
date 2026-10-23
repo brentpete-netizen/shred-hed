@@ -294,6 +294,7 @@ const Outfit = (() => {
   return {
     pick,
     saves,
+    clean, // tidies up an outfit from somewhere else (another player's game, say)
     saveTo(slot, outfit) {
       saves[slot] = clean(outfit);
       try { localStorage.setItem(SAVES_KEY, JSON.stringify(saves)); } catch (e) { /* storage blocked */ }

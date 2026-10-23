@@ -23,13 +23,22 @@ function secondOutfit() {
 }
 
 class SkateGame {
-  constructor(terrain, vsCpu) {
+  // online: { players, me } for a game against someone in an online room. Each skater makes their
+  // own attempts on their own screen and sends how it went; the other one watches it live.
+  constructor(terrain, vsCpu, online = null) {
     this.terrain = terrain;
     this.vsCpu = vsCpu;
-    this.players = [
-      { name: 'P1', letters: 0, cpu: false, outfit: null },
-      { name: vsCpu ? 'CPU' : 'P2', letters: 0, cpu: vsCpu, outfit: vsCpu ? CPU_OUTFIT : secondOutfit() },
-    ];
+    this.online = !!online;
+    this.players = online
+      ? online.players.slice(0, 2).map(p => ({
+        id: p.id, name: p.name, letters: 0, cpu: false, remote: p.id !== online.me, outfit: p.id === online.me ? null : Outfit.clean(p.outfit),
+      }))
+      : [
+        { name: 'P1', letters: 0, cpu: false, outfit: null },
+        { name: vsCpu ? 'CPU' : 'P2', letters: 0, cpu: vsCpu, outfit: vsCpu ? CPU_OUTFIT : secondOutfit() },
+      ];
+    this.attemptNo = 0;   // counted the same way on both screens, to match results to attempts
+    this.pending = null;  // a result that came in before this screen got to that attempt
     this.setter = 0;
     this.turn = 0;
     this.phase = 'set';   // 'set' or 'match'
@@ -45,6 +54,12 @@ class SkateGame {
 
   get current() { return this.players[this.turn]; }
   get other() { return this.players[1 - this.turn]; }
+  // watching the other skater's attempt online (your own skater steps aside)
+  get watching() { return this.online && this.state === 'attempt' && !!this.current.remote; }
+  // whose skating counts for your stats
+  isMine() { return this.online ? !this.current.remote : this.turn === 0; }
+  // which online skater to draw: the one making an attempt, if it isn't you ('' = nobody)
+  watchedId() { return this.watching ? this.current.id : ''; }
 
   // A big message between attempts; when it's done the next attempt starts.
   showBanner(title, sub, dur = 1.8) {
@@ -54,12 +69,39 @@ class SkateGame {
 
   beginAttempt() {
     const p = this.current;
+    this.attemptNo++;
     this.skater = new Skater(this.terrain);
     this.skater.outfit = p.outfit;
     this.attempt = { t: 0, landedAt: null, names: null, done: false };
     this.driver = null;
     this.state = 'attempt';
     if (p.cpu) this.planCpu();
+    if (p.remote && this.pending?.n === this.attemptNo) {
+      const m = this.pending;
+      this.pending = null;
+      this.applyResult(m);
+    }
+  }
+
+  // Online: how the other skater's attempt went (sent from their screen).
+  onNetResult(m) {
+    if (this.state === 'attempt' && this.watching && !this.attempt.done && m.n === this.attemptNo) this.applyResult(m);
+    else if (m.n > this.attemptNo || (m.n === this.attemptNo && this.state !== 'attempt')) this.pending = m;
+  }
+
+  applyResult(m) {
+    this.attempt.names = m.names;
+    this.settle(m.landed, m.why);
+  }
+
+  // Online: the other skater left the room, so you win.
+  playerLeft(id) {
+    const i = this.players.findIndex(p => p.id === id);
+    if (i < 0 || this.winner !== null) return;
+    this.winner = 1 - i;
+    this.trick = null;
+    this.showBanner(`${this.players[i].name} LEFT`, 'you win by default', 2.5);
+    this.state = 'over';
   }
 
   planCpu() {
@@ -78,7 +120,7 @@ class SkateGame {
 
   // Inputs for this physics step: the keyboard, the CPU, or nothing between attempts.
   input(keyboardEvents) {
-    if (this.state !== 'attempt' || this.attempt.done) return { ev: [], held: () => false };
+    if (this.state !== 'attempt' || this.attempt.done || this.watching) return { ev: [], held: () => false };
     if (this.driver) {
       const { ev, held } = this.driver.step(this.skater);
       return { ev, held: a => held.has(a) };
@@ -88,7 +130,7 @@ class SkateGame {
 
   onMessage(m) {
     const a = this.attempt;
-    if (this.state !== 'attempt' || !a || a.done) return;
+    if (this.state !== 'attempt' || !a || a.done || this.watching) return;
     if (m.type === 'chain' && !m.names.length && this.driver?.popT != null && a.landedAt === null) {
       this.resolve(false, 'missed it'); // the CPU popped but didn't get the trick off
     } else if (m.type === 'chain' && m.names.length && a.landedAt === null) {
@@ -115,12 +157,19 @@ class SkateGame {
         return;
       }
       a.t += dt;
+      if (this.watching) return; // their screen decides how it went
       if (a.landedAt !== null && a.t - a.landedAt >= RIDE_AWAY) this.resolve(true);
       else if (a.landedAt === null && a.t > (this.current.cpu ? 14 : ATTEMPT_TIME)) this.resolve(false, "time's up");
     }
   }
 
+  // Your attempt is over: online, tell the other screen first.
   resolve(landed, why = '') {
+    if (this.online) Net.send({ t: 'result', n: this.attemptNo, landed, why, names: this.attempt.names });
+    this.settle(landed, why);
+  }
+
+  settle(landed, why = '') {
     const a = this.attempt;
     a.done = true;
     const me = this.current, them = this.other, name = a.names;
@@ -196,7 +245,7 @@ class SkateGame {
       const task = this.phase === 'set' ? `${p.name}: SET A TRICK` : `${p.name}: MATCH`;
       markerText(ctx, task, w / 2, ty, size * 0.7, '#ffffff', -0.02);
       if (this.trick) markerText(ctx, this.trick, w / 2, ty + size * 0.95, Math.min(size * 0.9, w / 14), '#f4c542', -0.03);
-      if (!p.cpu) {
+      if (!p.cpu && !p.remote) {
         const left = Math.max(0, ATTEMPT_TIME - this.attempt.t);
         if (this.attempt.landedAt === null) markerText(ctx, `${Math.ceil(left)}`, w - 40, 50, size * 0.8, left < 6 ? '#ef5a4a' : '#ffffff');
       } else {
@@ -204,7 +253,7 @@ class SkateGame {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillStyle = INK;
-        ctx.fillText('the CPU is skating…', w / 2, ty + size * (this.trick ? 1.7 : 0.8));
+        ctx.fillText(`${p.cpu ? 'the CPU' : p.name} is skating…`, w / 2, ty + size * (this.trick ? 1.7 : 0.8));
       }
       if (this.tries > 1 && this.phase === 'match') markerText(ctx, 'last letter: 2 tries', w / 2, ty + size * 1.75, size * 0.42, '#ef5a4a');
     }
@@ -218,7 +267,12 @@ class SkateGame {
       ctx.fillRect(0, h * 0.28, w, h * 0.3);
       markerText(ctx, b.title, w / 2, h * 0.38, Math.min(size * 1.8, w / 12), '#f4c542', -0.04, 0.9 + 0.1 * k);
       markerText(ctx, b.sub, w / 2, h * 0.38 + size * 1.5, Math.min(size * 0.7, w / 26), '#ffffff', -0.02);
-      if (this.state === 'over') markerText(ctx, 'Enter: rematch  ·  Esc: menu', w / 2, h * 0.38 + size * 2.6, size * 0.5, '#ffffff');
+      if (this.state === 'over') {
+        const hint = !this.online ? 'Enter: rematch  ·  Esc: menu'
+          : Net.role === 'host' ? (Net.players.length >= 2 ? 'Enter: rematch  ·  Esc: leave the room' : 'Esc: leave the room')
+          : 'waiting for the host to start a rematch  ·  Esc: leave';
+        markerText(ctx, hint, w / 2, h * 0.38 + size * 2.6, size * 0.5, '#ffffff');
+      }
     }
   }
 }

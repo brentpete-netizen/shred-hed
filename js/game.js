@@ -209,6 +209,60 @@ function menuPicked(r) {
   else startSkating(r);
 }
 
+// ---------------------------------------------------------------- online
+
+let online = false; // skating in an online room right now
+
+// The host said go (or you dropped into a Free Skate already going): everyone loads the same map.
+function startOnline(msg) {
+  const def = msg.park ? { id: 'park:' + msg.park.id, build: () => buildPark(msg.park) } : findAnyMap(msg.map);
+  loadTerrain(def.build(), def.id);
+  Online.syncRoster();
+  if (msg.mode === 'skate') {
+    skateGame = new SkateGame(terrain, false, { players: Net.players, me: Net.me });
+    skateGame.onGameOver = () => Progress.add(20, 'S.K.A.T.E.');
+    skater = skateGame.skater;
+    showHelp = false;
+  } else skateGame = null;
+  online = true;
+  testRide = false;
+  mode = 'play';
+  hud.clear();
+}
+
+function leaveOnline(why) {
+  online = false;
+  skateGame = null;
+  Online.clear();
+  Net.leave();
+  loadMap(mapId.startsWith('park:') ? 'park' : mapId);
+  mode = 'menu';
+  menu.open('online');
+  if (why) menu.flash(why);
+}
+
+Net.on('start', msg => startOnline(msg));
+Net.on('roster', () => Online.syncRoster());
+Net.on('closed', why => { if (online) leaveOnline(why); });
+Net.on('left', id => skateGame?.online && skateGame.playerLeft(id));
+Net.on('result', msg => skateGame?.online && skateGame.onNetResult(msg));
+// the other skater's tricks pop up for you while you watch their S.K.A.T.E. attempt
+Net.on('say', msg => {
+  if (!skateGame?.watching || msg.from !== skateGame.current.id) return;
+  hud.handle(msg.m);
+  Sound.onMessage(msg.m);
+});
+const SAY_TYPES = new Set(['trick', 'combo', 'comboLost', 'bail', 'land', 'pop', 'flick', 'grindStart', 'cancel']);
+
+// Where the camera follows: you, or the other skater while you watch their attempt.
+function cameraTarget() {
+  const watched = skateGame?.watching && Online.focus(skateGame.current.id);
+  if (watched) return { ...watched, air: watched.air };
+  const bail = skater.state === 'bail' ? skater.bail.body : null;
+  const p = bail || skater.pos;
+  return { x: p.x, y: p.y, vx: bail ? bail.vx : skater.vel.x, air: skater.state === 'air' };
+}
+
 // The builder zooms out further so you can see more of your park.
 const BUILD_VIEW = 900;
 const builderToWorld = (x, y) => {
@@ -245,22 +299,21 @@ function feelMessage(m) {
 function viewScale(vh = CONFIG.viewHeight * feel.zoom) { return Math.min(ch / vh, cw / (vh * 1.4)); }
 
 function updateCamera(dt) {
+  const p = cameraTarget(), vx = p.vx;
   // zoom out the higher you are above the ground
-  const height = skater.state === 'air' ? terrain.groundYAt(skater.pos.x, skater.pos.y) - skater.pos.y : 0;
+  const height = p.air ? terrain.groundYAt(p.x, p.y) - p.y : 0;
   const zoomTarget = 1 + clamp((height - 100) / 800, 0, 0.45);
   feel.zoom += (zoomTarget - feel.zoom) * Math.min(1, dt * (zoomTarget > feel.zoom ? 2 : 1.2));
   feel.shake *= Math.pow(0.004, dt);
   feel.offset = { x: (Math.random() - 0.5) * feel.shake, y: (Math.random() - 0.5) * feel.shake };
 
   const scale = viewScale(), halfW = cw / 2 / scale;
-  const bail = skater.state === 'bail' ? skater.bail.body : null;
-  const p = bail || skater.pos, vx = bail ? bail.vx : skater.vel.x;
   let tx = p.x + clamp(vx * CONFIG.lookAhead, -260, 260);
   const ty = Math.min(p.y - 110 * feel.zoom, terrain.lowest - 100);
   const minX = terrain.minX + halfW, maxX = terrain.maxX - halfW;
   tx = minX < maxX ? clamp(tx, minX, maxX) : (terrain.minX + terrain.maxX) / 2;
   cam.x += (tx - cam.x) * Math.min(1, dt * 5);
-  cam.y += (ty - cam.y) * Math.min(1, dt * (skater.state === 'air' ? 2.5 : 4));
+  cam.y += (ty - cam.y) * Math.min(1, dt * (p.air ? 2.5 : 4));
 }
 
 // Streaks across the screen when you're really flying.
@@ -305,10 +358,14 @@ function render() {
   drawTerrain(ctx, world, { x0: view.x - halfW - 50, x1: view.x + halfW + 50 });
   if (building) builder.drawWorld(ctx);
   else {
-    drawFx(ctx, skater.fx);
-    Bonus.draw(ctx, time);
-    ComboTrail.draw(ctx, skater, time);
-    drawSkater(ctx, skater);
+    if (online) Online.draw(ctx, time, skateGame ? skateGame.watchedId() : null);
+    // while you watch someone's S.K.A.T.E. attempt, your own skater steps aside
+    if (!skateGame?.watching) {
+      drawFx(ctx, skater.fx);
+      Bonus.draw(ctx, time);
+      ComboTrail.draw(ctx, skater, time);
+      drawSkater(ctx, skater);
+    }
   }
 
   // screen-space UI
@@ -324,7 +381,13 @@ function render() {
     ctx.textAlign = 'right';
     ctx.textBaseline = 'top';
     ctx.fillStyle = INK;
-    ctx.fillText(testRide ? 'TEST RIDE · Esc back to the builder' : 'Esc · menu', cw - 14, 12);
+    ctx.fillText(testRide ? 'TEST RIDE · Esc back to the builder' : online ? `ONLINE · room ${Net.code} · ${Net.players.length} here · Esc leave` : 'Esc · menu', cw - 14, 12);
+    // "Sam joined", "Sam left"
+    Net.toasts.forEach((t, i) => {
+      ctx.globalAlpha = clamp((3 - t.t) / 0.5, 0, 1);
+      markerText(ctx, t.text, cw / 2, ch * 0.2 + i * 30, Math.min(24, cw / 28), '#7fd36b', -0.02);
+    });
+    ctx.globalAlpha = 1;
   }
   if (debug) drawDebug(ctx, skater, fps);
 }
@@ -345,8 +408,13 @@ function frame(now) {
     if (e === 'mute') { Sound.toggle(); return false; }
     if (mode === 'play' && e === 'reset' && !skateGame) { skater.facing = 1; skater.respawn(terrain.spawnS); hud.clear(); return false; }
     if (mode === 'play' && e === 'menu' && testRide) { openBuilder(builder.park.id, true); Stats.save(); return false; }
+    if (mode === 'play' && e === 'menu' && online) { leaveOnline(); Stats.save(); return false; }
     if (mode === 'play' && e === 'menu') { mode = 'menu'; menu.open(); Stats.save(); return false; }
-    if (mode === 'play' && skateGame?.state === 'over' && e === 'start') { startSkating(menu.lastChoice); return false; }
+    if (mode === 'play' && skateGame?.state === 'over' && e === 'start') {
+      if (!online) startSkating(menu.lastChoice);
+      else if (Net.role === 'host' && Net.players.length >= 2) Net.startGame(); // rematch for everyone
+      return false;
+    }
     return true;
   });
   if (mode === 'menu') {
@@ -388,7 +456,8 @@ function frame(now) {
     first = false;
     acc -= STEP;
   }
-  const yours = !skateGame || skateGame.turn === 0; // only your own skating goes in your stats
+  const yours = !skateGame || skateGame.isMine(); // only your own skating goes in your stats
+  const telling = online && skateGame && !skateGame.watching; // your S.K.A.T.E. attempt, for the other skater
   for (const m of skater.out) {
     hud.handle(m);
     if (yours) {
@@ -398,13 +467,17 @@ function frame(now) {
     Sound.onMessage(m);
     feelMessage(m);
     if (skateGame) skateGame.onMessage(m);
+    if (telling && SAY_TYPES.has(m.type)) Net.send({ t: 'say', m });
   }
   skater.out.length = 0;
   if (mode === 'play') {
     ComboTrail.update(skater, dt);
-    const warp = Bonus.update(skater, dt, !skateGame && !testRide);
+    // (no warping off to a hidden spot online, or you'd lose everyone)
+    const warp = Bonus.update(skater, dt, !skateGame && !testRide && !online);
     if (warp) { loadMap(warp); menu.lastChoice = { map: warp, game: 'free' }; }
+    if (online) Online.update(dt, skater, !skateGame || (!skateGame.watching && skateGame.state === 'attempt'));
   }
+  Net.update(dt);
   for (const ev of Progress.events.splice(0)) {
     hud.progress(ev);
     if (ev.type === 'level' || ev.type === 'secret' || ev.type === 'banner') Sound.play('levelUp');

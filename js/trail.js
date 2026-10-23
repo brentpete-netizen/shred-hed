@@ -4,11 +4,23 @@
 
 const TRAIL_START = 2; // tricks in the combo before the trail lights up
 
+// How long a trail point lasts: longer trails for bigger combos.
+const trailLife = n => 0.5 + Math.min(0.6, (n - TRAIL_START) * 0.1);
+
+// One skater's trail: feed it where the board is each frame (and how big the combo is).
+class TrailTrack {
+  constructor() { this.pts = []; }
+  update(x, y, n, on, dt) {
+    for (const p of this.pts) p.t += dt;
+    if (on && n >= TRAIL_START) this.pts.push({ x, y, t: 0, n });
+    while (this.pts.length && (this.pts[0].t > trailLife(this.pts[0].n) || this.pts.length > 140)) this.pts.shift();
+  }
+  draw(ctx, style, time) { ComboTrail.drawPoints(ctx, this.pts, style, time); }
+}
+
 const ComboTrail = (() => {
   let pts = [], owner = null;
-
-  // How long a point lasts: longer trails for bigger combos.
-  const lifeFor = n => 0.5 + Math.min(0.6, (n - TRAIL_START) * 0.1);
+  const lifeFor = trailLife;
 
   function styleOf(sk) {
     const was = Outfit.override;
@@ -95,5 +107,5 @@ const ComboTrail = (() => {
     drawPoints(ctx, points, style, time, r / 60);
   }
 
-  return { update, draw, drawDemo, reset };
+  return { update, draw, drawDemo, drawPoints, reset };
 })();
