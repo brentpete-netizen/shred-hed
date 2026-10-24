@@ -10,6 +10,9 @@
 
 const HB = 13.5; // ground to the middle of the deck
 const SEQ_KEY = { up: 'U', down: 'D', left: 'L', right: 'R' };
+// Goofy (right foot forward) is regular in a mirror: ← and → swap for flips and grabs, and Q and E
+// swap for spins. (Pushing still goes the way you press: that's just where you're going.)
+const GOOFY_KEY = { up: 'U', down: 'D', left: 'R', right: 'L' };
 const KEY_DIR = { U: 'up', D: 'down', L: 'left', R: 'right' };
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -60,8 +63,6 @@ class Skater {
     this.vert = null;
     this.grind = null;
     this.manual = null;
-    this.coffin = null;
-    this.coffinAmt = 0; // 0 sitting up .. 1 flat on your back
     this.grace = 0;
     this.fakie = false;
     this.bail = null;
@@ -131,8 +132,6 @@ class Skater {
     const pressed = new Set();
     for (let i = 0; i < events.length; i++) {
       const e = events[i];
-      if (this.coffin) continue; // flat on your back: no ollies, pushes or reverts
-      if (e === 'grab' && !this.manual) { this.startCoffin(); continue; }
       if (e === 'up') {
         this.ollie();
         // anything pressed in the same instant after the pop is already in the air
@@ -148,10 +147,6 @@ class Skater {
     if (this.manual) {
       this.updateManual(dt);
       if (this.state !== 'ground') return;
-    } else if (this.coffin) {
-      this.coffin.t += dt;
-      this.coffin.entry.time = this.coffin.t;
-      if (!held('grab')) this.endCoffin();
     } else {
       this.crouchHeld = held('down');
       this.crouchTime = this.crouchHeld ? this.crouchTime + dt : 0;
@@ -178,16 +173,14 @@ class Skater {
     let a = this.gravity * seg.ty;
     if (this.crouchHeld && seg.curved && a * this.v > 0) a *= C.pumpBoost; // pumping
     this.v += a * dt;
-    // lying down in a coffin, there's less wind in the way
-    const drag = (C.rollingFriction + C.airDrag * (this.coffin ? 0.55 : 1) * this.v * this.v) * dt;
+    const drag = (C.rollingFriction + C.airDrag * this.v * this.v) * dt;
     this.v = Math.abs(this.v) <= drag ? 0 : this.v - Math.sign(this.v) * drag;
-    const top = (this.terrain.maxSpeed || C.maxSpeed) * (this.coffin ? 1.1 : 1);
+    const top = this.terrain.maxSpeed || C.maxSpeed;
     this.v = clamp(this.v, -top, top);
     this.advance(dt);
 
-    // a manual ends (and banks the combo) if you stop or roll onto a ramp; a coffin if you stop
+    // a manual ends (and banks the combo) if you stop or roll onto a ramp
     if (this.manual && this.state === 'ground' && (!this.flatEnough() || Math.abs(this.v) < 40)) this.endManual();
-    if (this.coffin && this.state === 'ground' && Math.abs(this.v) < 30) this.endCoffin();
   }
 
   // Push the way you're going, hold backwards to brake, and when stopped, backwards turns you around.
@@ -264,21 +257,6 @@ class Skater {
     this.bankCombo();
   }
 
-  // Space while rolling: lie back on the board. Right after a landing it adds to the combo.
-  startCoffin() {
-    if (Math.abs(this.v) < 60) return;
-    this.coffin = { t: 0, entry: this.addEntry(COFFIN.name, COFFIN.pts, COFFIN.perSec) };
-    this.grace = 0;
-    this.push = null;
-    this.pivot = null;
-    this.braking = false;
-    this.crouchHeld = false;
-  }
-
-  endCoffin() {
-    this.coffin = null;
-    this.bankCombo();
-  }
 
   // Roll along the chain, launching off lips and copings.
   advance(dt) {
@@ -377,7 +355,6 @@ class Skater {
   goAir(popped) {
     if (!popped) this.fakie = Math.abs(this.v) > 30 && Math.sign(this.v) !== this.facing;
     this.state = 'air';
-    this.coffin = null; // rolled off a lip lying down: you sit up, and the combo carries on
     this.airTime = 0;
     this.popped = popped;
     this.ollieT = popped ? 0 : 9;
@@ -404,12 +381,13 @@ class Skater {
     const C = CONFIG, held = this.held;
     this.airTime += dt;
     this.ollieT += dt;
+    const keys = this.goofy ? GOOFY_KEY : SEQ_KEY;
     for (const e of events) {
       if (e === 'grab') this.startGrab(this.heldDirKey());
-      else if (e in SEQ_KEY) {
+      else if (e in keys) {
         if (e === 'up' && !this.popped && this.airTime <= C.coyoteTime) this.latePop();
-        else if (held('grab')) this.grabInput(SEQ_KEY[e]);
-        else this.trickInput(SEQ_KEY[e]);
+        else if (held('grab')) this.grabInput(keys[e]);
+        else this.trickInput(keys[e]);
       }
     }
     const tr = this.trick;
@@ -431,14 +409,22 @@ class Skater {
   }
 
   heldDirKey() {
-    for (const [dir, k] of Object.entries(SEQ_KEY)) if (this.held(dir)) return k;
+    for (const [dir, k] of Object.entries(this.goofy ? GOOFY_KEY : SEQ_KEY)) if (this.held(dir)) return k;
     return null;
   }
 
-  // Hold Q / E to spin; let go and the spin finishes itself off to the nearest half turn.
+  // Goofy stance, from what this skater's wearing (yours, unless it's player 2, the CPU or a model).
+  // `regular` pins it, for the CPU's practice runs.
+  get goofy() {
+    if (this.regular || typeof Outfit === 'undefined') return false;
+    const o = this.outfit || Outfit.pick;
+    return !!OUTFIT_OPTIONS.stance[o.stance]?.goofy;
+  }
+
+  // Hold Q / E to spin (E / Q goofy); let go and the spin finishes itself off to the nearest half turn.
   updateSpin(dt) {
-    const C = CONFIG, held = this.held;
-    const input = (held('spinFront') ? 1 : 0) - (held('spinBack') ? 1 : 0);
+    const C = CONFIG, held = this.held, [front, back] = this.goofy ? ['spinBack', 'spinFront'] : ['spinFront', 'spinBack'];
+    const input = (held(front) ? 1 : 0) - (held(back) ? 1 : 0);
     let want;
     if (input) want = input * C.spinSpeed;
     else {
@@ -704,7 +690,6 @@ class Skater {
     this.grab = null;
     this.grind = null;
     this.manual = null;
-    this.coffin = null;
     this.spin = 0;
     this.spinVel = 0;
     this.grace = 0;
@@ -746,8 +731,6 @@ class Skater {
     this.airAmt += (airTarget - this.airAmt) * Math.min(1, dt * (airTarget ? 7 : 12));
     const grabTarget = this.grab ? 1 : 0;
     this.grabAmt += (grabTarget - this.grabAmt) * Math.min(1, dt * (grabTarget ? 14 : 18));
-    const lieTarget = this.coffin ? 1 : 0;
-    this.coffinAmt += (lieTarget - this.coffinAmt) * Math.min(1, dt * (lieTarget ? 6 : 9));
   }
 
   popFx() {

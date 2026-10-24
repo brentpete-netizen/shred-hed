@@ -50,6 +50,7 @@ class CpuDriver {
 // Test-runs a plan on a fresh skater and reports what trick it lands (or that it bailed).
 function cpuSimulate(terrain, plan, maxT = 7) {
   const sk = new Skater(terrain), drv = new CpuDriver(plan);
+  sk.regular = true; // plans are worked out in regular stance (the CPU skates regular)
   let names = null, landed = false, landedAt = null, lockT = null;
   for (let i = 0; i < maxT / CPU_STEP; i++) {
     const { ev, held } = drv.step(sk);

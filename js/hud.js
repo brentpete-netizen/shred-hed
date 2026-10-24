@@ -163,7 +163,7 @@ const HELP_LINES = [
   ['land on a rail', 'nothing 50-50 · forward nosegrind · back 5-0 · ↓ boardslide · ↑ crooked'],
   ['↓ as you land', 'manual (↑ nose manual) · ← → balance · ↓ set it down · ↑ ollie out'],
   ['Q / E after landing', 'revert: keeps the combo going'],
-  ['hold Space rolling', 'coffin: lie back on the board (and roll faster) · let go to sit up'],
+  ['goofy stance', 'everything mirrors: ← → swap for flips and grabs, Q / E swap for spins'],
   ['H', 'hide this  ·  R  back to the start  ·  M  mute  ·  Esc  menu'],
 ];
 

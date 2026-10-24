@@ -51,9 +51,6 @@ const GRINDS = {
   dark: { name: 'Darkslide',     pts: 600, perSec: 320 }, // board upside down; nobody tells you how
 };
 
-// Coffin: hold Space while you roll to lie back flat on the board, arms crossed, feet to the nose.
-const COFFIN = { name: 'Coffin', pts: 150, perSec: 120 };
-
 const MANUALS = {
   manual: { name: 'Manual',      pts: 50, perSec: 150 },
   nose:   { name: 'Nose Manual', pts: 75, perSec: 180 },

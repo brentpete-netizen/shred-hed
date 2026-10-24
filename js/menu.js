@@ -472,6 +472,7 @@ class Menu {
     if (Progress.isUnlocked(cat, OUTFIT_OPTIONS[cat][this.trying[cat]].name)) Outfit.set(cat, this.trying[cat]);
     Sound.play('menuMove');
     if (cat === 'board' || cat === 'stance') this.kickflip(true); // show off the graphic underneath
+    if (cat === 'stance') this.note(OUTFIT_OPTIONS.stance[this.trying.stance].goofy ? 'GOOFY: ← → AND Q / E SWAP FOR TRICKS' : 'REGULAR: CONTROLS BACK TO NORMAL');
   }
 
   // The Fit sliders (Sag, hat tilt, sleeves...): anything goes, nothing to unlock.
