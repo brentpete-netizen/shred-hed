@@ -133,6 +133,12 @@ const Sound = (() => {
       tone({ freq: 1568, dur: 0.6, gain: 0.08, type: 'triangle', delay: 0.38 });
     },
     newTrick() { tone({ freq: 988, dur: 0.12, gain: 0.08, type: 'triangle' }); tone({ freq: 1480, dur: 0.18, gain: 0.07, type: 'triangle', delay: 0.07 }); },
+    cash() { // cha-ching: the drawer clunks open, then the bell
+      burst({ type: 'bandpass', freq: 900, Q: 1.2, dur: 0.07, gain: 0.25 });
+      tone({ freq: 140, to: 90, dur: 0.08, gain: 0.25 });
+      for (const [f, d] of [[2093, 0.11], [2637, 0.15], [3136, 0.19]]) tone({ freq: f, dur: 0.55, gain: 0.07, type: 'sine', delay: d });
+      for (let i = 0; i < 3; i++) tone({ freq: 4200 + i * 500, dur: 0.05, gain: 0.03, type: 'triangle', delay: 0.3 + i * 0.06 }); // coins settling
+    },
   };
 
   function play(name, arg) {

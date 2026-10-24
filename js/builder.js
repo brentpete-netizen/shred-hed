@@ -195,7 +195,8 @@ class Builder {
 
   // Returns { test: true } to test ride, or { exit: true } to go back to the menu.
   handle(events) {
-    for (const e of events) {
+    // the toolbar buttons (see drawToolbar) count as key presses
+    for (const e of [...(this.pressed || []).splice(0), ...events]) {
       const shift = Input.held('shift');
       if (e === 'left' || e === 'right') {
         const d = e === 'right' ? 1 : -1;
@@ -320,6 +321,26 @@ class Builder {
       ctx.globalAlpha = 1;
     }
     this.drawPalette(ctx, w, h);
+    this.drawToolbar(ctx, w, h);
+  }
+
+  // Buttons for everything the keys do, for touchscreens (and anyone who'd rather click).
+  drawToolbar(ctx, w, h) {
+    const tools = [['◀ MENU', 'menu'], ['UNDO', 'undo'], ['REDO', 'redo'], ['ERASE', 'delete'], ['TEST RIDE ▶', 'test']];
+    const bh = 36, gap = 8, y = h - 78 - 14 - 12 - bh - 10;
+    const bw = Math.min(130, (w - 24 - gap * (tools.length - 1)) / tools.length);
+    const x0 = (w - (bw * tools.length + gap * (tools.length - 1))) / 2;
+    tools.forEach(([label, action], i) => {
+      const x = x0 + i * (bw + gap), test = action === 'test';
+      Sketch.seedFor(960 + i);
+      const box = [{ x, y }, { x: x + bw, y }, { x: x + bw, y: y + bh }, { x, y: y + bh }];
+      Sketch.fill(ctx, box, test ? '#7fd36b' : '#fbf8f0', 1.5);
+      Sketch.stroke(ctx, box, { color: INK, width: 2, amp: 0.8, closed: true });
+      ctx.font = `${Math.min(16, bw / 6)}px ${MARKER}`;
+      const size = Math.min(16, (bw - 10) / (ctx.measureText(label).width / Math.min(16, bw / 6)));
+      markerText(ctx, label, x + bw / 2, y + bh / 2 + 1, size, '#ffffff');
+      this.hit(x, y, bw, bh, () => { (this.pressed ||= []).push(action); Sound.play('menuMove'); });
+    });
   }
 
   drawPalette(ctx, w, h) {

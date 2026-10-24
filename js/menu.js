@@ -5,6 +5,39 @@ const PX_PER_FT = 23; // the skater is about 5.5 ft tall
 
 const MAIN_ITEMS = ['FREE SKATE', 'S.K.A.T.E.', 'ONLINE', 'PARK BUILDER', 'CLOSET', 'SKATE SHOP', 'STATS', 'AUDIO'];
 const CATEGORY_LABEL = Object.fromEntries(OUTFIT_CATEGORIES);
+
+// The Skate Shop: a line about each thing for sale, by category and name.
+const SHOP_TAGLINES = {
+  'skin:Chrome': 'Shiny. Very, very shiny.',
+  'hat:Chrome Helmet': 'Safety first, but make it shine',
+  'hat:Diamond Crown': 'For the king of the park',
+  'hat:Flame Snapback': 'A seriously hot head',
+  'top:Lava Hoodie': 'Fresh out of the volcano',
+  'top:Galaxy Hoodie': 'A whole universe, warm and cosy',
+  'top:Shred Hed Pro Tee': 'Official team gear',
+  'top:Gold Leather Jacket': 'Studded. Golden. Legendary.',
+  'pants:Blue Flame Pants': 'The hottest flames burn blue',
+  'pants:Galaxy Cargos': 'Pockets full of stars',
+  'pants:Gold Chain Jeans': 'A little bling on the side',
+  'shoes:Rocket Kicks': 'They glow. They go.',
+  'shoes:Diamond Kicks': 'Ice on your feet',
+  'board:Shred Hed Pro': 'The official pro model deck',
+  'board:Holo Deck': 'Shimmers in every colour',
+  'board:Lava Deck': 'Hot to the touch',
+  'grip:Lava': 'Molten griptape',
+  'grip:Diamond Dust': 'Sparkles under your feet',
+  'trail:Money': 'Make it rain',
+  'trail:Lava': 'Leave the ground on fire',
+  'trail:Diamond': 'A trail of pure ice',
+  'extra:Diamond Chain': 'Frozen bling',
+  'extra:Flame Cape': 'Super. Hero. Hot.',
+  'extra:Gold Shades': 'The future is so bright',
+};
+// a card's background, by category (trails glow best in the dark)
+const SHOP_TINT = { trail: '#26262b', board: '#dfe9f0', grip: '#dfe9f0', skin: '#efe2cf', hat: '#f6e3d3', top: '#e9e2f3', pants: '#e2ecdf', shoes: '#f3e6cf', extra: '#f6dfe6' };
+// where on the skater a card zooms in: how far up from the wheels, and how much fits
+const SHOP_FOCUS = { hat: [104, 44], skin: [64, 134], top: [70, 62], pants: [36, 70], shoes: [14, 36], extra: [86, 60] };
+const EXTRA_FOCUS = { shades: [101, 34], chain: [82, 44], cape: [70, 96] };
 const ONLINE_ITEMS = ['HOST FREE SKATE', 'HOST S.K.A.T.E.', 'JOIN A ROOM'];
 const VERSUS_ITEMS = ['VS CPU', '2 PLAYERS'];
 
@@ -59,11 +92,11 @@ class Menu {
         else if (e === 'test') Chat.open();
         else if (e === 'menu') this.leaveRoom();
       } else if (this.screen === 'shop') {
-        const n = SHOP_ITEMS.length;
-        if (e === 'up') { this.shopSel = (this.shopSel + n - 1) % n; this.shopConfirm = false; Sound.play('menuMove'); }
-        else if (e === 'down') { this.shopSel = (this.shopSel + 1) % n; this.shopConfirm = false; Sound.play('menuMove'); }
-        else if (e === 'start' || e === 'grab' || e === 'right') this.shopPick();
-        else if (e === 'menu' || e === 'left') this.back();
+        // the cards are a grid: ← → along a shelf, ↑ ↓ between shelves
+        const cols = this.shopCols || 4, step = { left: -1, right: 1, up: -cols, down: cols }[e];
+        if (step) this.shopMove(step);
+        else if (e === 'start' || e === 'grab') this.shopPick();
+        else if (e === 'menu') this.back();
       } else if (this.screen === 'versus') {
         if (e === 'up' || e === 'down') { this.vsSel = 1 - this.vsSel; Sound.play('menuMove'); }
         else if (e === 'start' || e === 'grab' || e === 'right') this.chooseVersus(this.vsSel);
@@ -272,6 +305,12 @@ class Menu {
   // Write your name on the name tag: type, Backspace to fix it, Enter (or Esc) when you're done.
   startTagName() {
     if (!this.wearingTag() || this.naming) return;
+    if (TouchPad.enabled) {
+      // no keyboard to type on: a pop-up instead
+      const name = window.prompt('Write your name on the tag:', this.trying.tagName);
+      if (name !== null) { this.trying.tagName = cleanTagName(name).trim(); Outfit.set('tagName', this.trying.tagName); }
+      return;
+    }
     this.naming = true;
     Sound.play('menuPick');
     Input.textCapture = key => {
@@ -333,6 +372,17 @@ class Menu {
     return { ...Outfit.pick, [item.cat]: OUTFIT_OPTIONS[item.cat].indexOf(item) };
   }
 
+  shopMove(step) {
+    const n = SHOP_ITEMS.length, to = this.shopSel + step;
+    if (to < 0 || to >= n) {
+      // off the end of a shelf: wrap round
+      if (Math.abs(step) === 1) this.shopSel = (to + n) % n;
+      else return;
+    } else this.shopSel = to;
+    this.shopConfirm = false;
+    Sound.play('menuMove');
+  }
+
   // Buy it (press twice, so you don't spend by accident), or put it on if it's already yours.
   shopPick(i = this.shopSel) {
     this.shopSel = i;
@@ -340,6 +390,7 @@ class Menu {
     if (Progress.owns(item)) {
       Outfit.set(item.cat, index);
       this.shopConfirm = false;
+      this.kickflip(true);
       return this.note(`WEARING ${item.name.toUpperCase()}`);
     }
     if (Progress.bucks < item.shop) return this.flash(`you need ${item.shop - Progress.bucks} more Shred Bucks`);
@@ -347,9 +398,35 @@ class Menu {
     this.shopConfirm = false;
     if (Progress.buy(item) !== 'bought') return;
     Outfit.set(item.cat, index);
-    this.note(`YOURS FOREVER: ${item.name.toUpperCase()}`);
-    Sound.play('levelUp');
+    Sound.play('cash');
+    this.sold = { name: item.name, t: 0 };
+    this.confettiBurst(this.shopModelAt || { x: innerWidth / 2, y: innerHeight / 2 });
     this.kickflip(true);
+  }
+
+  // Confetti and coins flying up out of a purchase.
+  confettiBurst(at) {
+    const colors = ['#f4c542', '#e2553f', '#7fd36b', '#2f80ed', '#ff8fc4', '#ffffff'];
+    this.confetti = Array.from({ length: 90 }, (_, i) => ({
+      x: at.x, y: at.y, vx: (Math.random() - 0.5) * 640, vy: -260 - Math.random() * 520,
+      r: Math.random() * TAU, vr: (Math.random() - 0.5) * 16, color: colors[i % colors.length], coin: i % 5 === 0, t: 0,
+    }));
+  }
+
+  drawConfetti(ctx) {
+    for (const p of this.confetti || []) {
+      ctx.globalAlpha = clamp((2.4 - p.t) / 0.6, 0, 1);
+      if (p.coin) drawCoin(ctx, p.x, p.y, 7, Math.cos(p.r * 2));
+      else {
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.r);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(-3, -5 * Math.abs(Math.cos(p.r * 1.7)) - 1, 6, 10 * Math.abs(Math.cos(p.r * 1.7)) + 2);
+        ctx.restore();
+      }
+    }
+    ctx.globalAlpha = 1;
   }
 
   // In the closet you can try on anything; only unlocked things actually get saved.
@@ -412,6 +489,12 @@ class Menu {
     p.out.length = 0;
     if ((this.screen === 'closet' || this.screen === 'shop') && (this.showoff += dt) > 4) this.kickflip();
     if (this.msg && (this.msg.t += dt) > 2) this.msg = null;
+    if (this.confetti) {
+      for (const p of this.confetti) { p.vy += 900 * dt; p.vx *= Math.pow(0.4, dt); p.x += p.vx * dt; p.y += p.vy * dt; p.r += p.vr * dt; p.t += dt; }
+      this.confetti = this.confetti.filter(p => p.t < 2.4);
+      if (!this.confetti.length) this.confetti = null;
+    }
+    if (this.sold && (this.sold.t += dt) > 2.4) this.sold = null;
     // clicked away from the name tag (or took it off) while writing on it
     if (this.naming && (this.screen !== 'closet' || !this.wearingTag())) this.finishTagName();
     if (this.typing && this.screen !== 'online' && this.screen !== 'join') this.stopTyping();
@@ -446,6 +529,11 @@ class Menu {
     else if (this.screen === 'join') this.drawJoin(ctx, w, h);
     else if (this.screen === 'lobby') this.drawLobby(ctx, w, h);
     else this.drawStats(ctx, w, h);
+    // screens you leave with Esc get a button too, for phones and tablets with no Esc key
+    if (['maps', 'versus', 'parks', 'audio', 'online', 'join'].includes(this.screen)) {
+      const leave = this.screen === 'join' ? () => { this.stopTyping(); this.screen = 'online'; Sound.play('menuMove'); } : () => this.back();
+      this.button(ctx, '◀', 12, w < 600 ? h - 52 : 12, 52, 40, false, 653, leave); // (clear of the titles on a phone)
+    }
     if (this.msg) {
       ctx.globalAlpha = clamp((2 - this.msg.t) / 0.4, 0, 1);
       markerText(ctx, this.msg.text, w / 2, h * 0.5, Math.min(30, w / 20), this.msg.color || '#ef5a4a', -0.03);
@@ -716,7 +804,12 @@ class Menu {
     ctx.fillStyle = INK;
     ctx.fillText(next ? `${Progress.data.rep} / ${next} rep` : `${Progress.data.rep} rep · max level!`, x + 110 + (bw - 110) / 2, ly + 9);
 
-    markerText(ctx, `${Progress.bucks} SHRED BUCKS`, w / 2, ly + 34, 18, '#f4c542', -0.02);
+    const bucksW = drawBucks(ctx, Progress.bucks, w / 2 - 50, ly + 35, 18, '#f4c542');
+    ctx.font = `14px ${HAND}`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = INK;
+    ctx.fillText('Shred Bucks', w / 2 - 50 + bucksW / 2 + 8, ly + 36);
     const y0 = ly + 52;
     MAIN_ITEMS.forEach((item, i) => {
       this.button(ctx, item, x, y0 + i * (bh + gap), bw, bh, i === this.sel, 100 + i, () => this.choose(i));
@@ -733,10 +826,11 @@ class Menu {
 
   // The skater modelling what you're trying on (locked or not). Returns where it's drawn.
   // trail: a combo trail style to show swooping around the model
-  drawPreview(ctx, w, h, dpr, wide, zoom = 1, trail = null) {
+  // at: { cx, gy, k } to put the model somewhere else (where its feet go, and its size)
+  drawPreview(ctx, w, h, dpr, wide, zoom = 1, trail = null, at = null) {
     const p = this.preview;
-    const k = zoom * Math.min(wide ? h * 0.0042 : h * 0.0026, wide ? w * 0.0026 : w * 0.006);
-    const cx = wide ? w * 0.3 : w / 2, gy = wide ? h * 0.82 : h * 0.47;
+    const k = zoom * (at ? at.k : Math.min(wide ? h * 0.0042 : h * 0.0026, wide ? w * 0.0026 : w * 0.006));
+    const cx = at ? at.cx : wide ? w * 0.3 : w / 2, gy = at ? at.gy : wide ? h * 0.82 : h * 0.47;
     ctx.save();
     ctx.setTransform(dpr * k, 0, 0, dpr * k, dpr * cx - p.pos.x * dpr * k, dpr * gy - p.pos.y * dpr * k);
     Sketch.seedFor(7);
@@ -762,30 +856,39 @@ class Menu {
     const rx = wide ? w * 0.56 : 16, rw = wide ? Math.min(w * 0.4, 420) : w - 32;
     const top = wide ? h * 0.14 : h * 0.5;
     const rh = Math.min(58, ((wide ? h * 0.7 : h * 0.4)) / rows);
-    const fs = Math.min(rh * 0.42, 24);
+    // short rows (phones): everything on one line, big enough to read
+    const compact = rh < 36, fs = compact ? Math.max(13, rh * 0.62) : Math.min(rh * 0.42, 24);
     OUTFIT_CATEGORIES.forEach(([cat, label], i) => {
       const y = top + i * rh, sel = i === this.row;
       Sketch.seedFor(200 + i);
-      const box = [{ x: rx, y: y + 3 }, { x: rx + rw, y: y + 3 }, { x: rx + rw, y: y + rh - 3 }, { x: rx, y: y + rh - 3 }];
+      const box = [{ x: rx, y: y + 2 }, { x: rx + rw, y: y + 2 }, { x: rx + rw, y: y + rh - 2 }, { x: rx, y: y + rh - 2 }];
       Sketch.fill(ctx, box, sel ? '#f4c542' : '#fbf8f0', 1.5);
       Sketch.stroke(ctx, box, { color: INK, width: sel ? 2.8 : 1.8, amp: 1, closed: true });
       ctx.textBaseline = 'middle';
       ctx.textAlign = 'left';
       ctx.fillStyle = INK;
       ctx.font = `${fs * 0.9}px ${HAND}`;
-      ctx.fillText(label, rx + 12, y + rh * 0.42);
+      ctx.fillText(label, rx + 12, y + rh * (compact ? 0.5 : 0.42));
       if (cat === 'sag') return this.drawFitRow(ctx, FIT_BY_KEY.sag, rx, y, rw, rh, fs, () => { this.row = i; });
       const visible = OUTFIT_OPTIONS[cat].filter(o => Progress.secretOwned(o));
       const opt = OUTFIT_OPTIONS[cat][this.trying[cat]], n = visible.length;
       const locked = !Progress.isUnlocked(cat, opt.name);
       const midX = rx + rw * 0.6;
-      markerText(ctx, opt.name, midX, y + rh * (locked ? 0.38 : 0.5), fs * 0.8, locked ? '#b9b4aa' : '#ffffff');
-      if (locked) markerText(ctx, `locked · level ${Progress.lockLevel(cat, opt.name)}`, midX, y + rh * 0.74, fs * 0.5, '#ef5a4a');
+      const nameSize = this.fitText(ctx, opt.name, rw * 0.5, fs * 0.8, MARKER);
+      if (compact) {
+        markerText(ctx, locked ? `${opt.name} · LV ${Progress.lockLevel(cat, opt.name)}` : opt.name, midX, y + rh / 2, this.fitText(ctx, opt.name + ' · LV 12', rw * 0.5, fs * 0.8, MARKER), locked ? '#ef9a8f' : '#ffffff');
+      } else {
+        markerText(ctx, opt.name, midX, y + rh * (locked ? 0.38 : 0.5), nameSize, locked ? '#b9b4aa' : '#ffffff');
+        if (locked) markerText(ctx, `locked · level ${Progress.lockLevel(cat, opt.name)}`, midX, y + rh * 0.74, fs * 0.5, '#ef5a4a');
+      }
       markerText(ctx, '◀', rx + rw * 0.3, y + rh / 2, fs, '#ffffff');
       markerText(ctx, '▶', rx + rw - 22, y + rh / 2, fs, '#ffffff');
       ctx.font = `${fs * 0.6}px ${HAND}`;
       ctx.fillStyle = INK;
-      if (cat === 'extra' && opt.type === 'nametag') {
+      if (compact) {
+        // no room for "3 of 12"; the name tag's label still opens the name to write
+        if (cat === 'extra' && opt.type === 'nametag') this.hit(rx, y, rw * 0.24, rh, () => { this.row = i; this.startTagName(); });
+      } else if (cat === 'extra' && opt.type === 'nametag') {
         // the name tag: click the label (or press N) to write your name on it
         const caret = this.naming && Math.floor(performance.now() / 400) % 2 ? '|' : '';
         const shown = this.naming ? `${this.trying.tagName}${caret}` : this.trying.tagName ? `"${this.trying.tagName}" · N edit` : 'N: write name';
@@ -833,55 +936,355 @@ class Menu {
   }
 
   // The Skate Shop: things you can't get anywhere else, for Shred Bucks. Yours for good once bought.
+  // A shop front (awning, sign, a wall of plank boards), the thing you're looking at on your skater
+  // in the window, and everything else hanging on the wall as cards with price tags.
   drawShop(ctx, w, h, dpr) {
-    const wide = w > h * 1.1;
-    markerText(ctx, 'SKATE SHOP', wide ? w * 0.3 : w / 2, Math.min(60, h * 0.09), Math.min(52, w / 10), '#ffffff', -0.04);
+    const wide = w > h * 1.1, now = performance.now() / 1000;
     const item = SHOP_ITEMS[this.shopSel];
-    this.trying = this.shopLook(); // your skater models it
-    const { cx } = this.drawPreview(ctx, w, h, dpr, wide, 1, item.cat === 'trail' ? item : null);
-    this.drawHeldBoard(ctx, w, h, dpr, wide, cx, item.cat);
+    // (on a narrow screen the sign moves over to make room for your Shred Bucks)
+    const { bottom: signBottom, mid } = this.drawShopFront(ctx, w, h, now, wide ? w / 2 : w * 0.47, wide ? Math.min(560, w * 0.48) : w * 0.46);
+    this.drawWallet(ctx, w - 12, mid, Math.min(24, w / 17), w > 700);
+    // a way back for when there's no Esc key (phones)
+    this.fancyButton(ctx, wide ? '◀ BACK' : '◀', 12, mid - 20, wide ? 124 : 52, 40, '#fbf8f0', 652, () => this.back());
 
-    const rx = wide ? w * 0.56 : 16, rw = wide ? Math.min(w * 0.4, 440) : w - 32;
-    const top = wide ? h * 0.1 : h * 0.5;
-    markerText(ctx, `${Progress.bucks} SHRED BUCKS`, rx + rw / 2, top, Math.min(28, w / 20), '#f4c542', -0.03);
-    // the stock, scrolled to keep your pick in view
-    const space = wide ? h * 0.62 : h * 0.3, rh = Math.min(50, Math.max(34, space / 9)), show = Math.max(3, Math.floor(space / rh));
-    const first = clamp(this.shopSel - Math.floor(show / 2), 0, Math.max(0, SHOP_ITEMS.length - show));
-    const fs = Math.min(rh * 0.42, 22), y0 = top + 26;
-    for (let k = 0; k < show && first + k < SHOP_ITEMS.length; k++) {
-      const i = first + k, it = SHOP_ITEMS[i], y = y0 + k * rh, sel = i === this.shopSel;
-      const owned = Progress.owns(it), wearing = owned && Outfit.pick[it.cat] === OUTFIT_OPTIONS[it.cat].indexOf(it);
-      Sketch.seedFor(500 + i);
-      const box = [{ x: rx, y: y + 3 }, { x: rx + rw, y: y + 3 }, { x: rx + rw, y: y + rh - 3 }, { x: rx, y: y + rh - 3 }];
-      Sketch.fill(ctx, box, sel ? (this.shopConfirm ? '#7fd36b' : '#f4c542') : owned ? '#e7eef3' : '#fbf8f0', 1.5);
-      Sketch.stroke(ctx, box, { color: INK, width: sel ? 2.8 : 1.8, amp: 1, closed: true });
-      ctx.textBaseline = 'middle';
-      ctx.textAlign = 'left';
-      ctx.fillStyle = INK;
-      ctx.font = `${fs * 0.62}px ${HAND}`;
-      ctx.fillText(CATEGORY_LABEL[it.cat] || it.cat, rx + 12, y + rh / 2);
-      markerText(ctx, it.name, rx + rw * 0.48, y + rh / 2, fs * 0.82, '#ffffff');
-      const tag = wearing ? 'WEARING' : owned ? 'OWNED' : `${it.shop}`;
-      markerText(ctx, tag, rx + rw - 46, y + rh / 2, fs * (owned ? 0.6 : 0.8), owned ? '#7fd36b' : Progress.bucks >= it.shop ? '#f4c542' : '#ef5a4a');
-      this.hit(rx, y, rw, rh, () => {
-        if (this.shopSel === i) return this.shopPick(i);
-        this.shopSel = i;
-        this.shopConfirm = false;
-        Sound.play('menuMove');
-      });
-    }
-    // the big button: buy it, then wear it
-    const owned = Progress.owns(item), wearing = owned && Outfit.pick[item.cat] === OUTFIT_OPTIONS[item.cat].indexOf(item);
-    const label = wearing ? 'WEARING' : owned ? 'WEAR IT' : this.shopConfirm ? `SURE? ${item.shop}` : `BUY · ${item.shop}`;
-    const by = y0 + Math.min(show, SHOP_ITEMS.length) * rh + 10, bh = Math.min(50, h * 0.08), half = (rw - 14) / 2;
-    this.button(ctx, label, rx, by, half, bh, this.shopConfirm, 560, () => this.shopPick());
-    this.button(ctx, 'BACK', rx + half + 14, by, half, bh, false, 561, () => this.back());
-    ctx.font = `${Math.max(13, fs * 0.65)}px ${HAND}`;
+    // the window: your skater wearing it, its name, price and the big button
+    const pad = 16, top = signBottom + 10;
+    const panel = wide
+      ? { x: pad, y: top, w: Math.min(w * 0.34, 430), h: h - top - pad }
+      : { x: pad, y: top, w: w - pad * 2, h: Math.min(h * 0.34, 330) };
+    this.drawShopWindow(ctx, item, panel, w, h, dpr, wide, now);
+
+    // the wall of cards
+    const grid = wide
+      ? { x: panel.x + panel.w + 22, y: top + 6, w: w - panel.x - panel.w - 22 - pad, h: h - top - 6 - 46 }
+      : { x: pad, y: panel.y + panel.h + 12, w: w - pad * 2, h: h - panel.y - panel.h - 12 - 40 };
+    this.drawShopWall(ctx, grid, dpr, now);
+
+    ctx.font = `${Math.max(12, Math.min(16, w / 70))}px ${HAND}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     ctx.fillStyle = INK;
-    ctx.fillText('↑ ↓ pick  ·  Enter buy (twice to be sure)  ·  Esc back', rx + rw / 2, by + bh + 8);
-    ctx.fillText('earn Shred Bucks: combos · new tricks · golden letters · level ups · S.K.A.T.E.', rx + rw / 2, by + bh + 8 + Math.max(15, fs * 0.8));
+    const hint = wide ? 'arrows pick  ·  Enter buy (twice to be sure)  ·  Esc back' : 'tap to pick · tap again to buy · Esc back';
+    ctx.fillText(hint, grid.x + grid.w / 2, h - (wide ? 36 : 30));
+    if (wide) ctx.fillText('earn Shred Bucks from combos, new tricks, golden letters, level ups and S.K.A.T.E.', grid.x + grid.w / 2, h - 18);
+    this.drawConfetti(ctx);
+  }
+
+  // Your Shred Bucks, on a dark badge. x: its right edge.
+  drawWallet(ctx, x, y, size, label) {
+    ctx.font = `${size}px ${MARKER}`;
+    const tw = ctx.measureText(fmtScore(Progress.bucks)).width;
+    ctx.font = `${size * 0.55}px ${HAND}`;
+    const lw = label ? ctx.measureText('SHRED BUCKS').width + 12 : 0;
+    const bw = 10 + size * 1.26 + tw + lw + 12, bh = size * 1.55;
+    Sketch.seedFor(660);
+    const box = [{ x: x - bw, y: y - bh / 2 }, { x, y: y - bh / 2 }, { x, y: y + bh / 2 }, { x: x - bw, y: y + bh / 2 }];
+    Sketch.fill(ctx, box, '#26262b', 1.5);
+    Sketch.stroke(ctx, box, { color: '#f4c542', width: 2.4, amp: 0.8, closed: true });
+    drawBucks(ctx, Progress.bucks, x - bw + 10, y, size, '#f4c542', 'left');
+    if (label) {
+      ctx.font = `${size * 0.55}px ${HAND}`;
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#f4f1ea';
+      ctx.fillText('SHRED BUCKS', x - 10, y + 1);
+    }
+  }
+
+  // Stripy awning, a sign hanging off it (centred on sx, sWide across), and plank boards on the
+  // wall. Returns where the sign's middle and bottom are.
+  drawShopFront(ctx, w, h, now, sx, sWide) {
+    // plank wall
+    ctx.fillStyle = '#ead7b2';
+    ctx.fillRect(0, 0, w, h);
+    const pw = 54;
+    for (let x = 0, i = 0; x < w; x += pw, i++) {
+      if (i % 3 === 1) { ctx.fillStyle = 'rgba(160, 110, 60, 0.07)'; ctx.fillRect(x, 0, pw, h); }
+      Sketch.seedFor(700 + i);
+      Sketch.stroke(ctx, [{ x, y: 0 }, { x, y: h }], { color: 'rgba(120, 82, 44, 0.35)', width: 1.6, amp: 0.8, maxLen: 60 });
+      for (const ny of [h * 0.18, h * 0.62]) { ctx.fillStyle = 'rgba(90, 60, 30, 0.35)'; ctx.fillRect(x + 7, ny + (i % 2) * 9, 2.5, 2.5); }
+    }
+    // awning
+    const ah = Math.max(34, Math.min(58, h * 0.065)), sw = Math.max(34, Math.min(60, w / 16));
+    for (let x = 0, i = 0; x < w + sw; x += sw, i++) {
+      ctx.fillStyle = i % 2 ? '#fbf8f0' : '#e2553f';
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x + sw, 0);
+      ctx.lineTo(x + sw, ah);
+      ctx.arc(x + sw / 2, ah, sw / 2, 0, Math.PI);
+      ctx.closePath();
+      ctx.fill();
+    }
+    Sketch.seedFor(690);
+    const edge = [];
+    for (let x = 0; x <= w + sw; x += sw / 6) {
+      const k = ((x % sw) + sw) % sw / sw;
+      edge.push({ x, y: ah + Math.sin(k * Math.PI) * sw / 2 });
+    }
+    Sketch.stroke(ctx, edge, { color: INK, width: 2.4, amp: 0.6, maxLen: 0 });
+    Sketch.stroke(ctx, [{ x: 0, y: ah * 0.2 }, { x: w, y: ah * 0.2 }], { color: 'rgba(30,30,30,0.25)', width: 2, amp: 0.6 });
+
+    // the sign, swinging a little on two ropes
+    const sH = Math.max(48, Math.min(84, h * 0.1, sWide * 0.2));
+    const sy = ah + sw / 2 + 14 + sH / 2, swing = Math.sin(now * 1.3) * 0.012;
+    ctx.save();
+    ctx.translate(sx, ah);
+    ctx.rotate(swing);
+    ctx.translate(-sx, -ah);
+    for (const rx of [sx - sWide * 0.34, sx + sWide * 0.34]) Sketch.stroke(ctx, [{ x: rx, y: ah * 0.6 }, { x: rx, y: sy - sH / 2 + 4 }], thin('#7a5530', 2.4));
+    // a deck-shaped sign: rounded ends like a skateboard
+    const r = sH / 2;
+    ctx.fillStyle = '#26262b';
+    ctx.beginPath();
+    ctx.moveTo(sx - sWide / 2 + r, sy - r);
+    ctx.lineTo(sx + sWide / 2 - r, sy - r);
+    ctx.arc(sx + sWide / 2 - r, sy, r, -Math.PI / 2, Math.PI / 2);
+    ctx.lineTo(sx - sWide / 2 + r, sy + r);
+    ctx.arc(sx - sWide / 2 + r, sy, r, Math.PI / 2, Math.PI * 1.5);
+    ctx.fill();
+    ctx.strokeStyle = '#f4c542';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    drawSkullLogo(ctx, sx - sWide / 2 + r + 6, sy, sH * 0.72, -0.15);
+    drawSkullLogo(ctx, sx + sWide / 2 - r - 6, sy, sH * 0.72, 0.15);
+    markerText(ctx, 'SKATE SHOP', sx, sy + 2, Math.min(sH * 0.62, (sWide - sH * 1.7) / 6.2), '#f4c542', -0.02);
+    ctx.restore();
+    return { mid: sy, bottom: sy + sH / 2 };
+  }
+
+  // The window: the thing you're looking at on your skater, on a little stand.
+  drawShopWindow(ctx, item, p, w, h, dpr, wide, now) {
+    drawCard(ctx, p.x, p.y, p.w, p.h, 640);
+    const owned = Progress.owns(item), wearing = owned && Outfit.pick[item.cat] === OUTFIT_OPTIONS[item.cat].indexOf(item);
+    const afford = Progress.bucks >= item.shop;
+    // the model: big in a wide window, beside the words in a short one
+    const modelW = wide ? p.w : p.w * 0.45, modelH = wide ? p.h * 0.52 : p.h - 20;
+    const cx = p.x + modelW / 2, gy = p.y + (wide ? modelH + 24 : p.h - 22), k = Math.min(modelH / 150, modelW / 140);
+    ctx.fillStyle = 'rgba(244, 197, 66, 0.25)';
+    ctx.beginPath();
+    ctx.ellipse(cx, gy - modelH * 0.45, modelW * 0.42, modelH * 0.52, 0, 0, TAU); // a spotlight
+    ctx.fill();
+    Sketch.seedFor(641);
+    Sketch.shape(ctx, [{ x: cx - modelW * 0.36, y: gy + 2 }, { x: cx + modelW * 0.36, y: gy + 2 }, { x: cx + modelW * 0.32, y: gy + 14 }, { x: cx - modelW * 0.32, y: gy + 14 }], '#b98a52', { color: INK, width: 2, amp: 0.4 });
+    this.trying = this.shopLook();
+    this.drawPreview(ctx, w, h, dpr, wide, 1, item.cat === 'trail' ? item : null, { cx, gy, k });
+    this.shopModelAt = { x: cx, y: gy - 60 * k };
+    if (item.cat === 'board' || item.cat === 'grip') {
+      // hold the board up so you can see it properly
+      const bk = (modelW * 0.7) / DECK_L, rock = Math.sin(now * 1.4) * 0.12;
+      ctx.save();
+      ctx.setTransform(dpr * bk, 0, 0, dpr * bk, dpr * cx, dpr * (p.y + (wide ? p.h * 0.12 : p.h * 0.16)));
+      Outfit.override = this.trying;
+      drawBoard(ctx, { cx: 0, cy: 0, ang: 0, facing: 1, roll: Math.PI / 2 - CAM_TILT + (item.cat === 'board' ? Math.PI : 0) + rock, yaw: rock * 0.5, pitch: 0, pivotL: 0, pivotN: 0 });
+      Outfit.override = null;
+      ctx.restore();
+    }
+    if (this.sold) {
+      const t = this.sold.t, s = 1 + 1.4 * Math.exp(-t * 9);
+      ctx.globalAlpha = clamp((2.4 - t) / 0.5, 0, 1);
+      markerText(ctx, 'YOURS!', cx, gy - modelH * 0.5, Math.min(64, modelW / 3.2), '#7fd36b', -0.18, s);
+      ctx.globalAlpha = 1;
+    }
+
+    // the words
+    const tx = wide ? p.x + p.w / 2 : p.x + modelW + (p.w - modelW) / 2, tw = wide ? p.w - 30 : p.w - modelW - 16;
+    let y = wide ? gy + 34 : p.y + 24;
+    const nameSize = this.fitText(ctx, item.name, tw, Math.min(wide ? 36 : 26, w / 14), MARKER);
+    markerText(ctx, item.name, tx, y, nameSize, '#ffffff', -0.02);
+    y += nameSize * 0.95;
+    ctx.font = `${Math.max(13, Math.min(18, w / 60))}px ${HAND}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = INK;
+    const line = `${CATEGORY_LABEL[item.cat] || item.cat}  ·  ${SHOP_TAGLINES[`${item.cat}:${item.name}`] || 'only in the Skate Shop'}`;
+    const lh = Math.max(15, Math.min(21, w / 52));
+    y += lh * this.wrapText(ctx, line, tx, y, tw, lh).length + 8;
+    if (!owned) { drawBucks(ctx, item.shop, tx, y + 8, Math.min(30, w / 20), afford ? '#f4c542' : '#ef5a4a'); y += 30; }
+    else y += 6;
+
+    // the big button
+    const bw = Math.min(tw, 300), bh = Math.max(44, Math.min(58, h * 0.07)), bx = tx - bw / 2, by = Math.min(y + 8, p.y + p.h - bh - 12);
+    const pulse = 1 + Math.sin(now * 8) * 0.03;
+    const look = wearing ? ['WEARING IT', '#e7eef3'] : owned ? ['WEAR IT', '#7fd36b']
+      : !afford ? [`NEED ${fmtScore(item.shop - Progress.bucks)} MORE`, '#d9d5cb']
+      : this.shopConfirm ? ['SURE? TAP AGAIN', '#f4c542'] : ['BUY IT', '#7fd36b'];
+    this.fancyButton(ctx, look[0], bx, by, bw, bh, look[1], 650, () => this.shopPick(), this.shopConfirm ? pulse : 1);
+  }
+
+  // The wall of cards, scrolled so the one you've picked is always in view.
+  drawShopWall(ctx, wall, dpr, now) {
+    // room above and below for the "more" arrows
+    const g = { x: wall.x, y: wall.y + 22, w: wall.w, h: wall.h - 44 };
+    const cols = clamp(Math.floor(g.w / 150), 3, 6), gap = 14;
+    let cw = (g.w - gap * (cols - 1)) / cols, ch = cw * 1.2;
+    // short screens: smaller cards so at least a whole row fits
+    if (ch > g.h) { ch = Math.max(80, g.h); cw = Math.min(cw, ch / 1.2); }
+    const rows = Math.ceil(SHOP_ITEMS.length / cols), show = Math.max(1, Math.floor((g.h + gap) / (ch + gap)));
+    this.shopCols = cols;
+    const selRow = Math.floor(this.shopSel / cols);
+    this.shopTop = clamp(this.shopTop ?? 0, Math.max(0, selRow - show + 1), Math.min(selRow, Math.max(0, rows - show)));
+    for (let r = 0; r < show && this.shopTop + r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const i = (this.shopTop + r) * cols + c;
+        if (i >= SHOP_ITEMS.length) break;
+        this.drawShopCard(ctx, SHOP_ITEMS[i], g.x + c * (cw + gap), g.y + r * (ch + gap), cw, ch, i === this.shopSel, dpr, i, now);
+      }
+    }
+    // more up or down the wall
+    const arrow = (label, y, dir) => {
+      markerText(ctx, label, g.x + g.w / 2, y, 22, '#ffffff');
+      this.hit(g.x + g.w / 2 - 40, y - 16, 80, 32, () => this.shopMove(dir * cols));
+    };
+    if (this.shopTop > 0) arrow('▲ more', wall.y + 8, -1);
+    if (this.shopTop + show < rows) arrow('▼ more', g.y + show * (ch + gap) - gap + 14, 1);
+  }
+
+  drawShopCard(ctx, it, x, y, cw, ch, sel, dpr, i, now) {
+    const owned = Progress.owns(it), wearing = owned && Outfit.pick[it.cat] === OUTFIT_OPTIONS[it.cat].indexOf(it);
+    const afford = Progress.bucks >= it.shop;
+    const lift = sel ? 5 + Math.sin(now * 4) * 1.5 : 0;
+    y -= lift;
+    const rect = (x0, y0, w0, h0) => [{ x: x0, y: y0 }, { x: x0 + w0, y: y0 }, { x: x0 + w0, y: y0 + h0 }, { x: x0, y: y0 + h0 }];
+    ctx.fillStyle = 'rgba(60, 40, 20, 0.22)';
+    ctx.fillRect(x + 5, y + 7 + lift, cw, ch);
+    Sketch.seedFor(600 + i);
+    Sketch.fill(ctx, rect(x, y, cw, ch), sel ? '#fff4c2' : '#fbf8f0', 1.5);
+    // the picture
+    const px = x + 7, py = y + 7, pw = cw - 14, ph = ch * 0.66;
+    ctx.fillStyle = SHOP_TINT[it.cat] || '#efe6d6';
+    ctx.fillRect(px, py, pw, ph);
+    if (it.cat === 'trail') {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(px, py, pw, ph);
+      ctx.clip();
+      ctx.translate(px + pw / 2, py + ph / 2);
+      const s = Math.min(pw, ph) * 0.4 / 72;
+      ctx.scale(s, s);
+      ComboTrail.drawDemo(ctx, 0, 0, 72, now + i, it);
+      ctx.restore();
+    } else ctx.drawImage(this.shopThumb(it, pw, ph, dpr), px, py, pw, ph);
+    Sketch.stroke(ctx, rect(px, py, pw, ph), { ...thin(INK, 1.3), closed: true });
+    if (sel) Sketch.stroke(ctx, rect(x - 2, y - 2, cw + 4, ch + 4), { color: '#f4c542', width: 6, amp: 0.8, closed: true });
+    Sketch.stroke(ctx, rect(x, y, cw, ch), { color: INK, width: sel ? 3.2 : 2, amp: 1, closed: true });
+    // its name
+    const ny = py + ph + (ch - ph - 7) / 2;
+    markerText(ctx, it.name, x + cw / 2, ny, this.fitText(ctx, it.name, cw - 14, Math.min(20, cw * 0.12), MARKER), '#ffffff');
+    // the price tag, tied on at the corner
+    const tagW = Math.max(60, cw * 0.48), tagH = Math.max(26, cw * 0.2);
+    ctx.save();
+    ctx.translate(x + cw - tagW / 2 + 6, y + tagH / 2 - 2);
+    ctx.rotate(0.16);
+    Sketch.seedFor(800 + i);
+    const tag = [{ x: -tagW / 2, y: 0 }, { x: -tagW / 2 + tagH / 2, y: -tagH / 2 }, { x: tagW / 2, y: -tagH / 2 }, { x: tagW / 2, y: tagH / 2 }, { x: -tagW / 2 + tagH / 2, y: tagH / 2 }];
+    Sketch.shape(ctx, tag, owned ? '#7fd36b' : afford ? '#f4c542' : '#f1a59a', { color: INK, width: 1.6, amp: 0.3 });
+    Sketch.circle(ctx, -tagW / 2 + tagH * 0.42, 0, 2.2, '#fbf8f0', { width: 1 });
+    if (owned) {
+      const s = tagH * 0.3;
+      Sketch.stroke(ctx, [{ x: -s * 0.4, y: 0 }, { x: s * 0.2, y: s * 0.6 }, { x: s * 1.5, y: -s * 0.8 }], thin(INK, 2.6));
+    } else drawBucks(ctx, it.shop, tagH * 0.22, 0.5, tagH * 0.56, '#ffffff');
+    ctx.restore();
+    if (owned) markerText(ctx, wearing ? 'WEARING' : 'OWNED', px + pw / 2, py + ph * 0.84, Math.min(18, cw * 0.11), '#7fd36b', -0.14);
+    // a twinkle on the one you've picked
+    if (sel) for (let k = 0; k < 3; k++) {
+      const a = now * 2 + k * 2.1, tw = Math.max(0, Math.sin(now * 5 + k * 1.7));
+      const sx = x + cw / 2 + Math.cos(a) * cw * 0.45, sy = y + ch * 0.35 + Math.sin(a * 1.3) * ch * 0.38, s = 3 + 5 * tw;
+      ctx.strokeStyle = `rgba(255, 246, 200, ${tw})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(sx - s, sy); ctx.lineTo(sx + s, sy); ctx.moveTo(sx, sy - s); ctx.lineTo(sx, sy + s);
+      ctx.stroke();
+    }
+    this.hit(x, y, cw, ch, () => {
+      if (this.shopSel === i) return this.shopPick(i);
+      this.shopSel = i;
+      this.shopConfirm = false;
+      Sound.play('menuMove');
+    });
+  }
+
+  // A card's picture: the thing on your skater, zoomed in on where it goes (a board, grip held
+  // face on). Drawn once and kept, since there are lots of cards.
+  shopThumb(it, tw, th, dpr) {
+    const look = { ...Outfit.pick, [it.cat]: OUTFIT_OPTIONS[it.cat].indexOf(it) };
+    const key = `${it.cat}:${it.name}:${Math.round(tw)}x${Math.round(th)}@${dpr}:${JSON.stringify(Outfit.pick)}`;
+    this.thumbs ||= new Map();
+    let c = this.thumbs.get(key);
+    if (c) return c;
+    if (this.thumbs.size > 150) this.thumbs.clear();
+    c = document.createElement('canvas');
+    c.width = Math.max(1, Math.ceil(tw * dpr));
+    c.height = Math.max(1, Math.ceil(th * dpr));
+    const g = c.getContext('2d');
+    if (it.cat === 'board' || it.cat === 'grip') {
+      const k = (tw * 0.82) / DECK_L;
+      g.setTransform(dpr * k, 0, 0, dpr * k, dpr * tw / 2, dpr * th / 2);
+      Outfit.override = look;
+      drawBoard(g, { cx: 0, cy: 0, ang: -0.32, facing: 1, roll: Math.PI / 2 - CAM_TILT + (it.cat === 'board' ? Math.PI : 0), yaw: 0, pitch: 0, pivotL: 0, pivotN: 0 });
+      Outfit.override = null;
+    } else {
+      const m = this.thumbModel ||= new Skater(this.preview.terrain);
+      // a dark top so jewellery and capes stand out
+      if (it.cat === 'extra') look.top = OUTFIT_OPTIONS.top.findIndex(o => o.name === 'Black Hoodie');
+      m.outfit = look;
+      const { at, size } = this.shopFocus(it, riderPose(m).fig, m);
+      const k = th / size;
+      g.setTransform(dpr * k, 0, 0, dpr * k, dpr * (tw / 2 - at.x * k), dpr * (th / 2 - at.y * k));
+      drawSkater(g, m);
+    }
+    this.thumbs.set(key, c);
+    return c;
+  }
+
+  // Where on the skater a shop card zooms in for a thing, and how much of you fits (top to bottom).
+  shopFocus(it, f, m) {
+    const feet = mix(f.legs.front.foot, f.legs.back.foot, 0.5);
+    if (it.cat === 'hat') return { at: add(f.head, f.torsoDir, 3), size: 44 };
+    if (it.cat === 'top') return { at: mix(f.hip, f.neck, 0.5), size: 60 };
+    if (it.cat === 'pants') return { at: mix(f.hip, feet, 0.45), size: 72 };
+    if (it.cat === 'shoes') return { at: add(feet, f.torsoDir, 2), size: 34 };
+    if (it.cat === 'extra') {
+      if (it.type === 'shades') return { at: f.head, size: 32 };
+      if (it.type === 'chain') return { at: mix(f.neck, f.hip, 0.25), size: 42 };
+      return { at: mix(f.shoulder, f.hip, 0.4), size: 90 };
+    }
+    return { at: mix(m.pos, f.head, 0.5), size: 134 }; // a skin: all of you
+  }
+
+  // A button in any colour, that can throb a little.
+  fancyButton(ctx, label, x, y, bw, bh, fill, id, fn, scale = 1) {
+    ctx.save();
+    ctx.translate(x + bw / 2, y + bh / 2);
+    ctx.scale(scale, scale);
+    ctx.translate(-x - bw / 2, -y - bh / 2);
+    ctx.fillStyle = 'rgba(40, 30, 20, 0.25)';
+    ctx.fillRect(x + 4, y + 5, bw, bh);
+    Sketch.seedFor(id);
+    const box = [{ x, y }, { x: x + bw, y }, { x: x + bw, y: y + bh }, { x, y: y + bh }];
+    Sketch.fill(ctx, box, fill, 2);
+    Sketch.stroke(ctx, box, { color: INK, width: 3, amp: 1.2, closed: true });
+    markerText(ctx, label, x + bw / 2, y + bh / 2 + 2, this.fitText(ctx, label, bw - 20, Math.min(bh * 0.5, 30), MARKER), '#ffffff', -0.02);
+    ctx.restore();
+    if (fn) this.hit(x, y, bw, bh, fn);
+  }
+
+  // The biggest size (up to `size`) that fits `text` in `maxW`.
+  fitText(ctx, text, maxW, size, font) {
+    ctx.font = `${size}px ${font}`;
+    const w0 = ctx.measureText(text).width * 1.08;
+    return w0 > maxW ? Math.max(9, size * (maxW / w0)) : size;
+  }
+
+  // Lines of handwriting (in the current font), wrapped to maxW. Returns the lines.
+  wrapText(ctx, text, x, y, maxW, lh) {
+    const lines = [''];
+    for (const word of text.split(' ')) {
+      const test = (lines[lines.length - 1] + ' ' + word).trim();
+      if (ctx.measureText(test).width > maxW && lines[lines.length - 1]) lines.push(word); else lines[lines.length - 1] = test;
+    }
+    lines.forEach((l, i) => ctx.fillText(l, x, y + i * lh));
+    return lines;
   }
 
   // One saved-outfit card: a little model wearing it (click it to put it on) and a SAVE button.

@@ -269,9 +269,12 @@ class SkateGame {
       markerText(ctx, b.title, w / 2, h * 0.38, Math.min(size * 1.8, w / 12), '#f4c542', -0.04, 0.9 + 0.1 * k);
       markerText(ctx, b.sub, w / 2, h * 0.38 + size * 1.5, Math.min(size * 0.7, w / 26), '#ffffff', -0.02);
       if (this.state === 'over') {
-        const hint = !this.online ? 'Enter: rematch  ·  Esc: menu'
-          : Net.role === 'host' ? (Net.players.length >= 2 ? 'Enter: rematch  ·  Esc: leave the room' : 'Esc: leave the room')
-          : 'waiting for the host to start a rematch  ·  Esc: leave';
+        // (on a touchscreen: tap for a rematch, ☰ to leave)
+        const touch = typeof TouchPad !== 'undefined' && TouchPad.enabled;
+        const again = touch ? 'tap: rematch' : 'Enter: rematch', out = touch ? '☰' : 'Esc';
+        const hint = !this.online ? `${again}  ·  ${out}: menu`
+          : Net.role === 'host' ? (Net.players.length >= 2 ? `${again}  ·  ${out}: leave the room` : `${out}: leave the room`)
+          : `waiting for the host to start a rematch  ·  ${out}: leave`;
         markerText(ctx, hint, w / 2, h * 0.38 + size * 2.6, size * 0.5, '#ffffff');
       }
     }

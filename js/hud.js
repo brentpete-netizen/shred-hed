@@ -53,14 +53,14 @@ class Hud {
   progress(ev) {
     this.news = this.news || [];
     if (ev.type === 'rep') this.news.push({ kind: 'rep', text: `+${ev.amount} REP`, t: 0, dur: 1.4 });
-    else if (ev.type === 'bucks') this.news.push({ kind: 'bucks', text: `+${ev.amount} SHRED BUCKS`, t: 0, dur: 1.6 });
+    else if (ev.type === 'bucks') this.news.push({ kind: 'bucks', amount: ev.amount, t: 0, dur: 1.6 });
     else if (ev.type === 'newTrick') this.news.push({ kind: 'trick', text: `NEW TRICK: ${ev.name}`, t: 0, dur: 2 });
     else if (ev.type === 'level') this.levelUp = { level: ev.level, unlocked: ev.unlocked, t: 0 };
     else if (ev.type === 'banner') this.levelUp = { title: ev.title, unlocked: ev.lines, t: 0 };
     else if (ev.type === 'letter') this.news.push({ kind: 'trick', text: `GOLDEN ${ev.letter}!  ${ev.found} / ${ev.total}`, t: 0, dur: 2.2 });
     else if (ev.type === 'secret') {
       this.levelUp = ev.on
-        ? { title: 'SECRET UNLOCKED!', unlocked: ['everything', 'plus 3 hidden maps'], t: 0 }
+        ? { title: 'SECRET UNLOCKED!', unlocked: ['the whole closet and every map', 'plus 3 hidden maps', '(shop stuff you still have to buy)'], t: 0 }
         : { title: 'SECRET LOCKED', unlocked: ['back to normal'], t: 0 };
     }
   }
@@ -73,10 +73,13 @@ class Hud {
   }
 
   drawProgress(ctx, w, h) {
+    // (on a narrow screen, below the titles so they don't overlap)
+    const ny = w < 700 || TouchPad.enabled ? 120 : 78;
     (this.news || []).forEach((n, i) => {
       ctx.globalAlpha = clamp((n.dur - n.t) / 0.4, 0, 1);
-      if (n.kind === 'rep') markerText(ctx, n.text, w - 70, 78 + i * 26 - n.t * 18, 18, '#7fd36b', -0.03);
-      else if (n.kind === 'bucks') markerText(ctx, n.text, w - 110, 78 + i * 26 - n.t * 18, 18, '#f4c542', -0.03);
+      const y = ny + i * 26 - n.t * 18;
+      if (n.kind === 'rep') markerText(ctx, n.text, w - 70, y, 18, '#7fd36b', -0.03);
+      else if (n.kind === 'bucks') drawBucks(ctx, `+${n.amount}`, w - 16, y, 18, '#f4c542', 'right');
       else markerText(ctx, n.text, w / 2, h * 0.72 - n.t * 10, Math.min(28, w / 18), '#f4c542', -0.04, 1 + 0.3 * Math.exp(-n.t * 10));
       ctx.globalAlpha = 1;
     });
@@ -175,7 +178,10 @@ function drawHelp(ctx, w, h) {
   ctx.fillStyle = INK;
   ctx.font = `${fs * 1.15}px ${MARKER}`;
   ctx.fillText('How to shred', x + pad, y + pad);
-  HELP_LINES.forEach(([k, v], i) => {
+  const lines = TouchPad.enabled
+    ? [...HELP_LINES.slice(0, -1), ['on the screen', 'GRAB = Space · purple spin buttons = Q / E · tap here to close']]
+    : HELP_LINES;
+  lines.forEach(([k, v], i) => {
     const ly = y + pad + lh * (i + 1);
     ctx.font = `bold ${fs}px ${HAND}`;
     ctx.fillText(k, x + pad, ly);

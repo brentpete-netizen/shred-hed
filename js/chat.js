@@ -59,7 +59,7 @@ const Chat = (() => {
   function draw(ctx, w, h, lobby = false) {
     if (!Net.active) { button = null; return; }
     const now = performance.now() / 1000, fs = Math.max(14, Math.min(18, w / 55));
-    const x = 16, bottom = h - 16;
+    const x = 16, bottom = h - 16 - (typeof TouchPad !== 'undefined' && !lobby ? TouchPad.bottomSpace(h) : 0); // above the touch buttons
     const bw = 76, bh = 30;
     Sketch.seedFor(620);
     const box = [{ x, y: bottom - bh }, { x: x + bw, y: bottom - bh }, { x: x + bw, y: bottom }, { x, y: bottom }];

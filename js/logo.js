@@ -61,3 +61,36 @@ function drawSkullLogo(ctx, cx, cy, s, rot = 0) {
   SKULL_CRACKS.forEach((line, i) => Sketch.stroke(ctx, line.map(P), ink(i ? 2.2 : 3.2, 0.5)));
   ctx.restore();
 }
+
+// A Shred Buck: a gold coin with the skull stamped into it. r: radius in pixels; spin squashes
+// it sideways (1 = face on) for a coin that turns.
+function drawCoin(ctx, x, y, r, spin = 1) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(Math.max(0.08, Math.abs(spin)), 1);
+  Sketch.seedFor(77);
+  Sketch.circle(ctx, 0, 0, r, '#f4c542', { width: Math.max(1.2, r * 0.16), amp: 0.25 });
+  Sketch.circle(ctx, 0, 0, r * 0.74, null, { color: '#c8931c', width: Math.max(0.8, r * 0.09), amp: 0.15 });
+  if (r >= 6) {
+    const k = (r * 0.5) / 52;
+    ctx.fillStyle = '#c8931c';
+    ctx.beginPath();
+    SKULL_OUTLINE.forEach(([px, py], i) => (i ? ctx.lineTo(px * k, py * k) : ctx.moveTo(px * k, py * k)));
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#f4c542';
+    for (const ex of [-18, 18]) { ctx.beginPath(); ctx.ellipse(ex * k, 5 * k, 12 * k, 10 * k, 0, 0, TAU); ctx.fill(); }
+  }
+  ctx.restore();
+}
+
+// An amount of Shred Bucks in marker writing, with a coin in front. align: where x is.
+function drawBucks(ctx, amount, x, y, size, color = '#f4c542', align = 'center') {
+  const text = typeof amount === 'number' ? fmtScore(amount) : amount;
+  ctx.font = `${size}px ${MARKER}`;
+  const tw = ctx.measureText(text).width, r = size * 0.48, full = r * 2 + size * 0.3 + tw;
+  const left = align === 'center' ? x - full / 2 : align === 'right' ? x - full : x;
+  drawCoin(ctx, left + r, y, r);
+  markerText(ctx, text, left + r * 2 + size * 0.3 + tw / 2, y + 1, size, color);
+  return full;
+}

@@ -481,6 +481,7 @@ function drawHead(ctx, h, up, F) {
   drawHairBack(ctx, h, up, F, hair);
 
   Sketch.circle(ctx, h.x, h.y, R, skin, { width: 2.2 });
+  const ear = add(add(h, back, 3), up, -1); // (headphones sit on it too)
   if (Outfit.get('skin').bones) {
     // a skull: a big dark eye socket, a hole for a nose and a grin of teeth
     const eye = add(add(h, F, 4.6), up, -0.4);
@@ -491,7 +492,6 @@ function drawHead(ctx, h, up, F) {
     Sketch.stroke(ctx, [j0, j1], thin(INK, 1.3));
     for (const t of [0.25, 0.5, 0.75]) { const p = mix(j0, j1, t); Sketch.stroke(ctx, [add(p, up, 1.4), add(p, up, -1.4)], thin(INK, 0.9)); }
   } else {
-    const ear = add(add(h, back, 3), up, -1);
     Sketch.circle(ctx, ear.x, ear.y, 2.6, skin, { width: 1.4 });
     // face: dot eye and a little smirk
     const eye = add(add(h, F, 5.5), up, -1.5);

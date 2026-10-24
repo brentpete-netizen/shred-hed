@@ -136,6 +136,8 @@ function makeSkyline(kind, worldWidth) {
 // Everything you unlock, buy and wear is saved in this browser as you go. Ask the browser to keep
 // it even when it's tidying up space, so it's all still there next time.
 try { navigator.storage?.persist?.().catch(() => {}); } catch (e) { /* not supported */ }
+// load the hand-drawn fonts straight away, so the first frames aren't in a plain font
+try { for (const f of ['Permanent Marker', 'Patrick Hand']) document.fonts.load(`24px "${f}"`).catch(() => {}); } catch (e) { /* old browser */ }
 
 const MAP_KEY = 'shredHed.map';
 let mapId = 'park';
@@ -170,7 +172,7 @@ loadMap(mapId);
 
 const menu = new Menu(new Skater(MAPS[0].build()), mapId);
 const builder = new Builder();
-let mode = 'menu', showHelp = true, debug = false; // mode: 'menu', 'play' or 'build'
+let mode = 'menu', showHelp = !TouchPad.enabled, debug = false; // mode: 'menu', 'play' or 'build'
 let skateGame = null; // a Game of S.K.A.T.E. in progress, or null for free skate
 let testRide = false; // skating a park straight from the builder
 
@@ -298,17 +300,25 @@ const builderToWorld = (x, y) => {
 };
 
 canvas.addEventListener('pointerdown', e => {
+  if (mode === 'play' && TouchPad.down(e)) return;
   if ((mode === 'play' || menu.screen === 'lobby') && Chat.click(e.clientX, e.clientY)) return;
+  if (mode === 'play' && showHelp && e.pointerType === 'touch') { showHelp = false; return; } // tap the help away
+  if (mode === 'play' && skateGame?.state === 'over') { carry.push('start'); return; }     // tap for a rematch
   if (mode === 'menu') {
     const r = menu.click(e.clientX, e.clientY);
     if (r) menuPicked(r);
   } else if (mode === 'build') builder.pointerDown(e.clientX, e.clientY, e.button, builderToWorld);
 });
+canvas.addEventListener('pointercancel', e => TouchPad.up(e));
 canvas.addEventListener('pointerup', e => {
+  TouchPad.up(e);
   if (mode === 'build') builder.pointerUp(e.clientX, e.clientY, builderToWorld);
   else if (mode === 'menu') menu.pointerMove(e.clientX, e.clientY, false);
 });
-canvas.addEventListener('pointermove', e => { if (mode === 'menu') menu.pointerMove(e.clientX, e.clientY, (e.buttons & 1) === 1); });
+canvas.addEventListener('pointermove', e => {
+  TouchPad.move(e);
+  if (mode === 'menu') menu.pointerMove(e.clientX, e.clientY, (e.buttons & 1) === 1);
+});
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 canvas.addEventListener('wheel', e => { if (mode === 'build') { e.preventDefault(); builder.wheel(e.deltaY || e.deltaX); } }, { passive: false });
 let time = 0, fps = 60, acc = 0, last = performance.now(), carry = [];
@@ -324,7 +334,8 @@ function feelMessage(m) {
 }
 
 // Fit viewHeight world pixels top to bottom, but zoom out on narrow windows so you can see ahead.
-function viewScale(vh = CONFIG.viewHeight * feel.zoom) { return Math.min(ch / vh, cw / (vh * 1.4)); }
+// (an upright phone sees less width so the skater isn't tiny)
+function viewScale(vh = CONFIG.viewHeight * feel.zoom) { return Math.min(ch / vh, cw / (vh * (ch > cw ? 0.85 : 1.4))); }
 
 function updateCamera(dt) {
   const p = cameraTarget(), vx = p.vx;
@@ -415,7 +426,8 @@ function render() {
     ctx.textAlign = 'right';
     ctx.textBaseline = 'top';
     ctx.fillStyle = INK;
-    ctx.fillText(testRide ? 'TEST RIDE · Esc back to the builder' : online ? `ONLINE · room ${Net.code} · ${Net.players.length} here · T chat · Esc leave` : 'Esc · menu', cw - 14, 12);
+    const corner = testRide ? 'TEST RIDE · Esc back to the builder' : online ? `ONLINE · room ${Net.code} · ${Net.players.length} here${TouchPad.enabled ? '' : ' · T chat · Esc leave'}` : TouchPad.enabled ? '' : 'Esc · menu';
+    ctx.fillText(corner, cw - 14, 12);
     // "Sam joined", "Sam left"
     Net.toasts.forEach((t, i) => {
       ctx.globalAlpha = clamp((3 - t.t) / 0.5, 0, 1);
@@ -423,7 +435,9 @@ function render() {
     });
     ctx.globalAlpha = 1;
     if (online) Chat.draw(ctx, cw, ch);
+    TouchPad.draw(ctx, cw, ch);
   }
+  if (mode !== 'play') TouchPad.clear();
   if (debug) drawDebug(ctx, skater, fps);
 }
 

@@ -21,13 +21,22 @@ const Input = (() => {
   // with Shift held at the moment the key goes down
   const SHIFTED = { Digit1: 'saveSlot1', Digit2: 'saveSlot2' };
   const heldCodes = new Set();
+  const touches = new Map(); // on-screen buttons being held: finger (pointer id) -> action
   let queue = [];
   const api = {
     textCapture: null,
     held(action) {
       for (const code of heldCodes) if (KEYS[code] === action) return true;
+      for (const a of touches.values()) if (a === action) return true;
       return false;
     },
+    // a finger on an on-screen button (see touch.js): a press, held until it lets go
+    touchDown(id, action) {
+      if (touches.get(id) === action) return;
+      touches.set(id, action);
+      queue.push(action);
+    },
+    touchUp(id) { touches.delete(id); },
     // Returns every press since the last call, oldest first.
     drain() {
       const q = queue;
@@ -51,7 +60,7 @@ const Input = (() => {
     queue.push(action);
   });
   addEventListener('keyup', e => heldCodes.delete(e.code));
-  addEventListener('blur', () => heldCodes.clear());
+  addEventListener('blur', () => { heldCodes.clear(); touches.clear(); });
 
   return api;
 })();
