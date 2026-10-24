@@ -113,8 +113,11 @@ function makeSkyline(kind, worldWidth) {
       tree(x + w + 30, 0.9 + r() * 0.6);
     }
   } else if (kind === 'hills') {
+    // wave lengths that fit the width exactly, so the hills join up when the sky repeats
+    const wave = len => TAU * Math.max(1, Math.round(width / (TAU * len))) / width;
+    const k1 = wave(260), k2 = wave(97);
     const hill = [{ x: 0, y: 0 }];
-    for (let x = 0; x <= width; x += 40) hill.push({ x, y: -120 - Math.sin(x / 260) * 60 - Math.sin(x / 97) * 18 });
+    for (let x = 0; x <= width; x += 40) hill.push({ x, y: -120 - Math.sin(x * k1) * 60 - Math.sin(x * k2) * 18 });
     hill.push({ x: width, y: 0 });
     Sketch.fill(g, hill, 'rgba(160, 180, 140, 0.3)', 2);
     Sketch.stroke(g, hill.slice(1, -1), pencil);
@@ -254,6 +257,25 @@ Net.on('say', msg => {
 });
 const SAY_TYPES = new Set(['trick', 'combo', 'comboLost', 'bail', 'land', 'pop', 'flick', 'grindStart', 'cancel']);
 
+// The endless Hill Bomb: once you're down into the third copy of the hill, you, the camera and
+// your trails all step back one copy. The ground there is exactly the same, so you can't tell.
+// (Not mid-grind or mid-slam, which hang on to bits of the ground; it waits a moment for those.)
+function wrapWorld() {
+  const L = terrain.loop;
+  if (!L || skateGame || skater.pos.x < L.from || skater.vert) return;
+  if (skater.state !== 'ground' && skater.state !== 'air') return;
+  const dx = -L.dx, dy = -L.dy;
+  skater.pos = { x: skater.pos.x + dx, y: skater.pos.y + dy };
+  if (skater.state === 'ground') { skater.seg -= L.segs; skater.s -= L.ds; }
+  if (skater.slippedOff) skater.slippedOff = terrain.rails[terrain.rails.indexOf(skater.slippedOff) - L.rails] || null;
+  for (const f of skater.fx) { f.x += dx; f.y += dy; }
+  cam.x += dx;
+  cam.y += dy;
+  L.shift += L.dx;
+  ComboTrail.shift(dx, dy);
+  Bonus.shift(dx, dy);
+}
+
 // Where the camera follows: you, or the other skater while you watch their attempt.
 function cameraTarget() {
   const watched = skateGame?.watching && Online.focus(skateGame.current.id);
@@ -346,10 +368,16 @@ function render() {
   ctx.fillStyle = paperPattern;
   ctx.fillRect(0, 0, cw, ch);
 
-  // skyline (parallax)
-  const sx = (SKY_X0 - view.x * PARALLAX) * scale + cw / 2;
-  const sy = ch / 2 + (40 - view.y * PARALLAX) * scale - SKY_H * scale;
-  ctx.drawImage(skyline.canvas, sx, sy, skyline.width * scale, SKY_H * scale);
+  // skyline (parallax). On the endless Hill Bomb it goes by as if there'd been no stepping back,
+  // stays level with the hill, and repeats so it never runs out either.
+  const loop = !building && world.loop;
+  const skyX = loop ? view.x + loop.shift : view.x;
+  const skyY = loop ? view.y - (view.x - world.start.x) * (loop.dy / loop.dx) : view.y;
+  const sx = (SKY_X0 - skyX * PARALLAX) * scale + cw / 2;
+  const sy = ch / 2 + (40 - skyY * PARALLAX) * scale - SKY_H * scale;
+  const tw = skyline.width * scale;
+  let tx = loop ? ((sx % tw) + tw) % tw - tw : sx;
+  do { ctx.drawImage(skyline.canvas, tx, sy, tw, SKY_H * scale); tx += tw; } while (loop && tx < cw);
 
   // world (shaken a little after a slam)
   const k = dpr * scale, shake = building ? { x: 0, y: 0 } : feel.offset;
@@ -455,6 +483,7 @@ function frame(now) {
     } else skater.update(STEP, keys, a => Input.held(a));
     first = false;
     acc -= STEP;
+    if (mode === 'play') wrapWorld();
   }
   const yours = !skateGame || skateGame.isMine(); // only your own skating goes in your stats
   const telling = online && skateGame && !skateGame.watching; // your S.K.A.T.E. attempt, for the other skater

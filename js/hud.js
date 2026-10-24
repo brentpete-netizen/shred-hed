@@ -154,7 +154,7 @@ const HELP_LINES = [
   ['after the ollie:', '→ kickflip   ← heelflip   ↓ shove-it   ↑ impossible'],
   ['two quick taps:', '↓→ tre flip   ↓← laser   →→ double kick   ↓↓ 360 shuv   →↓ varial'],
   ['hold Q / E', 'spin backside / frontside (180, 360, 540...)'],
-  ['Space + arrow', 'grab:  → Indy   ← Melon   ↓ Stalefish   ↑ Method   ↑↓ Christ Air  (let go to land!)'],
+  ['Space + arrow', 'grab:  → Indy   ← Melon   ↓ Stalefish   ↑ Method   ↑↓ Christ Air   ↓↑ Laydown  (let go to land!)'],
   ['land on a rail', 'nothing 50-50 · forward nosegrind · back 5-0 · ↓ boardslide · ↑ crooked'],
   ['↓ as you land', 'manual (↑ nose manual) · ← → balance · ↓ set it down · ↑ ollie out'],
   ['Q / E after landing', 'revert: keeps the combo going'],

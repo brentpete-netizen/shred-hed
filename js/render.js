@@ -285,9 +285,10 @@ function riderPose(sk) {
   // grabs pull the board up to your hand and tweak it
   const grab = sk.grab ? sk.grab.def : sk.lastGrab, ga = grab ? sk.grabAmt : 0;
   const christ = grab?.christ ? ga : 0; // how far into a Christ Air (see below)
+  const lay = grab?.lay ? ga : 0;       // and a Laydown
   let center = ride;
   if (ga > 0.01) {
-    center = add(ride, N, (christ ? 0 : 15) * ga);
+    center = add(ride, N, (christ || lay ? 0 : 15) * ga);
     roll += grab.roll * sk.facing * ga;
     pitch += grab.pitch * ga;
   }
@@ -339,12 +340,15 @@ function riderPose(sk) {
   // Hips, torso and head
   const crouch = clamp(sk.crouch, -0.1, 1.1);
   const hipH = lerp(44, 25, crouch) - pushBob * 7;
-  const hip = add(add(ride, N, 2 + hipH), F, -7 + pushBob * 5);
+  let hip = add(add(ride, N, 2 + hipH), F, -7 + pushBob * 5);
+  // Laydown: the hips come down onto the back of the deck and the body lies along the board
+  if (lay > 0.01) hip = mix(hip, add(Xrest(-14, deckTopN(-14), 0), N, 8), lay);
   let lean = 0.14 + Math.min(0.12, Math.abs(sk.v) / 4000) + pushBob * 0.25;
   if (sk.braking) lean -= 0.25;
   if (sk.manual) lean += sk.manual.bal * 0.45;
   lean = lerp(lean, 0.06 + (rot.active ? 0.18 : 0), sk.airAmt) + 0.4 * ga;
   lean = lerp(lean, -0.04, christ); // standing tall in a Christ Air
+  lean = lerp(lean, 1.42, lay);     // flat out, face first toward the nose
   const torsoDir = add({ x: N.x * Math.cos(lean), y: N.y * Math.cos(lean) }, F, Math.sin(lean));
   const neck = add(hip, torsoDir, TORSO);
   const shoulder = add(add(hip, torsoDir, TORSO - 6), F, 1);
@@ -363,10 +367,16 @@ function riderPose(sk) {
     front = mix(front, add(add(hip, down, 47), F, 2.5), christ);
     back = mix(back, add(add(hip, down, 46), F, -2.5), christ);
   }
+  // Laydown: legs stretched out behind, feet lifted a little off the tail, knees toward the board
+  if (lay > 0.01) {
+    front = mix(front, add(add(hip, F, -48), N, 3), lay);
+    back = mix(back, add(add(hip, F, -47), N, -1), lay);
+  }
 
+  const kneeDir = lay > 0.5 ? { x: -N.x, y: -N.y } : F;
   const legs = {
-    front: solveLeg(hip, front, F),
-    back: solveLeg(hip, back, F),
+    front: solveLeg(hip, front, kneeDir),
+    back: solveLeg(hip, back, kneeDir),
   };
 
   // Arms: angles measured from straight down, positive toward the front. Elbows only bend one
@@ -399,6 +409,14 @@ function riderPose(sk) {
     const r = solve2(shoulder, target, UPPER_ARM, FOREARM, { x: -F.x, y: -F.y });
     if (grab.hand === 'front') frontArm = [shoulder, r.mid, r.end];
     else backArm = [shoulder, r.mid, r.end];
+  }
+  // lying on it: both hands hold the nose, one on each side, elbows up
+  if (lay > 0.5) {
+    const X = boardXform(board);
+    const hold = side => solve2(shoulder, X(38, -DECK_TH / 2, side * sk.facing * DECK_W * 0.45), UPPER_ARM, FOREARM, N);
+    const f = hold(1), b = hold(-1);
+    frontArm = [shoulder, f.mid, f.end];
+    backArm = [shoulder, b.mid, b.end];
   }
 
   return {

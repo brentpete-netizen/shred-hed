@@ -49,19 +49,17 @@ function copingSpot(T, end, h) {
 
 const Bonus = (() => {
   let letters = [], mapId = null, terrain = null;
-  let pad = null, padRun = null, bigRail = null, grindRun = null, lastGrind = null, endLip = null;
+  let bigRail = null, grindRun = null, lastGrind = null;
   const trail = [];
 
   function load(id, T) {
     mapId = id;
     terrain = T;
     letters = LETTER_SPOTS[id] ? LETTER_SPOTS[id](T).map((p, i) => ({ ...p, i, letter: SKATE_WORD[i] })) : [];
-    // the manual pad on the skatepark, and the big kinked handrail at the school
-    pad = id === 'park' ? T.segs.find(s => Math.abs(s.a.y + 16) < 0.5 && Math.abs(s.ang) < 0.01 && s.len > 250) : null;
+    // the big kinked handrail at the school
     const line = id === 'school' ? T.railLines.findIndex(r => r.pts.length === 4) : -1;
     bigRail = line >= 0 ? T.rails.filter(s => T.railLines[line].pts.includes(s.a) || T.railLines[line].pts.includes(s.b)) : null;
-    endLip = id === 'street' ? T.copings.find(c => c.end === 1).pt : null;
-    padRun = grindRun = lastGrind = null;
+    grindRun = lastGrind = null;
     trail.length = 0;
   }
 
@@ -74,20 +72,6 @@ const Bonus = (() => {
       for (const L of letters) {
         if (Progress.hasLetter(mapId, L.i)) continue;
         if (Math.hypot(body.x - L.x, body.y - L.y) < 44) Progress.collectLetter(mapId, L.i, L.letter);
-      }
-    }
-
-    // Skatepark: manual the whole manual pad, end to end, without putting the wheels down
-    if (pad) {
-      const onPad = sk.state === 'ground' && terrain.segs[sk.seg] === pad;
-      if (sk.manual && onPad) {
-        if (!padRun) padRun = { from: sk.pos.x, far: 0 };
-        padRun.far = Math.max(padRun.far, Math.abs(sk.pos.x - padRun.from));
-      } else if (padRun) {
-        // still in the manual when you roll (or ollie) off the far end counts; putting it down on the pad doesn't
-        const made = !onPad && padRun.far > pad.len - 90; // the lip of the pad pops you up, so you can't start right at the edge
-        padRun = null;
-        if (made) return spot('pool');
       }
     }
 
@@ -104,9 +88,6 @@ const Bonus = (() => {
         if (made) return spot('drain');
       }
     }
-
-    // Street: launch way, way out of the quarter pipe at the end (a charged ollie right at the lip)
-    if (endLip && sk.state === 'air' && sk.pos.x > endLip.x - 80 && sk.pos.y < endLip.y - 110) return spot('rooftops');
 
     // colour trail
     if (Progress.cheat('trail') && sk.state !== 'bail') {
@@ -151,5 +132,7 @@ const Bonus = (() => {
     }
   }
 
-  return { load, update, draw, lettersOn: () => letters.length };
+  function shift(dx, dy) { for (const p of trail) { p.x += dx; p.y += dy; } }
+
+  return { load, update, draw, shift, lettersOn: () => letters.length };
 })();

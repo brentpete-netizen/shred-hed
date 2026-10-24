@@ -41,7 +41,7 @@ function blendPose(a, b, k) {
 
 const Online = (() => {
   const remotes = new Map(); // id -> { name, outfit, snaps, pose, track, air, n }
-  let sendTimer = 0, clock = 0;
+  let sendTimer = 0, clock = 0, mine = null;
 
   function remote(id) {
     let r = remotes.get(id);
@@ -56,6 +56,9 @@ const Online = (() => {
   Net.on('pose', msg => {
     if (msg.from === Net.me) return;
     const r = remote(msg.from);
+    // they just stepped back a copy of the endless hill: don't slide them all the way across
+    const last = r.snaps[r.snaps.length - 1];
+    if (last && Math.abs(msg.p[32] - last.p[32]) > 1000) { r.snaps.length = 0; r.track = new TrailTrack(); }
     r.snaps.push({ t: clock, p: msg.p, air: msg.air, n: msg.n });
     if (r.snaps.length > 8) r.snaps.shift();
   });
@@ -74,6 +77,7 @@ const Online = (() => {
   // sendPose: whether your skater is out there to be seen right now
   function update(dt, sk, sendPose) {
     clock += dt;
+    mine = sk;
     if (sendPose && (sendTimer -= dt) <= 0) {
       sendTimer = 1 / POSE_RATE;
       Net.send({ t: 'pose', p: packPose(sk), air: sk.state === 'air', n: sk.combo.entries.length });
@@ -97,6 +101,10 @@ const Online = (() => {
   function draw(ctx, time, only = null) {
     for (const r of remotes.values()) {
       if (!r.pose || (only && r.id !== only)) continue;
+      // on the endless hill everyone steps back on their own, so show them on your copy of it
+      const L = mine?.terrain.loop, k = L ? Math.round((mine.pos.x - r.pose.board.cx) / L.dx) : 0;
+      ctx.save();
+      ctx.translate(k * (L?.dx || 0), k * (L?.dy || 0));
       r.track.draw(ctx, OUTFIT_OPTIONS.trail[r.outfit.trail], time);
       Outfit.override = r.outfit;
       drawBoard(ctx, r.pose.board);
@@ -104,6 +112,7 @@ const Online = (() => {
       Outfit.override = null;
       const h = r.pose.fig.head;
       markerText(ctx, r.name, h.x, h.y - 34, 20, '#ffffff');
+      ctx.restore();
     }
   }
 

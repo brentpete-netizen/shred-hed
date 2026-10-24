@@ -39,6 +39,8 @@ const GRABS = {
   // two quick taps while holding Space, like the combo flips
   // Christ Air: board held out at arm's length, arms spread, legs hanging straight down
   UD: { name: 'Christ Air', pts: 600, hand: 'front', l: 0, side: 1, roll: 0.25, pitch: 0, christ: true },
+  // Laydown: belly down flat on the board, hands on the nose, legs stretched out behind
+  DU: { name: 'Laydown', pts: 550, hand: 'front', l: 0, side: 1, roll: 0, pitch: 0, lay: true },
 };
 const GRAB_TWEAK_PTS = 250; // per second held
 

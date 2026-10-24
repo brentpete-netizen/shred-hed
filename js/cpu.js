@@ -116,7 +116,7 @@ function cpuSearch(terrain, target, budget) {
   const presses = [], holds = [];
   if (air.flip) [...air.flip].forEach((k, i) => presses.push({ t: 0.03 + i * 0.06, key: KEY_EVENT[k] }));
   if (air.grab) {
-    // one arrow for most grabs, two quick taps for the Christ Air
+    // one arrow for most grabs, two quick taps for the Christ Air and the Laydown
     presses.push({ t: 0.08, key: 'grab' });
     [...air.grab].forEach((k, i) => presses.push({ t: 0.1 + i * 0.06, key: KEY_EVENT[k] }));
     holds.push({ from: 0.1, to: 0.16, key: KEY_EVENT[air.grab[0]] });
@@ -191,7 +191,7 @@ function cpuFluff(terrain, plan, target) {
 const CPU_SETS = [
   { tier: 0, names: ['Kickflip', 'Heelflip', 'Pop Shove-it', 'FS 180', 'BS 180', 'Indy', '50-50'] },
   { tier: 1, names: ['Varial Kickflip', '360 Shove-it', 'BS 180 Kickflip', 'FS 180 Heelflip', 'Melon', 'Boardslide', '5-0', 'Kickflip + 50-50', 'Impossible'] },
-  { tier: 2, names: ['Tre Flip', 'Laser Flip', 'Hardflip', 'Inward Heelflip', 'BS 360', 'Method', 'Nosegrind', 'Crooked Grind', 'Fakie Kickflip', 'Christ Air'] },
+  { tier: 2, names: ['Tre Flip', 'Laser Flip', 'Hardflip', 'Inward Heelflip', 'BS 360', 'Method', 'Nosegrind', 'Crooked Grind', 'Fakie Kickflip', 'Christ Air', 'Laydown'] },
 ];
 
 // The chance the CPU fluffs a trick, by how hard it is.

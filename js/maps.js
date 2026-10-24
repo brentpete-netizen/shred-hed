@@ -122,8 +122,6 @@ const THEMES = {
   moon:   { ground: '#bdbac8', hatch: 'rgba(70, 66, 90, 0.25)', sky: 'space' },
   lava:   { ground: '#c97a5e', hatch: 'rgba(110, 30, 20, 0.25)', sky: 'volcano' },
   hill:   { ground: '#cfc6ae', hatch: 'rgba(100, 86, 60, 0.22)', sky: 'hills' },
-  roof:   { ground: '#9c958c', hatch: 'rgba(50, 46, 42, 0.28)', sky: 'downtown' },
-  pool:   { ground: '#b7dbe7', hatch: 'rgba(40, 90, 120, 0.25)', sky: 'suburb' },
   drain:  { ground: '#aaa69c', hatch: 'rgba(60, 60, 56, 0.25)', sky: 'hills' },
 };
 
@@ -247,60 +245,48 @@ function buildLavaPipe() {
   return b.build({ spawn: { x: 520, y: 0 }, theme: THEMES.lava, name: 'Lava Pipe' });
 }
 
+// Hill Bomb never ends: it's the same stretch of hill over and over. The ground holds a few
+// copies of it, and whenever you get to the third copy, everything quietly steps back one copy
+// (wrapWorld in game.js), so there's always more hill ahead.
+const HILL = { slope: 0.13, copies: 4, wrapAt: 2 };
+
 function buildHillBomb() {
   const b = MapBuilder.wallStart(0, -700, 300);
-  b.flat(220).bend(300, 0.13);
-  const tan = Math.tan(0.13);
-  for (let i = 0; i < 4; i++) {
-    if (i % 2 === 0) {
-      b.line(520, 0.13).bend(120, -0.3).line(30, -0.3).to(0, 40); // a kicker on the way down
-    } else {
-      const a = { ...b.cur };
-      b.line(560, 0.13);
-      const c = b.cur;
-      b.rails.push({ kind: 'rail', pts: [{ x: a.x + 40, y: a.y + 40 * tan - 32 }, { x: c.x - 40, y: c.y - 40 * tan - 32 }] });
+  b.flat(220).bend(300, HILL.slope);
+  const tan = Math.tan(HILL.slope);
+  const kicker = (run, lip) => b.line(run, HILL.slope).bend(120, -lip).line(30, -lip).to(0, 40);
+  const rail = (kind, run, h) => {
+    const a = { ...b.cur };
+    b.line(run, HILL.slope);
+    const c = b.cur;
+    b.rails.push({ kind, pts: [{ x: a.x + 40, y: a.y + 40 * tan - h }, { x: c.x - 40, y: c.y - 40 * tan - h }] });
+  };
+  const starts = [];
+  for (let k = 0; k <= HILL.copies; k++) {
+    starts.push({ x: b.cur.x, y: b.cur.y, pts: b.pts.length, rails: b.rails.length });
+    if (k === HILL.copies) break;
+    kicker(520, 0.3);
+    rail('rail', 560, 32);
+    kicker(480, 0.42); // a bigger one
+    rail('ledge', 520, 26);
+    for (const [dx, s] of [[150, 1.1], [820, 1.3], [1500, 1]]) {
+      const x = starts[k].x + dx;
+      b.scenery({ type: 'tree', x, y: b.pts.find(p => p.x >= x).y - 4, s });
     }
   }
-  b.line(400, 0.13).bend(300, 0).flat(400);
-  b.qpEnd(300, 12);
-  for (let x = 300; x < b.cur.x - 300; x += 650) b.scenery({ type: 'tree', x, y: b.pts.find(p => p.x >= x).y - 4, s: 1.1 });
-  return b.build({ spawn: { x: 110, y: -700 }, theme: THEMES.hill, name: 'Hill Bomb' });
+  b.line(2400, HILL.slope); // more hill past the last copy (you never get this far)
+  const T = b.build({ spawn: { x: 110, y: -700 }, theme: THEMES.hill, name: 'Hill Bomb' });
+  const [a, c] = [starts[1], starts[2]];
+  T.loop = {
+    from: starts[HILL.wrapAt].x, dx: c.x - a.x, dy: c.y - a.y,
+    segs: c.pts - a.pts, rails: c.rails - a.rails,
+    ds: T.segs[c.pts - 1].s0 - T.segs[a.pts - 1].s0,
+    x0: a.x, y0: a.y, shift: 0, // shift: how far you've really come, for the scenery far away
+  };
+  return T;
 }
 
 // Found, not given: each of these turns up when you pull off something special on a main map.
-
-function buildRooftops() {
-  const b = MapBuilder.wallStart(0, 0, 400);         // the stairwell door
-  b.front.push({ type: 'facade', x0: -160, x1: 0, top: -400, bottom: 0, style: 'shop' });
-  const alley = (drop, floor) => b.to(0, drop).flat(floor).line(drop / Math.sin(0.87), -0.87); // fall in, ride the ramp out
-  b.flat(260).prop('rail', 40, 180, 30).flat(300);  // skylight rail
-  alley(220, 120);
-  b.flat(120).prop('ledge', 20, 200, 34).flat(380);  // AC unit
-  const roof = b.cur.y;
-  b.bend(90, -0.5).line(30, -0.5);                   // chimney kicker
-  b.to(0, roof - b.cur.y);
-  b.flat(160);
-  alley(260, 100);
-  b.flat(200).prop('rail', 30, 300, 32).flat(420);   // the long pipe
-  b.qpEnd(220, 10);
-  for (const [x, y] of [[300, 0], [1200, 0], [2300, 0]]) b.scenery({ type: 'lamp', x, y });
-  b.front.push({ type: 'paint', x: 900, y: 120, text: 'NO SKATING' });
-  return b.build({ spawn: { x: 120, y: 0 }, theme: THEMES.roof, name: 'Rooftops' });
-}
-
-function buildPool() {
-  const b = MapBuilder.wallStart(0, 0, 260);         // the back fence
-  b.flat(320).prop('bench', 80, 150, 26);
-  // an empty pool: rounded coping, steep walls, a deep end
-  const wall = depth => (depth - 30 * (1 - Math.cos(1.3)) - 220 * (1 - Math.cos(1.3))) / Math.sin(1.3);
-  b.bend(30, 1.3).line(wall(250), 1.3).bend(220, 0).flat(260).bend(220, -1.3).line(wall(250), -1.3).bend(30, 0);
-  b.flat(300).prop('planter', 60, 160, 28).flat(200);
-  b.wallEnd(260);
-  b.front.push({ type: 'facade', x0: b.cur.x, x1: b.cur.x + 160, top: -260, bottom: 0, style: 'school' });
-  b.scenery({ type: 'building', x: 40, w: 420, h: 220, y: 0, color: '#e8d9c0' });
-  for (const x of [520, 1500]) b.scenery({ type: 'tree', x, y: 0, s: 1.2 });
-  return b.build({ spawn: { x: 120, y: 0 }, theme: THEMES.pool, name: 'Backyard Pool' });
-}
 
 function buildDrain() {
   const b = MapBuilder.qpStart(0, 0, 320, 10);       // the curved drain walls
@@ -313,15 +299,13 @@ function buildDrain() {
 }
 
 const HIDDEN_SPOTS = [
-  { id: 'rooftops', name: 'ROOFTOPS', title: 'Rooftops', blurb: 'You found the way up', build: buildRooftops },
-  { id: 'pool', name: 'BACKYARD POOL', title: 'Backyard Pool', blurb: "Don't tell the neighbours", build: buildPool },
   { id: 'drain', name: 'STORM DRAIN', title: 'Storm Drain', blurb: 'Deep, curved and secret', build: buildDrain },
 ];
 
 const SECRET_MAPS = [
   { id: 'moon', name: 'MOON BASE', blurb: 'Low gravity. Very low.', build: buildMoon },
   { id: 'lava', name: 'LAVA PIPE', blurb: 'One giant halfpipe over the lava', build: buildLavaPipe },
-  { id: 'hill', name: 'HILL BOMB', blurb: 'A long, fast way down', build: buildHillBomb },
+  { id: 'hill', name: 'HILL BOMB', blurb: 'A fast way down that never ends', build: buildHillBomb },
 ];
 
 const MAPS = [

@@ -43,6 +43,9 @@ const ComboTrail = (() => {
 
   function reset() { pts = []; }
 
+  // the world stepped back (on the endless Hill Bomb): the trail comes with it
+  function shift(dx, dy) { for (const p of pts) { p.x += dx; p.y += dy; } }
+
   // Draws a streak through `points` (oldest first): a soft wide glow, a brighter band, then a hot core.
   function drawPoints(ctx, points, style, time, width = 1) {
     if (points.length < 2 || style.off) return;
@@ -107,5 +110,5 @@ const ComboTrail = (() => {
     drawPoints(ctx, points, style, time, r / 60);
   }
 
-  return { update, draw, drawDemo, drawPoints, reset };
+  return { update, draw, drawDemo, drawPoints, reset, shift };
 })();

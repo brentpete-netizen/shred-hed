@@ -132,8 +132,15 @@ class Terrain {
       // we end up, so rolling off a lip doesn't count as landing back on it.
       const t = d0 < 0.5 ? 0 : d0 / (d0 - d1);
       const q = d0 < 0.5 ? p1 : { x: p0.x + (p1.x - p0.x) * t, y: p0.y + (p1.y - p0.y) * t };
-      const u = ((q.x - seg.a.x) * seg.tx + (q.y - seg.a.y) * seg.ty) / seg.len;
-      if (u < -0.001 || u > 1.001) continue;
+      let u = ((q.x - seg.a.x) * seg.tx + (q.y - seg.a.y) * seg.ty) / seg.len;
+      if (u < -0.001 || u > 1.001) {
+        // Already on the ground partway along it (not at an end, like a lip you just left) and
+        // heading in: that's a landing too. Otherwise falling fast into a curved transition, made
+        // of short pieces, can slip between them and through the ground.
+        if (d0 >= 0.5 || segs !== this.segs) continue;
+        u = ((p0.x - seg.a.x) * seg.tx + (p0.y - seg.a.y) * seg.ty) / seg.len;
+        if (u <= 0.001 || u >= 0.999) continue;
+      }
       const uc = Math.max(0, Math.min(1, u));
       if (!hit || t < hit.t) hit = { t, seg, u: uc, p: this.pointOnSeg(seg, uc) };
     }
