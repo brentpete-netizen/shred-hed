@@ -18,7 +18,7 @@ const UNLOCKS = {
   9:  [['end', 'rollin'], ['board', 'Checker'], ['hat', 'Mohawk'], ['board', 'Camo'], ['shoes', 'Combat Boots']],
   10: [['skin', 'Robot'], ['top', 'Rainbow Hoodie'], ['pants', 'Tan Cargos']],
   11: [['hat', 'Gold Crown'], ['shoes', 'Gold Kicks']],
-  12: [['skin', 'Alien'], ['board', 'Galaxy']],
+  12: [['skin', 'Alien'], ['board', 'Galaxy'], ['skin', 'Skeleton']],
   13: [['board', 'Gold'], ['skin', 'Gold Statue']],
 };
 // the tough stuff and grip, spread over the levels
@@ -56,6 +56,16 @@ for (const [lvl, items] of Object.entries(UNLOCKS)) for (const [type, key] of it
 
 const TOTAL_LETTERS = 20; // S-K-A-T-E on each of the four maps
 
+// Shred Bucks: money for the Skate Shop. You earn them skating, never from a cheat.
+const BUCKS = {
+  start: 50,                                                 // to get you going
+  combo: score => score >= 400 ? Math.min(30, Math.floor(score / 400)) : 0,
+  newTrick: 5, letter: 25, skateWin: 40, skateGame: 10,
+  levelUp: lvl => 25 * lvl,
+};
+// cheats that make skating easier: no Rep or Shred Bucks while one's on
+const EASY_CHEATS = ['lowgrav', 'halfspeed'];
+
 const MAP_NAMES = { street: 'Street map', school: 'School Yard map', mega: 'Mega Ramp map' };
 const BUILDER_NAMES = { halfpipe: 'Halfpipe piece', kinkRail: 'Kink Rail piece', bankLedge: 'Bank-to-Ledge piece', diyQuarter: 'DIY Quarter piece', rollin: 'Roll-in tower start' };
 const unlockLabel = ([type, key]) => MAP_NAMES[key] || BUILDER_NAMES[key] || (type === 'trail' ? `${key} trail` : key);
@@ -68,6 +78,17 @@ const Progress = (() => {
   const events = [];   // for the HUD: rep gained, new tricks, level ups
 
   const store = () => { try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) { /* storage blocked */ } };
+
+  // An easy-mode cheat is on: nothing earned, and a heads-up the first time.
+  let warned = false;
+  const blocked = () => {
+    if (!api.cheating) return false;
+    if (!warned) {
+      warned = true;
+      events.push({ type: 'banner', title: 'CHEATS ON', lines: ['no Rep or Shred Bucks while they are', 'type the code again to turn it off'] });
+    }
+    return true;
+  };
 
   const levelFor = rep => {
     let lvl = 1;
@@ -91,9 +112,11 @@ const Progress = (() => {
     // The level something unlocks at (0 if it's always open).
     lockLevel(type, key) { return UNLOCK_LEVEL[`${type}:${key}`] || 0; },
     isUnlocked(type, key) {
+      const item = (OUTFIT_OPTIONS[type] || []).find(o => o.name === key);
+      if (item?.earned) return levelFor(data.rep) >= item.earned; // you have to really get there: no cheat opens it
+      if (item?.shop) return api.owns(item);                       // only ever bought in the shop
       if (data.everything) return true;
-      const secretItem = (OUTFIT_OPTIONS[type] || []).find(o => o.name === key && o.secret);
-      if (secretItem) return api.secretOwned(secretItem);
+      if (item?.secret) return api.secretOwned(item);
       const need = api.lockLevel(type, key);
       return !need || api.level >= need || data.owned.includes(`${type}:${key}`);
     },
@@ -110,6 +133,7 @@ const Progress = (() => {
     toggleCheat(name, label) {
       data.cheats = data.cheats || {};
       data.cheats[name] = !data.cheats[name];
+      warned = false;
       store();
       events.push({ type: 'banner', title: `${label} ${data.cheats[name] ? 'ON' : 'OFF'}`, lines: [data.cheats[name] ? 'type it again to turn it off' : 'back to normal'] });
     },
@@ -126,6 +150,7 @@ const Progress = (() => {
       store();
       const found = api.lettersFound();
       events.push({ type: 'letter', letter, found, total: TOTAL_LETTERS });
+      api.earn(BUCKS.letter, 'golden letter');
       if (found === TOTAL_LETTERS) {
         events.push({ type: 'banner', title: 'ALL 20 LETTERS!', lines: ['secret skater unlocked: the Ghost', 'check the closet'] });
       }
@@ -143,6 +168,7 @@ const Progress = (() => {
 
     // secret closet items (like the Ghost) only show up once you've earned them
     secretOwned(item) {
+      if (item.shop) return api.owns(item); // shop things don't show in the closet until they're yours
       return !item.secret || !!data.everything || (item.secret === 'letters' && api.allLetters) || (item.secret === 'tag' && !!data.nameTag);
     },
     // a secret cosmetic of its own: yours for good once you've found it
@@ -156,32 +182,64 @@ const Progress = (() => {
     },
 
     add(amount, reason) {
-      if (amount <= 0) return;
+      if (amount <= 0 || blocked()) return;
       const before = api.level;
       data.rep += amount;
       events.push({ type: 'rep', amount, reason });
       const after = api.level;
       for (let lvl = before + 1; lvl <= after; lvl++) {
         events.push({ type: 'level', level: lvl, unlocked: (UNLOCKS[lvl] || []).map(unlockLabel) });
+        api.earn(BUCKS.levelUp(lvl), 'level up');
       }
       store();
     },
 
-    // Your own skating: combos are worth Rep, and so is every trick you land for the first time.
+    // Your own skating: combos are worth Rep and Shred Bucks, and so is every trick you land for
+    // the first time.
     onMessage(m) {
-      if (m.type !== 'combo') return;
+      if (m.type !== 'combo' || blocked()) return;
       for (const p of m.parts) {
         if (!Stats.data.tricks[p.name] && !api.seen.has(p.name)) {
           api.seen.add(p.name);
           events.push({ type: 'newTrick', name: p.name });
           api.add(10, 'new trick');
+          api.earn(BUCKS.newTrick, 'new trick');
         }
       }
       if (m.score >= 100) api.add(clamp(Math.floor(m.score / 200), 1, 50), 'combo');
+      api.earn(BUCKS.combo(m.score), 'combo');
     },
     seen: new Set(),
 
-    skateResult(won) { api.add(won ? 60 : 20, won ? 'S.K.A.T.E. win' : 'S.K.A.T.E.'); },
+    skateResult(won) {
+      api.add(won ? 60 : 20, won ? 'S.K.A.T.E. win' : 'S.K.A.T.E.');
+      api.earn(won ? BUCKS.skateWin : BUCKS.skateGame, 'S.K.A.T.E.');
+    },
+    // a game against a person (on this computer or online)
+    skateGame() {
+      api.add(20, 'S.K.A.T.E.');
+      api.earn(BUCKS.skateGame, 'S.K.A.T.E.');
+    },
+
+    // ---------------------------------------------------------------- Shred Bucks and the shop
+    get bucks() { return data.bucks; },
+    get cheating() { return EASY_CHEATS.some(c => api.cheat(c)); },
+    earn(amount, reason) {
+      if (amount <= 0 || blocked()) return;
+      data.bucks += amount;
+      events.push({ type: 'bucks', amount, reason });
+      store();
+    },
+    owns(item) { return data.bought.includes(`${item.cat}:${item.name}`); },
+    // 'bought', 'owned' (already yours) or 'broke' (not enough Shred Bucks)
+    buy(item) {
+      if (api.owns(item)) return 'owned';
+      if (data.bucks < item.shop) return 'broke';
+      data.bucks -= item.shop;
+      data.bought.push(`${item.cat}:${item.name}`);
+      store();
+      return 'bought';
+    },
   };
 
   // First time with Rep: count what you've already done, and keep the outfit you're wearing.
@@ -194,5 +252,12 @@ const Progress = (() => {
     }
     store();
   }
+  // First time with Shred Bucks: a starting stack, plus what your level-ups so far would have paid.
+  if (data.bucks === undefined) {
+    data.bucks = BUCKS.start;
+    for (let lvl = 2; lvl <= levelFor(data.rep); lvl++) data.bucks += BUCKS.levelUp(lvl);
+  }
+  data.bought = data.bought || [];
+  store();
   return api;
 })();

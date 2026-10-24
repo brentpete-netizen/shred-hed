@@ -3,7 +3,8 @@
 
 const PX_PER_FT = 23; // the skater is about 5.5 ft tall
 
-const MAIN_ITEMS = ['FREE SKATE', 'S.K.A.T.E.', 'ONLINE', 'PARK BUILDER', 'CLOSET', 'STATS', 'AUDIO'];
+const MAIN_ITEMS = ['FREE SKATE', 'S.K.A.T.E.', 'ONLINE', 'PARK BUILDER', 'CLOSET', 'SKATE SHOP', 'STATS', 'AUDIO'];
+const CATEGORY_LABEL = Object.fromEntries(OUTFIT_CATEGORIES);
 const ONLINE_ITEMS = ['HOST FREE SKATE', 'HOST S.K.A.T.E.', 'JOIN A ROOM'];
 const VERSUS_ITEMS = ['VS CPU', '2 PLAYERS'];
 
@@ -55,7 +56,14 @@ class Menu {
         else if (e === 'menu' || e === 'left') this.back();
       } else if (this.screen === 'lobby') {
         if (e === 'start' && Net.role === 'host' && this.canStart()) Net.startGame();
+        else if (e === 'test') Chat.open();
         else if (e === 'menu') this.leaveRoom();
+      } else if (this.screen === 'shop') {
+        const n = SHOP_ITEMS.length;
+        if (e === 'up') { this.shopSel = (this.shopSel + n - 1) % n; this.shopConfirm = false; Sound.play('menuMove'); }
+        else if (e === 'down') { this.shopSel = (this.shopSel + 1) % n; this.shopConfirm = false; Sound.play('menuMove'); }
+        else if (e === 'start' || e === 'grab' || e === 'right') this.shopPick();
+        else if (e === 'menu' || e === 'left') this.back();
       } else if (this.screen === 'versus') {
         if (e === 'up' || e === 'down') { this.vsSel = 1 - this.vsSel; Sound.play('menuMove'); }
         else if (e === 'start' || e === 'grab' || e === 'right') this.chooseVersus(this.vsSel);
@@ -115,6 +123,7 @@ class Menu {
     else if (item === 'ONLINE') { this.screen = 'online'; this.onSel = this.onSel || 0; }
     else if (item === 'PARK BUILDER') { this.screen = 'parks'; this.confirmDelete = false; }
     else if (item === 'CLOSET') { this.screen = 'closet'; this.showoff = 0; this.trying = { ...Outfit.pick }; }
+    else if (item === 'SKATE SHOP') { this.screen = 'shop'; this.showoff = 0; this.shopSel = this.shopSel || 0; this.shopConfirm = false; }
     else if (item === 'STATS') this.screen = 'stats';
     else { this.screen = 'audio'; this.audioRow = 0; }
   }
@@ -153,6 +162,7 @@ class Menu {
 
   leaveRoom() {
     Net.leave();
+    Chat.clear();
     this.screen = 'online';
     Sound.play('menuMove');
   }
@@ -315,6 +325,33 @@ class Menu {
     Sound.play('lost');
   }
 
+  // ---------------------------------------------------------------- skate shop
+
+  // What you're wearing, with the shop item you're looking at swapped in.
+  shopLook() {
+    const item = SHOP_ITEMS[this.shopSel];
+    return { ...Outfit.pick, [item.cat]: OUTFIT_OPTIONS[item.cat].indexOf(item) };
+  }
+
+  // Buy it (press twice, so you don't spend by accident), or put it on if it's already yours.
+  shopPick(i = this.shopSel) {
+    this.shopSel = i;
+    const item = SHOP_ITEMS[i], index = OUTFIT_OPTIONS[item.cat].indexOf(item);
+    if (Progress.owns(item)) {
+      Outfit.set(item.cat, index);
+      this.shopConfirm = false;
+      return this.note(`WEARING ${item.name.toUpperCase()}`);
+    }
+    if (Progress.bucks < item.shop) return this.flash(`you need ${item.shop - Progress.bucks} more Shred Bucks`);
+    if (!this.shopConfirm) { this.shopConfirm = true; Sound.play('menuMove'); return; }
+    this.shopConfirm = false;
+    if (Progress.buy(item) !== 'bought') return;
+    Outfit.set(item.cat, index);
+    this.note(`YOURS FOREVER: ${item.name.toUpperCase()}`);
+    Sound.play('levelUp');
+    this.kickflip(true);
+  }
+
   // In the closet you can try on anything; only unlocked things actually get saved.
   change(row, dir) {
     this.row = row;
@@ -373,7 +410,7 @@ class Menu {
     if (this.loud) for (const m of p.out) Sound.onMessage(m);
     if (p.state === 'ground' && p.out.some(m => m.type === 'land')) this.loud = false;
     p.out.length = 0;
-    if (this.screen === 'closet' && (this.showoff += dt) > 4) this.kickflip();
+    if ((this.screen === 'closet' || this.screen === 'shop') && (this.showoff += dt) > 4) this.kickflip();
     if (this.msg && (this.msg.t += dt) > 2) this.msg = null;
     // clicked away from the name tag (or took it off) while writing on it
     if (this.naming && (this.screen !== 'closet' || !this.wearingTag())) this.finishTagName();
@@ -403,6 +440,7 @@ class Menu {
     else if (this.screen === 'parks') this.drawParks(ctx, w, h);
     else if (this.screen === 'audio') this.drawAudio(ctx, w, h);
     else if (this.screen === 'closet') this.drawCloset(ctx, w, h, dpr);
+    else if (this.screen === 'shop') this.drawShop(ctx, w, h, dpr);
     else if (this.screen === 'fit') this.drawFit(ctx, w, h, dpr);
     else if (this.screen === 'online') this.drawOnline(ctx, w, h);
     else if (this.screen === 'join') this.drawJoin(ctx, w, h);
@@ -510,7 +548,8 @@ class Menu {
       this.button(ctx, 'CLOSE', x + half + 14, by, half, bh, false, 421, () => this.leaveRoom());
     } else this.button(ctx, Net.error ? 'BACK' : 'LEAVE', x + bw / 4, by, bw / 2, bh, false, 421, () => this.leaveRoom());
     const hint = !host ? 'Esc leave' : this.canStart() ? 'Enter start · Esc close the room' : 'S.K.A.T.E. needs 2 players · Esc close the room';
-    this.note2(ctx, [hint], w, by + bh + 10, fs * 0.85);
+    this.note2(ctx, [hint, Net.active ? 'T to chat' : ''], w, by + bh + 10, fs * 0.85);
+    Chat.draw(ctx, w, h, true);
   }
 
   drawVersus(ctx, w, h) {
@@ -661,7 +700,7 @@ class Menu {
 
     // your level and how close you are to the next one
     const ly = h * 0.2 + size * 0.95;
-    const bw = Math.min(320, w - 48), bh = Math.min(54, h * 0.07, (h - ly - 74) / (MAIN_ITEMS.length * 1.28)), gap = bh * 0.28;
+    const bw = Math.min(320, w - 48), bh = Math.min(54, h * 0.07, (h - ly - 100) / (MAIN_ITEMS.length * 1.28)), gap = bh * 0.28;
     const x = (w - bw) / 2;
     const next = Progress.nextAt();
     markerText(ctx, `LEVEL ${Progress.level}${Progress.everything ? ' ★' : ''}`, x + 52, ly + 9, 20, Progress.everything ? '#f4c542' : '#ffffff', -0.03);
@@ -677,7 +716,8 @@ class Menu {
     ctx.fillStyle = INK;
     ctx.fillText(next ? `${Progress.data.rep} / ${next} rep` : `${Progress.data.rep} rep · max level!`, x + 110 + (bw - 110) / 2, ly + 9);
 
-    const y0 = ly + 34;
+    markerText(ctx, `${Progress.bucks} SHRED BUCKS`, w / 2, ly + 34, 18, '#f4c542', -0.02);
+    const y0 = ly + 52;
     MAIN_ITEMS.forEach((item, i) => {
       this.button(ctx, item, x, y0 + i * (bh + gap), bw, bh, i === this.sel, 100 + i, () => this.choose(i));
     });
@@ -715,20 +755,7 @@ class Menu {
     const showTrail = OUTFIT_CATEGORIES[this.row][0] === 'trail' ? OUTFIT_OPTIONS.trail[this.trying.trail] : null;
     const { cx } = this.drawPreview(ctx, w, h, dpr, wide, 1, showTrail);
 
-    // picking a board or grip: hold the board up so you can see it properly
-    const rowCat = OUTFIT_CATEGORIES[this.row][0];
-    if (rowCat === 'board' || rowCat === 'grip' || rowCat === 'cutout') {
-      const bk = Math.min(wide ? w * 0.22 : w * 0.4, 360) / DECK_L; // leaves room for the saved-outfit slots
-      const by = wide ? h * 0.25 : h * 0.15, rock = Math.sin(performance.now() / 700) * 0.12;
-      // turned face-on to the camera: grip side for grip, the graphic for boards
-      const roll = Math.PI / 2 - CAM_TILT + (rowCat === 'board' ? Math.PI : 0) + rock;
-      ctx.save();
-      ctx.setTransform(dpr * bk, 0, 0, dpr * bk, dpr * cx, dpr * by);
-      Outfit.override = this.trying;
-      drawBoard(ctx, { cx: 0, cy: 0, ang: 0, facing: 1, roll, yaw: rock * 0.5, pitch: 0, pivotL: 0, pivotN: 0 });
-      Outfit.override = null;
-      ctx.restore();
-    }
+    this.drawHeldBoard(ctx, w, h, dpr, wide, cx, OUTFIT_CATEGORIES[this.row][0]);
 
     // category rows
     const rows = OUTFIT_CATEGORIES.length;
@@ -788,6 +815,73 @@ class Menu {
       const sy = wide ? h * 0.2 + i * (sh + 14) : h * 0.12;
       this.drawSlot(ctx, i, sx, sy, sw, sh);
     }
+  }
+
+  // Picking a board or grip: hold the board up so you can see it properly.
+  drawHeldBoard(ctx, w, h, dpr, wide, cx, cat) {
+    if (cat !== 'board' && cat !== 'grip' && cat !== 'cutout') return;
+    const bk = Math.min(wide ? w * 0.22 : w * 0.4, 360) / DECK_L; // leaves room for the saved-outfit slots
+    const by = wide ? h * 0.25 : h * 0.15, rock = Math.sin(performance.now() / 700) * 0.12;
+    // turned face-on to the camera: grip side for grip, the graphic for boards
+    const roll = Math.PI / 2 - CAM_TILT + (cat === 'board' ? Math.PI : 0) + rock;
+    ctx.save();
+    ctx.setTransform(dpr * bk, 0, 0, dpr * bk, dpr * cx, dpr * by);
+    Outfit.override = this.trying;
+    drawBoard(ctx, { cx: 0, cy: 0, ang: 0, facing: 1, roll, yaw: rock * 0.5, pitch: 0, pivotL: 0, pivotN: 0 });
+    Outfit.override = null;
+    ctx.restore();
+  }
+
+  // The Skate Shop: things you can't get anywhere else, for Shred Bucks. Yours for good once bought.
+  drawShop(ctx, w, h, dpr) {
+    const wide = w > h * 1.1;
+    markerText(ctx, 'SKATE SHOP', wide ? w * 0.3 : w / 2, Math.min(60, h * 0.09), Math.min(52, w / 10), '#ffffff', -0.04);
+    const item = SHOP_ITEMS[this.shopSel];
+    this.trying = this.shopLook(); // your skater models it
+    const { cx } = this.drawPreview(ctx, w, h, dpr, wide, 1, item.cat === 'trail' ? item : null);
+    this.drawHeldBoard(ctx, w, h, dpr, wide, cx, item.cat);
+
+    const rx = wide ? w * 0.56 : 16, rw = wide ? Math.min(w * 0.4, 440) : w - 32;
+    const top = wide ? h * 0.1 : h * 0.5;
+    markerText(ctx, `${Progress.bucks} SHRED BUCKS`, rx + rw / 2, top, Math.min(28, w / 20), '#f4c542', -0.03);
+    // the stock, scrolled to keep your pick in view
+    const space = wide ? h * 0.62 : h * 0.3, rh = Math.min(50, Math.max(34, space / 9)), show = Math.max(3, Math.floor(space / rh));
+    const first = clamp(this.shopSel - Math.floor(show / 2), 0, Math.max(0, SHOP_ITEMS.length - show));
+    const fs = Math.min(rh * 0.42, 22), y0 = top + 26;
+    for (let k = 0; k < show && first + k < SHOP_ITEMS.length; k++) {
+      const i = first + k, it = SHOP_ITEMS[i], y = y0 + k * rh, sel = i === this.shopSel;
+      const owned = Progress.owns(it), wearing = owned && Outfit.pick[it.cat] === OUTFIT_OPTIONS[it.cat].indexOf(it);
+      Sketch.seedFor(500 + i);
+      const box = [{ x: rx, y: y + 3 }, { x: rx + rw, y: y + 3 }, { x: rx + rw, y: y + rh - 3 }, { x: rx, y: y + rh - 3 }];
+      Sketch.fill(ctx, box, sel ? (this.shopConfirm ? '#7fd36b' : '#f4c542') : owned ? '#e7eef3' : '#fbf8f0', 1.5);
+      Sketch.stroke(ctx, box, { color: INK, width: sel ? 2.8 : 1.8, amp: 1, closed: true });
+      ctx.textBaseline = 'middle';
+      ctx.textAlign = 'left';
+      ctx.fillStyle = INK;
+      ctx.font = `${fs * 0.62}px ${HAND}`;
+      ctx.fillText(CATEGORY_LABEL[it.cat] || it.cat, rx + 12, y + rh / 2);
+      markerText(ctx, it.name, rx + rw * 0.48, y + rh / 2, fs * 0.82, '#ffffff');
+      const tag = wearing ? 'WEARING' : owned ? 'OWNED' : `${it.shop}`;
+      markerText(ctx, tag, rx + rw - 46, y + rh / 2, fs * (owned ? 0.6 : 0.8), owned ? '#7fd36b' : Progress.bucks >= it.shop ? '#f4c542' : '#ef5a4a');
+      this.hit(rx, y, rw, rh, () => {
+        if (this.shopSel === i) return this.shopPick(i);
+        this.shopSel = i;
+        this.shopConfirm = false;
+        Sound.play('menuMove');
+      });
+    }
+    // the big button: buy it, then wear it
+    const owned = Progress.owns(item), wearing = owned && Outfit.pick[item.cat] === OUTFIT_OPTIONS[item.cat].indexOf(item);
+    const label = wearing ? 'WEARING' : owned ? 'WEAR IT' : this.shopConfirm ? `SURE? ${item.shop}` : `BUY · ${item.shop}`;
+    const by = y0 + Math.min(show, SHOP_ITEMS.length) * rh + 10, bh = Math.min(50, h * 0.08), half = (rw - 14) / 2;
+    this.button(ctx, label, rx, by, half, bh, this.shopConfirm, 560, () => this.shopPick());
+    this.button(ctx, 'BACK', rx + half + 14, by, half, bh, false, 561, () => this.back());
+    ctx.font = `${Math.max(13, fs * 0.65)}px ${HAND}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = INK;
+    ctx.fillText('↑ ↓ pick  ·  Enter buy (twice to be sure)  ·  Esc back', rx + rw / 2, by + bh + 8);
+    ctx.fillText('earn Shred Bucks: combos · new tricks · golden letters · level ups · S.K.A.T.E.', rx + rw / 2, by + bh + 8 + Math.max(15, fs * 0.8));
   }
 
   // One saved-outfit card: a little model wearing it (click it to put it on) and a SAVE button.

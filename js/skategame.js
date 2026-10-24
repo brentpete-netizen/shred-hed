@@ -17,7 +17,8 @@ function secondOutfit() {
   const pick = {};
   for (const cat in OUTFIT_OPTIONS) {
     pick[cat] = (Outfit.pick[cat] + (cat === 'skin' ? 1 : 2)) % OUTFIT_OPTIONS[cat].length;
-    if (OUTFIT_OPTIONS[cat][pick[cat]].secret) pick[cat] = 0; // don't give the secret stuff away
+    const o = OUTFIT_OPTIONS[cat][pick[cat]];
+    if (o.secret || o.shop || o.earned) pick[cat] = 0; // don't give the secret (or bought, or earned) stuff away
   }
   return pick;
 }

@@ -481,15 +481,26 @@ function drawHead(ctx, h, up, F) {
   drawHairBack(ctx, h, up, F, hair);
 
   Sketch.circle(ctx, h.x, h.y, R, skin, { width: 2.2 });
-  const ear = add(add(h, back, 3), up, -1);
-  Sketch.circle(ctx, ear.x, ear.y, 2.6, skin, { width: 1.4 });
-  // face: dot eye and a little smirk
-  const eye = add(add(h, F, 5.5), up, -1.5);
-  ctx.fillStyle = INK;
-  ctx.beginPath();
-  ctx.arc(eye.x, eye.y, 1.6, 0, TAU);
-  ctx.fill();
-  Sketch.stroke(ctx, [add(add(h, F, 6), up, -5.8), add(add(h, F, 9), up, -4.6)], thin(INK, 1.4));
+  if (Outfit.get('skin').bones) {
+    // a skull: a big dark eye socket, a hole for a nose and a grin of teeth
+    const eye = add(add(h, F, 4.6), up, -0.4);
+    Sketch.circle(ctx, eye.x, eye.y, 3.2, BONE_DARK, { width: 1, amp: 0.3 });
+    const nose = add(add(h, F, 8.4), up, -4.2);
+    Sketch.shape(ctx, [add(nose, up, 1.8), add(add(nose, up, -1), F, 1.2), add(add(nose, up, -1), F, -1.2)], BONE_DARK, thin(BONE_DARK, 0.6));
+    const j0 = add(add(h, F, 3.5), up, -7.6), j1 = add(add(h, F, 9.6), up, -6.1);
+    Sketch.stroke(ctx, [j0, j1], thin(INK, 1.3));
+    for (const t of [0.25, 0.5, 0.75]) { const p = mix(j0, j1, t); Sketch.stroke(ctx, [add(p, up, 1.4), add(p, up, -1.4)], thin(INK, 0.9)); }
+  } else {
+    const ear = add(add(h, back, 3), up, -1);
+    Sketch.circle(ctx, ear.x, ear.y, 2.6, skin, { width: 1.4 });
+    // face: dot eye and a little smirk
+    const eye = add(add(h, F, 5.5), up, -1.5);
+    ctx.fillStyle = INK;
+    ctx.beginPath();
+    ctx.arc(eye.x, eye.y, 1.6, 0, TAU);
+    ctx.fill();
+    Sketch.stroke(ctx, [add(add(h, F, 6), up, -5.8), add(add(h, F, 9), up, -4.6)], thin(INK, 1.4));
+  }
   drawHairTop(ctx, h, up, F, hair);
 
   // Fit: tip the hat back or forward, and wear it pulled down or perched up (hair comes along)
@@ -612,9 +623,16 @@ function drawTorso(ctx, f, top) {
   const at = (k, side) => add(add(hip, up, k), F, side);
   if (hem > 0) {
     // cropped: bare stomach from the waistband up to a squared-off hem
-    const s = width / 2 - 0.5;
-    Sketch.shape(ctx, [at(-1, -s), at(-1, s), at(hem, s), at(hem, -s)], Outfit.get('skin').color, { color: INK, width: 2, amp: 0.4 });
-    Sketch.stroke(ctx, [at(hem * 0.45, s - 2.5), at(hem * 0.45 + 0.8, s - 3.5)], thin(INK, 1)); // belly button
+    const s = width / 2 - 0.5, skin = Outfit.get('skin');
+    if (skin.bones) {
+      // a skeleton's middle: the spine, and the bottom ribs showing under the hem
+      Sketch.shape(ctx, [at(-1, -s), at(-1, s), at(hem, s), at(hem, -s)], BONE_DARK, { color: INK, width: 2, amp: 0.4 });
+      Sketch.stroke(ctx, [at(-1, -s * 0.6), at(hem, -s * 0.6)], thin(skin.color, 2.2));
+      for (let k = hem - 1.5; k > 0.5; k -= 3) Sketch.stroke(ctx, [at(k, -s * 0.6), at(k - 1, s - 0.5)], thin(skin.color, 1.4));
+    } else {
+      Sketch.shape(ctx, [at(-1, -s), at(-1, s), at(hem, s), at(hem, -s)], skin.color, { color: INK, width: 2, amp: 0.4 });
+      Sketch.stroke(ctx, [at(hem * 0.45, s - 2.5), at(hem * 0.45 + 0.8, s - 3.5)], thin(INK, 1)); // belly button
+    }
   }
   if (top.stripes) top.stripes.forEach((c, i) => Sketch.stroke(ctx, [at(10 + i * 5, -7.5), at(10 + i * 5, 7.5)], thin(c, 3)));
   if (top.swirl) top.swirl.forEach((c, i) => {
@@ -680,18 +698,36 @@ function armPart(arm, f) {
   return d <= l1 ? [s, mix(s, e, d / Math.max(l1, 0.01))] : [s, e, mix(e, hand, (d - l1) / Math.max(l2, 0.01))];
 }
 
-function drawArm(ctx, arm, top, color, skin) {
+// The Skeleton skin: where skin would show there are bones instead, thin with knobbly joints.
+const BONE_DARK = '#2a2622';
+function skinLimb(ctx, pts, w, skin) {
+  if (!Outfit.get('skin').bones) return Sketch.limb(ctx, pts, w, skin);
+  Sketch.limb(ctx, pts, Math.max(2.2, w * 0.45), skin, { amp: 0.2 });
+  for (const p of pts.slice(1)) Sketch.circle(ctx, p.x, p.y, Math.max(1.5, w * 0.3), skin, { width: 1, amp: 0.2 });
+}
+function drawHand(ctx, arm, r, skin) {
   const hand = arm[2];
+  if (!Outfit.get('skin').bones) return Sketch.circle(ctx, hand.x, hand.y, r, skin, { width: 1.5 });
+  // bony fingers, spread a little, pointing on from the forearm
+  const d = Math.hypot(hand.x - arm[1].x, hand.y - arm[1].y) || 1, dx = (hand.x - arm[1].x) / d, dy = (hand.y - arm[1].y) / d;
+  for (const s of [-0.45, 0, 0.45]) {
+    const c = Math.cos(s), sn = Math.sin(s);
+    Sketch.stroke(ctx, [hand, { x: hand.x + (dx * c - dy * sn) * r * 1.6, y: hand.y + (dx * sn + dy * c) * r * 1.6 }], thin(INK, 1.6));
+  }
+  Sketch.circle(ctx, hand.x, hand.y, r * 0.6, skin, { width: 1, amp: 0.2 });
+}
+
+function drawArm(ctx, arm, top, color, skin) {
   if (top.type === 'vest') color = top.under; // the tee's sleeves
   // Fit: sleeves rolled up, or pulled down long (over your hands, for long sleeves)
   const roll = Outfit.fit('sleeves');
   let handR = 3.2;
   if (top.type === 'tank') {
-    Sketch.limb(ctx, arm, 5, skin);
+    skinLimb(ctx, arm, 5, skin);
   } else if (LONG_SLEEVES.has(top.type)) {
     const len = 1 + 0.2 * roll;
     if (len < 1) {
-      Sketch.limb(ctx, arm, 5, skin);
+      skinLimb(ctx, arm, 5, skin);
       const part = armPart(arm, len), end = part[part.length - 1];
       Sketch.limb(ctx, part, 6.5, top.sleeve || color);
       Sketch.limb(ctx, [armPart(arm, len - 0.06).pop(), end], 8, top.sleeve || color, { amp: 0.2 }); // the rolled cuff
@@ -701,12 +737,12 @@ function drawArm(ctx, arm, top, color, skin) {
     }
   } else {
     const len = clamp(0.31 + 0.12 * roll, 0.06, 0.6);
-    Sketch.limb(ctx, arm, 5, skin);
+    skinLimb(ctx, arm, 5, skin);
     const part = armPart(arm, len);
     Sketch.limb(ctx, part, 7.5, color);
     if (top.type === 'jersey') Sketch.limb(ctx, [armPart(arm, len - 0.03).pop(), part[part.length - 1]], 7.5, top.accent, { amp: 0.1 });
   }
-  if (handR > 0.6) Sketch.circle(ctx, hand.x, hand.y, handR, skin, { width: 1.5 });
+  if (handR > 0.6) drawHand(ctx, arm, handR, skin);
 }
 
 // How you wear your pants, from the closet's Sag slider: `low` is 0..1 of sag below normal,
@@ -731,7 +767,7 @@ function drawLeg(ctx, f, leg, pants, color, skin, shoe, front) {
   // Fit: skinny or baggy, and the legs rolled up or stacked long over your shoes
   const widen = 1 + 0.15 * Outfit.fit('pantsWidth'), cuffs = Outfit.fit('cuffs');
   if (pants.type === 'shorts') {
-    Sketch.limb(ctx, [leg.knee, leg.foot], 6, skin);
+    skinLimb(ctx, [leg.knee, leg.foot], 6, skin);
     Sketch.limb(ctx, [mix(leg.foot, leg.knee, 0.3), leg.foot], 6, pants.sock);
     // saggy shorts end up hanging past your knees
     if (low > 0) Sketch.limb(ctx, [hip, leg.knee, mix(leg.knee, leg.foot, 0.1 + 0.35 * low)], 11 * widen, color);
@@ -741,7 +777,7 @@ function drawLeg(ctx, f, leg, pants, color, skin, shoe, front) {
     // rolled up: the leg ends partway down the shin, with your sock and ankle showing under the cuff
     const endT = cuffs > 0 ? 1 - 0.2 * cuffs : 1, foot = mix(leg.knee, leg.foot, endT);
     if (cuffs > 0) {
-      Sketch.limb(ctx, [mix(leg.knee, leg.foot, endT - 0.1), leg.foot], 6, skin);
+      skinLimb(ctx, [mix(leg.knee, leg.foot, endT - 0.1), leg.foot], 6, skin);
       Sketch.limb(ctx, [mix(leg.foot, leg.knee, 0.32), leg.foot], 6, '#f4f1ea');
     }
     Sketch.limb(ctx, [hip, leg.knee, foot], w, color);
@@ -876,7 +912,7 @@ function drawFigure(ctx, f) {
   drawLeg(ctx, f, f.legs.back, pants, pants.shade, skin, shoe, false);
   drawLeg(ctx, f, f.legs.front, pants, pants.color, skin, shoe, true);
   drawExtraBody(ctx, f, extra);
-  Sketch.limb(ctx, [f.neck, add(f.head, f.torsoDir, -HEAD_R + 2)], 4, skin, { amp: 0.2 });
+  skinLimb(ctx, [f.neck, add(f.head, f.torsoDir, -HEAD_R + 2)], 4, skin);
   drawTorso(ctx, f, top);
   drawHighWaist(ctx, f, pants, top);
   // bobblehead: blow the head up around the neck

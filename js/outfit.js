@@ -2,6 +2,8 @@
 // The choice is saved in the browser so your skater keeps their fit next time.
 // Many items unlock as you level up (see progress.js). New items go at the end of each list so
 // saved choices keep pointing at the same thing.
+//   shop: a price in Shred Bucks. Only ever yours by buying it in the Skate Shop.
+//   earned: a level you have to really reach (no cheat opens it), like the Skeleton.
 
 const OUTFIT_OPTIONS = {
   skin: [
@@ -16,6 +18,8 @@ const OUTFIT_OPTIONS = {
     { name: 'Ice', color: '#bfe6f2' },
     { name: 'Gold Statue', color: '#e0b23c' },
     { name: 'Ghost', color: '#eef3f8', secret: 'letters' },
+    { name: 'Skeleton', color: '#efe8d2', bones: true, earned: 12 }, // a skull and bones, under your clothes
+    { name: 'Chrome', color: '#d5dbe1', shop: 700 },
   ],
   hat: [
     { name: 'Backwards Cap', type: 'capBack', color: '#26262b', accent: '#e2553f' },
@@ -41,6 +45,9 @@ const OUTFIT_OPTIONS = {
     { name: 'Skull Bandana', type: 'bandana', color: '#26262b', accent: '#f4f1ea', hair: '#26262b' },
     { name: 'Black Helmet', type: 'helmet', color: '#1c1c20', accent: '#e2553f' },
     { name: 'No Hat', type: 'none' }, // shows off your hair
+    { name: 'Chrome Helmet', type: 'helmet', color: '#c9d1d9', accent: '#3dd6ff', shop: 250 },
+    { name: 'Diamond Crown', type: 'crown', color: '#bfefff', accent: '#3dd6ff', shop: 600 },
+    { name: 'Flame Snapback', type: 'capBack', color: '#e2553f', accent: '#f4c542', shop: 180 },
   ],
   // hairstyles (drawn in hair.js); a hat hides the top of it
   hair: [
@@ -110,6 +117,10 @@ const OUTFIT_OPTIONS = {
     { name: 'Denim Vest', type: 'vest', color: '#4a6aa8', shade: '#3d5890', accent: '#c0c5cc', under: '#26262b' },
     { name: 'Black Flannel', type: 'flannel', color: '#3a3a40', shade: '#2c2c31', accent: '#111114', under: '#26262b' },
     { name: 'Moto Jersey', type: 'jersey', color: '#26262b', shade: '#1c1c20', accent: '#e2553f' },
+    { name: 'Lava Hoodie', type: 'hoodie', color: '#26262b', shade: '#1c1c20', accent: '#ff8c2e', flames: ['#ff5a1f', '#ffd23f'], shop: 350 },
+    { name: 'Galaxy Hoodie', type: 'hoodie', color: '#2b1d4a', shade: '#22173b', accent: '#a593e6', spots: ['#f4f1ea', '#a593e6', '#ffd84a'], shop: 400 },
+    { name: 'Shred Hed Pro Tee', type: 'tee', color: '#1c1c20', shade: '#141417', accent: '#f4c542', logo: 'skull', shop: 150 },
+    { name: 'Gold Leather Jacket', type: 'leather', color: '#c8931c', shade: '#a67814', accent: '#fff4c2', under: '#26262b', studs: true, shop: 500 },
   ],
   pants: [
     { name: 'Baggy Cargos', type: 'cargo', color: '#6b7a3a', shade: '#59662f' },
@@ -127,6 +138,9 @@ const OUTFIT_OPTIONS = {
     { name: 'Leather Pants', type: 'jeans', color: '#1f1f23', shade: '#17171a', shine: '#5a5a64' },
     { name: 'Chain Jeans', type: 'jeans', color: '#3f5fa8', shade: '#33508f', chain: '#c0c5cc' },
     { name: 'Flame Pants', type: 'jeans', color: '#26262b', shade: '#1c1c20', flames: ['#e2553f', '#f4c542'] },
+    { name: 'Blue Flame Pants', type: 'jeans', color: '#1c1c20', shade: '#141417', flames: ['#3dd6ff', '#ffffff'], shop: 300 },
+    { name: 'Galaxy Cargos', type: 'cargo', color: '#2b1d4a', shade: '#22173b', spots: ['#f4f1ea', '#a593e6'], shop: 300 },
+    { name: 'Gold Chain Jeans', type: 'jeans', color: '#1f1f23', shade: '#17171a', chain: '#e0b23c', shop: 200 },
   ],
   shoes: [
     { name: 'White / Red', color: '#f4f1ea', sole: '#d8c9a3', accent: '#e2553f' },
@@ -142,6 +156,8 @@ const OUTFIT_OPTIONS = {
     { name: 'Black High-Tops', color: '#26262b', sole: '#f4f1ea', accent: '#e2553f', high: true },
     { name: 'Steel-Toe Boots', color: '#3a2a1c', sole: '#26262b', accent: '#9aa0a6', high: true, toecap: '#c0c5cc' },
     { name: 'Flame Kicks', color: '#26262b', sole: '#f4c542', accent: '#e2553f' },
+    { name: 'Rocket Kicks', color: '#e2553f', sole: '#ffd23f', accent: '#26262b', glow: ['#ff5a1f', '#ffd23f', '#ff8c2e'], shop: 350 },
+    { name: 'Diamond Kicks', color: '#bfefff', sole: '#3dd6ff', accent: '#ffffff', high: true, shop: 450 },
   ],
   board: [
     { name: 'Flames', grip: '#2f2f33', graphic: '#e2553f', art: 'flame', accent: '#f4c542', wheel: '#f1e8cf' },
@@ -167,6 +183,11 @@ const OUTFIT_OPTIONS = {
     { name: 'Crossbones', grip: '#2f2f33', graphic: '#c8463d', art: 'skull', accent: '#26262b', wheel: '#26262b',
       artColors: ['#26262b', '#26262b', '#26262b', '#26262b', '#c8463d', '#c8463d'] },
     { name: 'Black Flames', grip: '#2f2f33', graphic: '#1c1c20', art: 'flame', accent: '#e2553f', wheel: '#e2553f' },
+    { name: 'Shred Hed Pro', grip: '#2f2f33', graphic: '#f4c542', art: 'skull', accent: '#26262b', wheel: '#26262b',
+      artColors: ['#26262b', '#26262b', '#26262b', '#26262b', '#f4c542', '#f4c542'], shop: 400 },
+    { name: 'Holo Deck', grip: '#2f2f33', graphic: '#c9d1d9', art: 'rainbow', accent: '#9a7cff', wheel: '#ffffff',
+      artColors: ['#ff9fcf', '#a8e8ff', '#c6ff3d', '#ffd84a', '#9a7cff', '#7fd8e0'], shop: 500 },
+    { name: 'Lava Deck', grip: '#2a1410', graphic: '#1c1c20', art: 'flame', accent: '#ffd23f', wheel: '#ff5a1f', shop: 300 },
   ],
   // accessories on top of everything else
   extra: [
@@ -181,6 +202,9 @@ const OUTFIT_OPTIONS = {
     { name: 'Eye Patch', type: 'patch', color: '#1c1c20' },
     { name: 'Band-Aid', type: 'bandaid', color: '#e8c39a' },
     { name: 'Name Tag', type: 'nametag', color: '#d63a3a', secret: 'tag' }, // "HELLO my name is", with your name on it
+    { name: 'Diamond Chain', type: 'chain', color: '#bfefff', shop: 350 },
+    { name: 'Flame Cape', type: 'cape', color: '#ff5a1f', accent: '#c8360f', shop: 400 },
+    { name: 'Gold Shades', type: 'shades', color: '#e0b23c', shop: 150 },
   ],
   // which foot goes forward; goofy flicks flips and shove-its the other way round
   stance: [
@@ -203,6 +227,8 @@ const OUTFIT_OPTIONS = {
     { name: 'Camo', color: '#7a8a4a', speckle: ['#4e5a30', '#a39a6a'] },
     { name: 'Galaxy', color: '#2b1d4a', speckle: ['#f4f1ea', '#a593e6'] },
     { name: 'Gold', color: '#e0b23c', speckle: ['#fff4c2'] },
+    { name: 'Lava', color: '#2a1410', speckle: ['#ff5a1f', '#ffd23f'], shop: 120 },
+    { name: 'Diamond Dust', color: '#2f2f33', speckle: ['#ffffff', '#bfefff'], shop: 150 },
   ],
   // shapes cut out of the griptape so the wood shows through (see GRIP_CUTS in render.js)
   cutout: [
@@ -233,8 +259,15 @@ const OUTFIT_OPTIONS = {
     { name: 'Shadow', colors: ['#1c1c20', '#3a3a44', '#6a6a78'] },
     { name: 'Gold', colors: ['#c8931c', '#f4c542', '#fff6d0'], sparkle: '#fffbe6' },
     { name: 'Off', off: true },
+    { name: 'Money', colors: ['#2e9e4f', '#7fd36b', '#e9ffe6'], sparkle: '#f4c542', shop: 300 },
+    { name: 'Lava', colors: ['#b8240f', '#ff5a1f', '#ffd23f'], flicker: true, shop: 300 },
+    { name: 'Diamond', colors: ['#3dd6ff', '#bfefff', '#ffffff'], sparkle: '#ffffff', shop: 450 },
   ],
 };
+// every item knows its category (handy for the shop)
+for (const cat in OUTFIT_OPTIONS) for (const o of OUTFIT_OPTIONS[cat]) o.cat = cat;
+// the Skate Shop's stock, cheapest first
+const SHOP_ITEMS = Object.values(OUTFIT_OPTIONS).flat().filter(o => o.shop).sort((a, b) => a.shop - b.shop);
 
 // 'sag' isn't a list of looks, it's a slider in the closet (see SAG_MAX).
 const OUTFIT_CATEGORIES = [

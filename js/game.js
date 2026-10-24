@@ -133,6 +133,10 @@ function makeSkyline(kind, worldWidth) {
 
 // ---------------------------------------------------------------- game state
 
+// Everything you unlock, buy and wear is saved in this browser as you go. Ask the browser to keep
+// it even when it's tidying up space, so it's all still there next time.
+try { navigator.storage?.persist?.().catch(() => {}); } catch (e) { /* not supported */ }
+
 const MAP_KEY = 'shredHed.map';
 let mapId = 'park';
 try { mapId = localStorage.getItem(MAP_KEY) || 'park'; } catch (e) { /* storage blocked */ }
@@ -196,7 +200,7 @@ function startSkating({ map, game }) {
     skateGame = new SkateGame(terrain, game === 'cpu');
     skateGame.onGameOver = winner => {
       if (game === 'cpu') { Stats.skateResult(!winner.cpu); Progress.skateResult(!winner.cpu); }
-      else Progress.add(20, 'S.K.A.T.E.');
+      else Progress.skateGame();
     };
     skater = skateGame.skater;
     showHelp = false;
@@ -223,7 +227,7 @@ function startOnline(msg) {
   Online.syncRoster();
   if (msg.mode === 'skate') {
     skateGame = new SkateGame(terrain, false, { players: Net.players, me: Net.me });
-    skateGame.onGameOver = () => Progress.add(20, 'S.K.A.T.E.');
+    skateGame.onGameOver = () => Progress.skateGame();
     skater = skateGame.skater;
     showHelp = false;
   } else skateGame = null;
@@ -237,6 +241,7 @@ function leaveOnline(why) {
   online = false;
   skateGame = null;
   Online.clear();
+  Chat.clear();
   Net.leave();
   loadMap(mapId.startsWith('park:') ? 'park' : mapId);
   mode = 'menu';
@@ -293,6 +298,7 @@ const builderToWorld = (x, y) => {
 };
 
 canvas.addEventListener('pointerdown', e => {
+  if ((mode === 'play' || menu.screen === 'lobby') && Chat.click(e.clientX, e.clientY)) return;
   if (mode === 'menu') {
     const r = menu.click(e.clientX, e.clientY);
     if (r) menuPicked(r);
@@ -409,13 +415,14 @@ function render() {
     ctx.textAlign = 'right';
     ctx.textBaseline = 'top';
     ctx.fillStyle = INK;
-    ctx.fillText(testRide ? 'TEST RIDE · Esc back to the builder' : online ? `ONLINE · room ${Net.code} · ${Net.players.length} here · Esc leave` : 'Esc · menu', cw - 14, 12);
+    ctx.fillText(testRide ? 'TEST RIDE · Esc back to the builder' : online ? `ONLINE · room ${Net.code} · ${Net.players.length} here · T chat · Esc leave` : 'Esc · menu', cw - 14, 12);
     // "Sam joined", "Sam left"
     Net.toasts.forEach((t, i) => {
       ctx.globalAlpha = clamp((3 - t.t) / 0.5, 0, 1);
       markerText(ctx, t.text, cw / 2, ch * 0.2 + i * 30, Math.min(24, cw / 28), '#7fd36b', -0.02);
     });
     ctx.globalAlpha = 1;
+    if (online) Chat.draw(ctx, cw, ch);
   }
   if (debug) drawDebug(ctx, skater, fps);
 }
@@ -437,6 +444,7 @@ function frame(now) {
     if (mode === 'play' && e === 'reset' && !skateGame) { skater.facing = 1; skater.respawn(terrain.spawnS); hud.clear(); return false; }
     if (mode === 'play' && e === 'menu' && testRide) { openBuilder(builder.park.id, true); Stats.save(); return false; }
     if (mode === 'play' && e === 'menu' && online) { leaveOnline(); Stats.save(); return false; }
+    if (mode === 'play' && e === 'test' && online) { Chat.open(); return false; }
     if (mode === 'play' && e === 'menu') { mode = 'menu'; menu.open(); Stats.save(); return false; }
     if (mode === 'play' && skateGame?.state === 'over' && e === 'start') {
       if (!online) startSkating(menu.lastChoice);

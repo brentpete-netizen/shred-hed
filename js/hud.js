@@ -53,6 +53,7 @@ class Hud {
   progress(ev) {
     this.news = this.news || [];
     if (ev.type === 'rep') this.news.push({ kind: 'rep', text: `+${ev.amount} REP`, t: 0, dur: 1.4 });
+    else if (ev.type === 'bucks') this.news.push({ kind: 'bucks', text: `+${ev.amount} SHRED BUCKS`, t: 0, dur: 1.6 });
     else if (ev.type === 'newTrick') this.news.push({ kind: 'trick', text: `NEW TRICK: ${ev.name}`, t: 0, dur: 2 });
     else if (ev.type === 'level') this.levelUp = { level: ev.level, unlocked: ev.unlocked, t: 0 };
     else if (ev.type === 'banner') this.levelUp = { title: ev.title, unlocked: ev.lines, t: 0 };
@@ -75,6 +76,7 @@ class Hud {
     (this.news || []).forEach((n, i) => {
       ctx.globalAlpha = clamp((n.dur - n.t) / 0.4, 0, 1);
       if (n.kind === 'rep') markerText(ctx, n.text, w - 70, 78 + i * 26 - n.t * 18, 18, '#7fd36b', -0.03);
+      else if (n.kind === 'bucks') markerText(ctx, n.text, w - 110, 78 + i * 26 - n.t * 18, 18, '#f4c542', -0.03);
       else markerText(ctx, n.text, w / 2, h * 0.72 - n.t * 10, Math.min(28, w / 18), '#f4c542', -0.04, 1 + 0.3 * Math.exp(-n.t * 10));
       ctx.globalAlpha = 1;
     });
