@@ -31,7 +31,7 @@ const SHOP_TAGLINES = {
   'grip:Lava': 'Molten griptape',
   'grip:Diamond Dust': 'Sparkles under your feet',
   'trail:Money': 'Make it rain',
-  'trail:Lava': 'Leave the ground on fire',
+  'trail:Lava Streak': 'Leave the ground on fire',
   'trail:Diamond': 'A trail of pure ice',
   'extra:Diamond Chain': 'Frozen bling',
   'extra:Flame Cape': 'Super. Hero. Hot.',
@@ -49,7 +49,7 @@ const SHOP_TAGLINES = {
   'board:Money Deck': 'Paid in full',
   'board:Ice Deck': 'A frozen night sky',
   'grip:Neon': 'Rave under your feet',
-  'trail:Neon': 'Electric',
+  'trail:Neon Zap': 'Electric',
   'trail:Sunset': 'Ride off into it',
   'extra:Ice Shades': 'Too cool',
   'extra:Galaxy Cape': 'Wear the stars',
@@ -986,7 +986,7 @@ class Menu {
     // when the stock changes next (every day at 12:00 PM)
     const left = Math.max(0, today.nextAt - Date.now()), hrs = Math.floor(left / 3.6e6), mins = Math.floor((left % 3.6e6) / 6e4), secs = Math.floor((left % 6e4) / 1000);
     const when = hrs ? `${hrs}h ${String(mins).padStart(2, '0')}m` : `${mins}m ${String(secs).padStart(2, '0')}s`;
-    markerText(ctx, `NEW STOCK IN ${when}`, wide ? w / 2 : w * 0.47, signBottom + 12, Math.min(16, w / 26), '#ffffff', -0.01);
+    markerText(ctx, `ALL-NEW SHOP IN ${when}`, wide ? w / 2 : w * 0.47, signBottom + 12, Math.min(16, w / 26), '#ffffff', -0.01);
 
     // the window: your skater wearing it, its name, price and the big button
     const pad = 16, top = signBottom + (wide ? 10 : 26); // (room under the sign for the countdown)

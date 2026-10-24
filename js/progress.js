@@ -324,6 +324,9 @@ const Progress = (() => {
   }
   data.owned = data.owned || [];
   data.bought = data.bought || [];
+  // things renamed since (so they don't look like the grip with the same name): keep what you bought
+  const RENAMED = { 'trail:Lava': 'trail:Lava Streak', 'trail:Neon': 'trail:Neon Zap' };
+  for (const k of ['owned', 'bought']) data[k] = [...new Set(data[k].map(key => RENAMED[key] || key))];
   // Shred Bucks are kept as earned and spent. Saves from before kept just the balance.
   if (data.bucksEarned === undefined) {
     if (data.bucks !== undefined) {

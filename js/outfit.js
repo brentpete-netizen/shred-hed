@@ -275,9 +275,9 @@ const OUTFIT_OPTIONS = {
     { name: 'Gold', colors: ['#c8931c', '#f4c542', '#fff6d0'], sparkle: '#fffbe6' },
     { name: 'Off', off: true },
     { name: 'Money', colors: ['#2e9e4f', '#7fd36b', '#e9ffe6'], sparkle: '#f4c542', shop: 300 },
-    { name: 'Lava', colors: ['#b8240f', '#ff5a1f', '#ffd23f'], flicker: true, shop: 300 },
+    { name: 'Lava Streak', colors: ['#b8240f', '#ff5a1f', '#ffd23f'], flicker: true, shop: 300 },
     { name: 'Diamond', colors: ['#3dd6ff', '#bfefff', '#ffffff'], sparkle: '#ffffff', shop: 450 },
-    { name: 'Neon', colors: ['#ff3dbb', '#c6ff3d', '#ffffff'], zap: true, shop: 350 },
+    { name: 'Neon Zap', colors: ['#ff3dbb', '#c6ff3d', '#ffffff'], zap: true, shop: 350 },
     { name: 'Sunset', colors: ['#ff5a1f', '#ff8fc4', '#fff1a0'], shop: 280 },
   ],
 };
@@ -286,29 +286,46 @@ for (const cat in OUTFIT_OPTIONS) for (const o of OUTFIT_OPTIONS[cat]) o.cat = c
 // everything the Skate Shop ever sells, cheapest first
 const SHOP_ITEMS = Object.values(OUTFIT_OPTIONS).flat().filter(o => o.shop).sort((a, b) => a.shop - b.shop);
 
-// The shop's stock changes every day at 12:00 PM (your time): 8 things a day, picked by the date so
-// it's the same for everyone, no more than 2 of a kind, and one of them the Daily Deal.
+// The shop changes completely every day at 12:00 PM (your time): everything in it goes, and 8 new
+// things come in, one of them the Daily Deal. It's the same shop for everyone.
 const SHOP_STOCK = 8, SHOP_PER_KIND = 2, SHOP_DEAL_OFF = 0.25;
-// which shop day it is: a day that starts at noon
+const shopRand = seed => () => (seed = (seed * 16807 + 12345) % 2147483647) / 2147483647;
+// The order things come into the shop: everything in one long line, shuffled once. Each day takes
+// the next 8 in the line, so no day ever has anything the day before had, and nothing comes back
+// for 5 days. (The shuffle is one where no day ever gets more than 2 of a kind.)
+const SHOP_LINE = (() => {
+  const n = SHOP_ITEMS.length;
+  for (let seed = 1; ; seed++) {
+    const rand = shopRand(seed), line = [...SHOP_ITEMS];
+    for (let i = n - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [line[i], line[j]] = [line[j], line[i]]; }
+    let ok = true;
+    for (let start = 0; start < n && ok; start++) {
+      const kinds = {};
+      for (let k = 0; k < SHOP_STOCK && ok; k++) ok = (kinds[line[(start + k) % n].cat] = (kinds[line[(start + k) % n].cat] || 0) + 1) <= SHOP_PER_KIND;
+    }
+    if (ok || seed > 20000) return line;
+  }
+})();
+// Which shop day it is: a day that starts at noon, so before 12:00 PM it's still yesterday's shop.
+// (Going by the clock, not by counting hours, keeps it at noon on the daylight-saving days too.)
+function shopDate(at) {
+  const d = new Date(at);
+  if (d.getHours() < 12) d.setDate(d.getDate() - 1);
+  return d;
+}
 function shopDay(at = Date.now()) {
-  const d = new Date(at - 12 * 3600e3);
+  const d = shopDate(at);
   return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
 }
+function shopDayNumber(at = Date.now()) {
+  const d = shopDate(at);
+  return Math.round(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 864e5);
+}
 function shopToday(at = Date.now()) {
-  const day = shopDay(at);
-  let seed = day;
-  const rand = () => (seed = (seed * 16807 + 12345) % 2147483647) / 2147483647;
-  const pool = [...SHOP_ITEMS];
-  for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
-  const items = [], kinds = {};
-  for (const it of pool) {
-    if (items.length >= SHOP_STOCK) break;
-    if ((kinds[it.cat] || 0) >= SHOP_PER_KIND) continue;
-    items.push(it);
-    kinds[it.cat] = (kinds[it.cat] || 0) + 1;
-  }
+  const day = shopDay(at), num = shopDayNumber(at), n = SHOP_LINE.length;
+  const items = Array.from({ length: SHOP_STOCK }, (_, k) => SHOP_LINE[(((num * SHOP_STOCK + k) % n) + n) % n]);
   items.sort((a, b) => a.shop - b.shop);
-  const deal = items[Math.floor(rand() * items.length)];
+  const deal = items[Math.floor(shopRand(num)() * items.length)];
   const next = new Date(at);
   next.setHours(12, 0, 0, 0);
   if (next.getTime() <= at) next.setDate(next.getDate() + 1);
