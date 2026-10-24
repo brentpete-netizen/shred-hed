@@ -60,6 +60,8 @@ class Skater {
     this.vert = null;
     this.grind = null;
     this.manual = null;
+    this.coffin = null;
+    this.coffinAmt = 0; // 0 sitting up .. 1 flat on your back
     this.grace = 0;
     this.fakie = false;
     this.bail = null;
@@ -129,6 +131,8 @@ class Skater {
     const pressed = new Set();
     for (let i = 0; i < events.length; i++) {
       const e = events[i];
+      if (this.coffin) continue; // flat on your back: no ollies, pushes or reverts
+      if (e === 'grab' && !this.manual) { this.startCoffin(); continue; }
       if (e === 'up') {
         this.ollie();
         // anything pressed in the same instant after the pop is already in the air
@@ -144,6 +148,10 @@ class Skater {
     if (this.manual) {
       this.updateManual(dt);
       if (this.state !== 'ground') return;
+    } else if (this.coffin) {
+      this.coffin.t += dt;
+      this.coffin.entry.time = this.coffin.t;
+      if (!held('grab')) this.endCoffin();
     } else {
       this.crouchHeld = held('down');
       this.crouchTime = this.crouchHeld ? this.crouchTime + dt : 0;
@@ -170,14 +178,16 @@ class Skater {
     let a = this.gravity * seg.ty;
     if (this.crouchHeld && seg.curved && a * this.v > 0) a *= C.pumpBoost; // pumping
     this.v += a * dt;
-    const drag = (C.rollingFriction + C.airDrag * this.v * this.v) * dt;
+    // lying down in a coffin, there's less wind in the way
+    const drag = (C.rollingFriction + C.airDrag * (this.coffin ? 0.55 : 1) * this.v * this.v) * dt;
     this.v = Math.abs(this.v) <= drag ? 0 : this.v - Math.sign(this.v) * drag;
-    const top = this.terrain.maxSpeed || C.maxSpeed;
+    const top = (this.terrain.maxSpeed || C.maxSpeed) * (this.coffin ? 1.1 : 1);
     this.v = clamp(this.v, -top, top);
     this.advance(dt);
 
-    // a manual ends (and banks the combo) if you stop or roll onto a ramp
+    // a manual ends (and banks the combo) if you stop or roll onto a ramp; a coffin if you stop
     if (this.manual && this.state === 'ground' && (!this.flatEnough() || Math.abs(this.v) < 40)) this.endManual();
+    if (this.coffin && this.state === 'ground' && Math.abs(this.v) < 30) this.endCoffin();
   }
 
   // Push the way you're going, hold backwards to brake, and when stopped, backwards turns you around.
@@ -251,6 +261,22 @@ class Skater {
 
   endManual() {
     this.manual = null;
+    this.bankCombo();
+  }
+
+  // Space while rolling: lie back on the board. Right after a landing it adds to the combo.
+  startCoffin() {
+    if (Math.abs(this.v) < 60) return;
+    this.coffin = { t: 0, entry: this.addEntry(COFFIN.name, COFFIN.pts, COFFIN.perSec) };
+    this.grace = 0;
+    this.push = null;
+    this.pivot = null;
+    this.braking = false;
+    this.crouchHeld = false;
+  }
+
+  endCoffin() {
+    this.coffin = null;
     this.bankCombo();
   }
 
@@ -351,6 +377,7 @@ class Skater {
   goAir(popped) {
     if (!popped) this.fakie = Math.abs(this.v) > 30 && Math.sign(this.v) !== this.facing;
     this.state = 'air';
+    this.coffin = null; // rolled off a lip lying down: you sit up, and the combo carries on
     this.airTime = 0;
     this.popped = popped;
     this.ollieT = popped ? 0 : 9;
@@ -677,6 +704,7 @@ class Skater {
     this.grab = null;
     this.grind = null;
     this.manual = null;
+    this.coffin = null;
     this.spin = 0;
     this.spinVel = 0;
     this.grace = 0;
@@ -718,6 +746,8 @@ class Skater {
     this.airAmt += (airTarget - this.airAmt) * Math.min(1, dt * (airTarget ? 7 : 12));
     const grabTarget = this.grab ? 1 : 0;
     this.grabAmt += (grabTarget - this.grabAmt) * Math.min(1, dt * (grabTarget ? 14 : 18));
+    const lieTarget = this.coffin ? 1 : 0;
+    this.coffinAmt += (lieTarget - this.coffinAmt) * Math.min(1, dt * (lieTarget ? 6 : 9));
   }
 
   popFx() {

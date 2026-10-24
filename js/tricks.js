@@ -38,10 +38,7 @@ const GRABS = {
   U: { name: 'Method',    pts: 300, hand: 'front', l: 6,   side: -1, roll: -0.95, pitch: 0.3 },
   // two quick taps while holding Space, like the combo flips
   // Christ Air: board held out at arm's length, arms spread, legs hanging straight down
-  UD: { name: 'Christ Air', pts: 600, hand: 'front', l: 0, side: 1, roll: 0.25, pitch: 0, christ: true },
-  // Laydown: belly down flat on the board, hands on the nose, legs stretched out behind
-  DU: { name: 'Laydown', pts: 550, hand: 'front', l: 0, side: 1, roll: 0, pitch: 0, lay: true },
-};
+  UD: { name: 'Christ Air', pts: 600, hand: 'front', l: 0, side: 1, roll: 0.25, pitch: 0, christ: true },};
 const GRAB_TWEAK_PTS = 250; // per second held
 
 // Grinds: what you hold as you land on a rail or ledge. "fwd"/"back" are toward the nose/tail.
@@ -53,6 +50,9 @@ const GRINDS = {
   up:   { name: 'Crooked Grind', pts: 250, perSec: 250 },
   dark: { name: 'Darkslide',     pts: 600, perSec: 320 }, // board upside down; nobody tells you how
 };
+
+// Coffin: hold Space while you roll to lie back flat on the board, arms crossed, feet to the nose.
+const COFFIN = { name: 'Coffin', pts: 150, perSec: 120 };
 
 const MANUALS = {
   manual: { name: 'Manual',      pts: 50, perSec: 150 },

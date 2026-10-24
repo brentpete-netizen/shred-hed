@@ -285,10 +285,10 @@ function riderPose(sk) {
   // grabs pull the board up to your hand and tweak it
   const grab = sk.grab ? sk.grab.def : sk.lastGrab, ga = grab ? sk.grabAmt : 0;
   const christ = grab?.christ ? ga : 0; // how far into a Christ Air (see below)
-  const lay = grab?.lay ? ga : 0;       // and a Laydown
+  const lie = sk.coffinAmt || 0;        // how far back into a Coffin
   let center = ride;
   if (ga > 0.01) {
-    center = add(ride, N, (christ || lay ? 0 : 15) * ga);
+    center = add(ride, N, (christ ? 0 : 15) * ga);
     roll += grab.roll * sk.facing * ga;
     pitch += grab.pitch * ga;
   }
@@ -341,14 +341,14 @@ function riderPose(sk) {
   const crouch = clamp(sk.crouch, -0.1, 1.1);
   const hipH = lerp(44, 25, crouch) - pushBob * 7;
   let hip = add(add(ride, N, 2 + hipH), F, -7 + pushBob * 5);
-  // Laydown: the hips come down onto the back of the deck and the body lies along the board
-  if (lay > 0.01) hip = mix(hip, add(Xrest(-14, deckTopN(-14), 0), N, 8), lay);
+  // Coffin: sit down on the deck just ahead of the middle, then lie back flat toward the tail
+  if (lie > 0.01) hip = mix(hip, add(Xrest(8, deckTopN(8), 0), N, 7), lie);
   let lean = 0.14 + Math.min(0.12, Math.abs(sk.v) / 4000) + pushBob * 0.25;
   if (sk.braking) lean -= 0.25;
   if (sk.manual) lean += sk.manual.bal * 0.45;
   lean = lerp(lean, 0.06 + (rot.active ? 0.18 : 0), sk.airAmt) + 0.4 * ga;
   lean = lerp(lean, -0.04, christ); // standing tall in a Christ Air
-  lean = lerp(lean, 1.42, lay);     // flat out, face first toward the nose
+  lean = lerp(lean, -1.45, lie);    // flat on your back, face up, head over the tail
   const torsoDir = add({ x: N.x * Math.cos(lean), y: N.y * Math.cos(lean) }, F, Math.sin(lean));
   const neck = add(hip, torsoDir, TORSO);
   const shoulder = add(add(hip, torsoDir, TORSO - 6), F, 1);
@@ -367,13 +367,13 @@ function riderPose(sk) {
     front = mix(front, add(add(hip, down, 47), F, 2.5), christ);
     back = mix(back, add(add(hip, down, 46), F, -2.5), christ);
   }
-  // Laydown: legs stretched out behind, feet lifted a little off the tail, knees toward the board
-  if (lay > 0.01) {
-    front = mix(front, add(add(hip, F, -48), N, 3), lay);
-    back = mix(back, add(add(hip, F, -47), N, -1), lay);
+  // Coffin: legs out straight along the deck, heels up on the nose
+  if (lie > 0.01) {
+    front = mix(front, add(add(hip, F, 48), N, 5), lie);
+    back = mix(back, add(add(hip, F, 46), N, 2), lie);
   }
 
-  const kneeDir = lay > 0.5 ? { x: -N.x, y: -N.y } : F;
+  const kneeDir = lie > 0.5 ? N : F;
   const legs = {
     front: solveLeg(hip, front, kneeDir),
     back: solveLeg(hip, back, kneeDir),
@@ -410,13 +410,15 @@ function riderPose(sk) {
     if (grab.hand === 'front') frontArm = [shoulder, r.mid, r.end];
     else backArm = [shoulder, r.mid, r.end];
   }
-  // lying on it: both hands hold the nose, one on each side, elbows up
-  if (lay > 0.5) {
-    const X = boardXform(board);
-    const hold = side => solve2(shoulder, X(38, -DECK_TH / 2, side * sk.facing * DECK_W * 0.45), UPPER_ARM, FOREARM, N);
-    const f = hold(1), b = hold(-1);
-    frontArm = [shoulder, f.mid, f.end];
-    backArm = [shoulder, b.mid, b.end];
+  // Coffin: arms folded across your chest
+  if (lie > 0.01) {
+    const fold = t => {
+      const r = solve2(shoulder, add(mix(hip, neck, t), N, 5), UPPER_ARM, FOREARM, N);
+      return [shoulder, r.mid, r.end];
+    };
+    const f = fold(0.42), b = fold(0.58);
+    frontArm = frontArm.map((p, i) => mix(p, f[i], lie));
+    backArm = backArm.map((p, i) => mix(p, b[i], lie));
   }
 
   return {
