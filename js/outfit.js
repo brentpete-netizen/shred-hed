@@ -48,6 +48,9 @@ const OUTFIT_OPTIONS = {
     { name: 'Chrome Helmet', type: 'helmet', color: '#c9d1d9', accent: '#3dd6ff', shop: 250 },
     { name: 'Diamond Crown', type: 'crown', color: '#bfefff', accent: '#3dd6ff', shop: 600 },
     { name: 'Flame Snapback', type: 'capBack', color: '#e2553f', accent: '#f4c542', shop: 180 },
+    { name: 'Neon Beanie', type: 'beanie', color: '#c6ff3d', accent: '#ff3dbb', shop: 160 },
+    { name: 'Gold Bandana', type: 'bandana', color: '#1c1c20', accent: '#f4c542', hair: '#26262b', shop: 140 },
+    { name: 'Galaxy Helmet', type: 'helmet', color: '#2b1d4a', accent: '#a593e6', shop: 300 },
   ],
   // hairstyles (drawn in hair.js); a hat hides the top of it
   hair: [
@@ -121,6 +124,9 @@ const OUTFIT_OPTIONS = {
     { name: 'Galaxy Hoodie', type: 'hoodie', color: '#2b1d4a', shade: '#22173b', accent: '#a593e6', spots: ['#f4f1ea', '#a593e6', '#ffd84a'], shop: 400 },
     { name: 'Shred Hed Pro Tee', type: 'tee', color: '#1c1c20', shade: '#141417', accent: '#f4c542', logo: 'skull', shop: 150 },
     { name: 'Gold Leather Jacket', type: 'leather', color: '#c8931c', shade: '#a67814', accent: '#fff4c2', under: '#26262b', studs: true, shop: 500 },
+    { name: 'Neon Jersey', type: 'jersey', color: '#c6ff3d', shade: '#a8dd2c', accent: '#ff3dbb', shop: 250 },
+    { name: 'Ice Hoodie', type: 'hoodie', color: '#bfe6f2', shade: '#a3d2e2', accent: '#3dd6ff', spots: ['#ffffff', '#3dd6ff'], shop: 320 },
+    { name: 'Money Tee', type: 'tee', color: '#2e9e4f', shade: '#258540', accent: '#f4c542', spots: ['#f4c542', '#7fd36b'], shop: 220 },
   ],
   pants: [
     { name: 'Baggy Cargos', type: 'cargo', color: '#6b7a3a', shade: '#59662f' },
@@ -141,6 +147,8 @@ const OUTFIT_OPTIONS = {
     { name: 'Blue Flame Pants', type: 'jeans', color: '#1c1c20', shade: '#141417', flames: ['#3dd6ff', '#ffffff'], shop: 300 },
     { name: 'Galaxy Cargos', type: 'cargo', color: '#2b1d4a', shade: '#22173b', spots: ['#f4f1ea', '#a593e6'], shop: 300 },
     { name: 'Gold Chain Jeans', type: 'jeans', color: '#1f1f23', shade: '#17171a', chain: '#e0b23c', shop: 200 },
+    { name: 'Neon Sweats', type: 'jeans', color: '#26262b', shade: '#1c1c20', stripe: '#c6ff3d', shop: 180 },
+    { name: 'Ice Cargos', type: 'cargo', color: '#bfe6f2', shade: '#a3d2e2', shop: 240 },
   ],
   shoes: [
     { name: 'White / Red', color: '#f4f1ea', sole: '#d8c9a3', accent: '#e2553f' },
@@ -158,6 +166,8 @@ const OUTFIT_OPTIONS = {
     { name: 'Flame Kicks', color: '#26262b', sole: '#f4c542', accent: '#e2553f' },
     { name: 'Rocket Kicks', color: '#e2553f', sole: '#ffd23f', accent: '#26262b', glow: ['#ff5a1f', '#ffd23f', '#ff8c2e'], shop: 350 },
     { name: 'Diamond Kicks', color: '#bfefff', sole: '#3dd6ff', accent: '#ffffff', high: true, shop: 450 },
+    { name: 'Neon Runners', color: '#ff3dbb', sole: '#c6ff3d', accent: '#26262b', glow: ['#ff3dbb', '#c6ff3d', '#3dd6ff'], shop: 280 },
+    { name: 'Gold Light-Ups', color: '#e0b23c', sole: '#fff4c2', accent: '#26262b', high: true, glow: ['#f4c542', '#fff4c2', '#e2553f'], shop: 500 },
   ],
   board: [
     { name: 'Flames', grip: '#2f2f33', graphic: '#e2553f', art: 'flame', accent: '#f4c542', wheel: '#f1e8cf' },
@@ -188,6 +198,8 @@ const OUTFIT_OPTIONS = {
     { name: 'Holo Deck', grip: '#2f2f33', graphic: '#c9d1d9', art: 'rainbow', accent: '#9a7cff', wheel: '#ffffff',
       artColors: ['#ff9fcf', '#a8e8ff', '#c6ff3d', '#ffd84a', '#9a7cff', '#7fd8e0'], shop: 500 },
     { name: 'Lava Deck', grip: '#2a1410', graphic: '#1c1c20', art: 'flame', accent: '#ffd23f', wheel: '#ff5a1f', shop: 300 },
+    { name: 'Money Deck', grip: '#2f2f33', graphic: '#2e9e4f', art: 'dots', accent: '#f4c542', wheel: '#f4c542', artColors: ['#f4c542', '#7fd36b', '#e9ffe6'], shop: 350 },
+    { name: 'Ice Deck', grip: '#2f2f33', graphic: '#bfe6f2', art: 'stars', accent: '#ffffff', wheel: '#3dd6ff', shop: 300 },
   ],
   // accessories on top of everything else
   extra: [
@@ -205,6 +217,8 @@ const OUTFIT_OPTIONS = {
     { name: 'Diamond Chain', type: 'chain', color: '#bfefff', shop: 350 },
     { name: 'Flame Cape', type: 'cape', color: '#ff5a1f', accent: '#c8360f', shop: 400 },
     { name: 'Gold Shades', type: 'shades', color: '#e0b23c', shop: 150 },
+    { name: 'Ice Shades', type: 'shades', color: '#bfefff', shop: 140 },
+    { name: 'Galaxy Cape', type: 'cape', color: '#2b1d4a', accent: '#a593e6', shop: 450 },
   ],
   // which foot goes forward; goofy flicks flips and shove-its the other way round
   stance: [
@@ -229,6 +243,7 @@ const OUTFIT_OPTIONS = {
     { name: 'Gold', color: '#e0b23c', speckle: ['#fff4c2'] },
     { name: 'Lava', color: '#2a1410', speckle: ['#ff5a1f', '#ffd23f'], shop: 120 },
     { name: 'Diamond Dust', color: '#2f2f33', speckle: ['#ffffff', '#bfefff'], shop: 150 },
+    { name: 'Neon', color: '#1c1c20', speckle: ['#ff3dbb', '#c6ff3d'], shop: 130 },
   ],
   // shapes cut out of the griptape so the wood shows through (see GRIP_CUTS in render.js)
   cutout: [
@@ -262,12 +277,47 @@ const OUTFIT_OPTIONS = {
     { name: 'Money', colors: ['#2e9e4f', '#7fd36b', '#e9ffe6'], sparkle: '#f4c542', shop: 300 },
     { name: 'Lava', colors: ['#b8240f', '#ff5a1f', '#ffd23f'], flicker: true, shop: 300 },
     { name: 'Diamond', colors: ['#3dd6ff', '#bfefff', '#ffffff'], sparkle: '#ffffff', shop: 450 },
+    { name: 'Neon', colors: ['#ff3dbb', '#c6ff3d', '#ffffff'], zap: true, shop: 350 },
+    { name: 'Sunset', colors: ['#ff5a1f', '#ff8fc4', '#fff1a0'], shop: 280 },
   ],
 };
 // every item knows its category (handy for the shop)
 for (const cat in OUTFIT_OPTIONS) for (const o of OUTFIT_OPTIONS[cat]) o.cat = cat;
-// the Skate Shop's stock, cheapest first
+// everything the Skate Shop ever sells, cheapest first
 const SHOP_ITEMS = Object.values(OUTFIT_OPTIONS).flat().filter(o => o.shop).sort((a, b) => a.shop - b.shop);
+
+// The shop's stock changes every day at 12:00 PM (your time): 8 things a day, picked by the date so
+// it's the same for everyone, no more than 2 of a kind, and one of them the Daily Deal.
+const SHOP_STOCK = 8, SHOP_PER_KIND = 2, SHOP_DEAL_OFF = 0.25;
+// which shop day it is: a day that starts at noon
+function shopDay(at = Date.now()) {
+  const d = new Date(at - 12 * 3600e3);
+  return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+}
+function shopToday(at = Date.now()) {
+  const day = shopDay(at);
+  let seed = day;
+  const rand = () => (seed = (seed * 16807 + 12345) % 2147483647) / 2147483647;
+  const pool = [...SHOP_ITEMS];
+  for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+  const items = [], kinds = {};
+  for (const it of pool) {
+    if (items.length >= SHOP_STOCK) break;
+    if ((kinds[it.cat] || 0) >= SHOP_PER_KIND) continue;
+    items.push(it);
+    kinds[it.cat] = (kinds[it.cat] || 0) + 1;
+  }
+  items.sort((a, b) => a.shop - b.shop);
+  const deal = items[Math.floor(rand() * items.length)];
+  const next = new Date(at);
+  next.setHours(12, 0, 0, 0);
+  if (next.getTime() <= at) next.setDate(next.getDate() + 1);
+  return { day, items, deal, nextAt: next.getTime() };
+}
+// what it costs today (the Daily Deal is cheaper)
+function shopPrice(item, today = shopToday()) {
+  return today.deal === item ? Math.round((item.shop * (1 - SHOP_DEAL_OFF)) / 5) * 5 : item.shop;
+}
 
 // 'sag' isn't a list of looks, it's a slider in the closet (see SAG_MAX).
 const OUTFIT_CATEGORIES = [
@@ -346,6 +396,15 @@ const Outfit = (() => {
     set(cat, index) {
       pick[cat] = index;
       try { localStorage.setItem(KEY, JSON.stringify(pick)); } catch (e) { /* storage blocked */ }
+    },
+    // put on an outfit (and saved slots) from a save code
+    load(outfit, slots) {
+      Object.assign(pick, clean(outfit));
+      (Array.isArray(slots) ? slots : []).slice(0, OUTFIT_SAVE_SLOTS).forEach((s, i) => { if (s) saves[i] = clean(s); });
+      try {
+        localStorage.setItem(KEY, JSON.stringify(pick));
+        localStorage.setItem(SAVES_KEY, JSON.stringify(saves));
+      } catch (e) { /* storage blocked */ }
     },
   };
 })();

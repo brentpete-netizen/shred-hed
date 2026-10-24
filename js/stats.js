@@ -10,16 +10,37 @@ const Stats = (() => {
   };
   try { Object.assign(data, JSON.parse(localStorage.getItem(KEY)) || {}); } catch (e) { /* nothing saved yet */ }
 
+  const map = id => (data.maps[id] = data.maps[id] || { bestCombo: 0, bestScore: 0 });
+
+  // Another copy of the stats (another tab's, or from a save code) folded in: the best of both.
+  const COUNTS = ['landed', 'bails', 'bestAir', 'topSpeed', 'distance', 'timeSkated', 'vertAirs', 'totalScore', 'skateWins', 'skateLosses'];
+  function mergeIn(b) {
+    if (!b || typeof b !== 'object') return;
+    for (const k of COUNTS) data[k] = Math.max(+data[k] || 0, +b[k] || 0);
+    if ((+b.hardestPts || 0) > data.hardestPts) { data.hardestPts = +b.hardestPts; data.hardest = String(b.hardest || ''); }
+    if ((+b.bestCombo || 0) > data.bestCombo) { data.bestCombo = +b.bestCombo; data.bestComboText = String(b.bestComboText || ''); }
+    for (const [t, n] of Object.entries(b.tricks || {})) data.tricks[t] = Math.max(data.tricks[t] || 0, +n || 0);
+    for (const [id, m] of Object.entries(b.maps || {})) {
+      const mine = map(id);
+      mine.bestCombo = Math.max(mine.bestCombo, +m?.bestCombo || 0);
+      mine.bestScore = Math.max(mine.bestScore, +m?.bestScore || 0);
+    }
+  }
+
   let dirty = false, sinceSave = 0;
   const save = () => {
     if (!dirty) return;
-    try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) { /* storage blocked */ }
+    try {
+      mergeIn(JSON.parse(localStorage.getItem(KEY))); // what another tab saved since
+      localStorage.setItem(KEY, JSON.stringify(data));
+    } catch (e) { /* storage blocked */ }
     dirty = false;
     sinceSave = 0;
   };
   addEventListener('beforeunload', save);
-
-  const map = id => (data.maps[id] = data.maps[id] || { bestCombo: 0, bestScore: 0 });
+  // phones close pages without warning: save whenever the game goes into the background
+  addEventListener('pagehide', save);
+  addEventListener('visibilitychange', () => document.visibilityState === 'hidden' && save());
 
   return {
     data,
@@ -66,6 +87,7 @@ const Stats = (() => {
       dirty = true;
       save();
     },
+    merge(b) { mergeIn(b); dirty = true; save(); },
     favorites(n) {
       return Object.entries(data.tricks).sort((a, b) => b[1] - a[1]).slice(0, n);
     },

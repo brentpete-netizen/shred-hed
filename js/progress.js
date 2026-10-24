@@ -2,8 +2,11 @@
 // and for playing Game of S.K.A.T.E. Every level unlocks something: maps, outfits, boards and
 // bonus Park Builder pieces. Progress is saved in the browser.
 
-// Rep needed to reach each level (index 0 = level 1).
-const REP_LEVELS = [0, 50, 150, 300, 500, 750, 1050, 1400, 1800, 2250, 2750, 3300, 3900];
+// Rep needed to reach each level (index 0 = level 1), all the way to level 50. Each level takes a
+// bit more than the last, levelling off at 650 more a level from level 14 on.
+const MAX_LEVEL = 50;
+const REP_LEVELS = [0];
+for (let lvl = 2; lvl <= MAX_LEVEL; lvl++) REP_LEVELS.push(REP_LEVELS[lvl - 2] + Math.min(650, 50 * (lvl - 1)));
 
 // What each level unlocks. Anything not listed here is open from the start.
 //   map: a map id · piece / prop / end: a Park Builder part · anything else: a closet item by name
@@ -18,8 +21,9 @@ const UNLOCKS = {
   9:  [['end', 'rollin'], ['board', 'Checker'], ['hat', 'Mohawk'], ['board', 'Camo'], ['shoes', 'Combat Boots']],
   10: [['skin', 'Robot'], ['top', 'Rainbow Hoodie'], ['pants', 'Tan Cargos']],
   11: [['hat', 'Gold Crown'], ['shoes', 'Gold Kicks']],
-  12: [['skin', 'Alien'], ['board', 'Galaxy'], ['skin', 'Skeleton']],
+  12: [['skin', 'Alien'], ['board', 'Galaxy']],
   13: [['board', 'Gold'], ['skin', 'Gold Statue']],
+  50: [['skin', 'Skeleton']], // the top of the mountain
 };
 // the tough stuff and grip, spread over the levels
 for (const [lvl, items] of Object.entries({
@@ -70,14 +74,44 @@ const MAP_NAMES = { street: 'Street map', school: 'School Yard map', mega: 'Mega
 const BUILDER_NAMES = { halfpipe: 'Halfpipe piece', kinkRail: 'Kink Rail piece', bankLedge: 'Bank-to-Ledge piece', diyQuarter: 'DIY Quarter piece', rollin: 'Roll-in tower start' };
 const unlockLabel = ([type, key]) => MAP_NAMES[key] || BUILDER_NAMES[key] || (type === 'trail' ? `${key} trail` : key);
 
+// Two copies of your progress put together (another tab's, a backup, or a save code), keeping the
+// best of each: the most Rep, everything you've ever owned or found. Shred Bucks are kept as how
+// many you've ever earned and ever spent, which only go up, so nothing can be lost (or copied).
+// Cheat switches stay as they are in `a`.
+function mergeProgress(a, b) {
+  if (!b || typeof b !== 'object') return a;
+  a.rep = Math.max(+a.rep || 0, +b.rep || 0);
+  a.bucksEarned = Math.max(+a.bucksEarned || 0, +b.bucksEarned || 0);
+  a.bucksSpent = Math.max(+a.bucksSpent || 0, +b.bucksSpent || 0);
+  for (const k of ['owned', 'bought']) a[k] = [...new Set([...(a[k] || []), ...(Array.isArray(b[k]) ? b[k] : [])])];
+  a.letters = a.letters || {};
+  for (const [m, list] of Object.entries(b.letters || {})) if (Array.isArray(list)) a.letters[m] = [...new Set([...(a.letters[m] || []), ...list])];
+  a.spots = a.spots || {};
+  for (const [id, found] of Object.entries(b.spots || {})) if (found) a.spots[id] = true;
+  a.nameTag = !!(a.nameTag || b.nameTag);
+  return a;
+}
+
 const Progress = (() => {
-  const KEY = 'shredHed.progress';
-  let saved = null;
-  try { saved = JSON.parse(localStorage.getItem(KEY)); } catch (e) { /* nothing saved */ }
+  const KEY = 'shredHed.progress', BACKUP = KEY + '.backup';
+  const read = key => { try { return JSON.parse(localStorage.getItem(key)); } catch (e) { return null; } };
+  // the save, with its backup copy folded in (in case one of them got lost or broken)
+  const main = read(KEY), backup = read(BACKUP);
+  const saved = main || backup ? mergeProgress(main || { ...backup }, backup) : null;
   const data = saved || { rep: 0, owned: [] };
   const events = [];   // for the HUD: rep gained, new tricks, level ups
 
-  const store = () => { try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) { /* storage blocked */ } };
+  // Save: first fold in anything another open tab saved since, so the two never undo each other.
+  const store = () => {
+    try {
+      mergeProgress(data, read(KEY));
+      const json = JSON.stringify(data);
+      localStorage.setItem(KEY, json);
+      localStorage.setItem(BACKUP, json);
+    } catch (e) { /* storage blocked */ }
+  };
+  // another tab saved: keep up with it
+  addEventListener('storage', e => { if (e.key === KEY && e.newValue) { try { mergeProgress(data, JSON.parse(e.newValue)); } catch (err) { /* broken */ } } });
 
   // An easy-mode cheat is on: nothing earned, and a heads-up the first time.
   let warned = false;
@@ -113,7 +147,8 @@ const Progress = (() => {
     lockLevel(type, key) { return UNLOCK_LEVEL[`${type}:${key}`] || 0; },
     isUnlocked(type, key) {
       const item = (OUTFIT_OPTIONS[type] || []).find(o => o.name === key);
-      if (item?.earned) return levelFor(data.rep) >= item.earned; // you have to really get there: no cheat opens it
+      // you have to really get there: no cheat opens it (and once you have, it's yours for good)
+      if (item?.earned) return levelFor(data.rep) >= item.earned || data.owned.includes(`${type}:${key}`);
       if (item?.shop) return api.owns(item);                       // only ever bought in the shop
       if (data.everything) return true;
       if (item?.secret) return api.secretOwned(item);
@@ -191,6 +226,7 @@ const Progress = (() => {
         events.push({ type: 'level', level: lvl, unlocked: (UNLOCKS[lvl] || []).map(unlockLabel) });
         api.earn(BUCKS.levelUp(lvl), 'level up');
       }
+      keepUnlocks();
       store();
     },
 
@@ -222,25 +258,59 @@ const Progress = (() => {
     },
 
     // ---------------------------------------------------------------- Shred Bucks and the shop
-    get bucks() { return data.bucks; },
+    get bucks() { return Math.max(0, data.bucksEarned - data.bucksSpent); },
     get cheating() { return EASY_CHEATS.some(c => api.cheat(c)); },
     earn(amount, reason) {
       if (amount <= 0 || blocked()) return;
-      data.bucks += amount;
+      data.bucksEarned += amount;
       events.push({ type: 'bucks', amount, reason });
       store();
     },
     owns(item) { return data.bought.includes(`${item.cat}:${item.name}`); },
     // 'bought', 'owned' (already yours) or 'broke' (not enough Shred Bucks)
-    buy(item) {
+    buy(item, price = item.shop) {
       if (api.owns(item)) return 'owned';
-      if (data.bucks < item.shop) return 'broke';
-      data.bucks -= item.shop;
+      if (api.bucks < price) return 'broke';
+      data.bucksSpent += price;
       data.bought.push(`${item.cat}:${item.name}`);
       store();
       return 'bought';
     },
+
+    // ---------------------------------------------------------------- save codes
+    // Everything about you (progress, outfits, stats) as one line of text, to keep somewhere safe or
+    // to carry to another phone or computer. Loading one only ever adds: it never takes away.
+    saveCode() {
+      const body = JSON.stringify({ v: 1, progress: data, outfit: Outfit.pick, saves: Outfit.saves, stats: Stats.data });
+      const b64 = btoa(unescape(encodeURIComponent(body)));
+      return `SHRED-${b64}-${codeCheck(b64)}`;
+    },
+    // true if it worked
+    loadCode(code) {
+      const m = /^SHRED-([A-Za-z0-9+/=]+)-(\d+)$/.exec(String(code || '').replace(/\s+/g, ''));
+      if (!m || +m[2] !== codeCheck(m[1])) return false;
+      let got;
+      try { got = JSON.parse(decodeURIComponent(escape(atob(m[1])))); } catch (e) { return false; }
+      if (!got || got.v !== 1 || !got.progress) return false;
+      mergeProgress(data, got.progress);
+      keepUnlocks();
+      store();
+      Stats.merge(got.stats);
+      if (got.outfit) Outfit.load(got.outfit, got.saves);
+      return true;
+    },
   };
+
+  // Once you've unlocked something by levelling up, it's yours for good, whatever happens after.
+  function keepUnlocks() {
+    const lvl = levelFor(data.rep);
+    for (const [at, items] of Object.entries(UNLOCKS)) {
+      if (+at > lvl) continue;
+      for (const [type, key] of items) if (!data.owned.includes(`${type}:${key}`)) data.owned.push(`${type}:${key}`);
+    }
+  }
+  // a quick fingerprint, so a typo (or a fiddled-with code) doesn't load
+  function codeCheck(s) { return [...s].reduce((h, c) => (h * 131 + c.charCodeAt(0) * 7 + 11) % 998244353, 77); }
 
   // First time with Rep: count what you've already done, and keep the outfit you're wearing.
   if (!saved) {
@@ -252,12 +322,24 @@ const Progress = (() => {
     }
     store();
   }
-  // First time with Shred Bucks: a starting stack, plus what your level-ups so far would have paid.
-  if (data.bucks === undefined) {
-    data.bucks = BUCKS.start;
-    for (let lvl = 2; lvl <= levelFor(data.rep); lvl++) data.bucks += BUCKS.levelUp(lvl);
-  }
+  data.owned = data.owned || [];
   data.bought = data.bought || [];
+  // Shred Bucks are kept as earned and spent. Saves from before kept just the balance.
+  if (data.bucksEarned === undefined) {
+    if (data.bucks !== undefined) {
+      data.bucksSpent = data.bought.reduce((n, key) => n + (SHOP_ITEMS.find(i => `${i.cat}:${i.name}` === key)?.shop || 0), 0);
+      data.bucksEarned = data.bucks + data.bucksSpent;
+    } else {
+      // first time with Shred Bucks: a starting stack, plus what your level-ups so far would have paid
+      data.bucksEarned = BUCKS.start;
+      for (let lvl = 2; lvl <= levelFor(data.rep); lvl++) data.bucksEarned += BUCKS.levelUp(lvl);
+      data.bucksSpent = 0;
+    }
+    delete data.bucks;
+  }
+  keepUnlocks();
   store();
+  // phones can close the game without warning: save whenever it goes into the background
+  addEventListener('visibilitychange', () => document.visibilityState === 'hidden' && store());
   return api;
 })();

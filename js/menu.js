@@ -6,6 +6,10 @@ const PX_PER_FT = 23; // the skater is about 5.5 ft tall
 const MAIN_ITEMS = ['FREE SKATE', 'S.K.A.T.E.', 'ONLINE', 'PARK BUILDER', 'CLOSET', 'SKATE SHOP', 'STATS', 'AUDIO'];
 const CATEGORY_LABEL = Object.fromEntries(OUTFIT_CATEGORIES);
 
+// the last shop day you looked in the shop (so the menu can say there's new stock)
+const SHOP_SEEN_KEY = 'shredHed.shopSeen';
+const shopSeenDay = () => { try { return +localStorage.getItem(SHOP_SEEN_KEY) || 0; } catch (e) { return 0; } };
+
 // The Skate Shop: a line about each thing for sale, by category and name.
 const SHOP_TAGLINES = {
   'skin:Chrome': 'Shiny. Very, very shiny.',
@@ -32,6 +36,23 @@ const SHOP_TAGLINES = {
   'extra:Diamond Chain': 'Frozen bling',
   'extra:Flame Cape': 'Super. Hero. Hot.',
   'extra:Gold Shades': 'The future is so bright',
+  'hat:Neon Beanie': 'Visible from space',
+  'hat:Gold Bandana': 'Pirate captain energy',
+  'hat:Galaxy Helmet': 'Ready for launch',
+  'top:Neon Jersey': 'Glows in the daylight',
+  'top:Ice Hoodie': 'Stay frosty',
+  'top:Money Tee': 'Ballin',
+  'pants:Neon Sweats': 'Comfy and loud',
+  'pants:Ice Cargos': 'Cold as ice',
+  'shoes:Neon Runners': 'They light up every step',
+  'shoes:Gold Light-Ups': 'Flashy and golden',
+  'board:Money Deck': 'Paid in full',
+  'board:Ice Deck': 'A frozen night sky',
+  'grip:Neon': 'Rave under your feet',
+  'trail:Neon': 'Electric',
+  'trail:Sunset': 'Ride off into it',
+  'extra:Ice Shades': 'Too cool',
+  'extra:Galaxy Cape': 'Wear the stars',
 };
 // a card's background, by category (trails glow best in the dark)
 const SHOP_TINT = { trail: '#26262b', board: '#dfe9f0', grip: '#dfe9f0', skin: '#efe2cf', hat: '#f6e3d3', top: '#e9e2f3', pants: '#e2ecdf', shoes: '#f3e6cf', extra: '#f6dfe6' };
@@ -156,7 +177,10 @@ class Menu {
     else if (item === 'ONLINE') { this.screen = 'online'; this.onSel = this.onSel || 0; }
     else if (item === 'PARK BUILDER') { this.screen = 'parks'; this.confirmDelete = false; }
     else if (item === 'CLOSET') { this.screen = 'closet'; this.showoff = 0; this.trying = { ...Outfit.pick }; }
-    else if (item === 'SKATE SHOP') { this.screen = 'shop'; this.showoff = 0; this.shopSel = this.shopSel || 0; this.shopConfirm = false; }
+    else if (item === 'SKATE SHOP') {
+      this.screen = 'shop'; this.showoff = 0; this.shopSel = this.shopSel || 0; this.shopConfirm = false;
+      try { localStorage.setItem(SHOP_SEEN_KEY, String(shopDay())); } catch (e) { /* storage blocked */ }
+    }
     else if (item === 'STATS') this.screen = 'stats';
     else { this.screen = 'audio'; this.audioRow = 0; }
   }
@@ -368,12 +392,20 @@ class Menu {
 
   // What you're wearing, with the shop item you're looking at swapped in.
   shopLook() {
-    const item = SHOP_ITEMS[this.shopSel];
+    const item = this.shopStock().items[this.shopSel];
     return { ...Outfit.pick, [item.cat]: OUTFIT_OPTIONS[item.cat].indexOf(item) };
   }
 
+  // Today's stock. (It changes at noon: if it just did, start back at the first thing.)
+  shopStock() {
+    const today = shopToday();
+    if (this.shopDay !== today.day) { this.shopDay = today.day; this.shopSel = 0; this.shopConfirm = false; this.shopTop = 0; }
+    this.shopSel = clamp(this.shopSel || 0, 0, today.items.length - 1);
+    return (this.today = today);
+  }
+
   shopMove(step) {
-    const n = SHOP_ITEMS.length, to = this.shopSel + step;
+    const n = this.shopStock().items.length, to = this.shopSel + step;
     if (to < 0 || to >= n) {
       // off the end of a shelf: wrap round
       if (Math.abs(step) === 1) this.shopSel = (to + n) % n;
@@ -386,17 +418,17 @@ class Menu {
   // Buy it (press twice, so you don't spend by accident), or put it on if it's already yours.
   shopPick(i = this.shopSel) {
     this.shopSel = i;
-    const item = SHOP_ITEMS[i], index = OUTFIT_OPTIONS[item.cat].indexOf(item);
+    const today = this.shopStock(), item = today.items[i], price = shopPrice(item, today), index = OUTFIT_OPTIONS[item.cat].indexOf(item);
     if (Progress.owns(item)) {
       Outfit.set(item.cat, index);
       this.shopConfirm = false;
       this.kickflip(true);
       return this.note(`WEARING ${item.name.toUpperCase()}`);
     }
-    if (Progress.bucks < item.shop) return this.flash(`you need ${item.shop - Progress.bucks} more Shred Bucks`);
+    if (Progress.bucks < price) return this.flash(`you need ${price - Progress.bucks} more Shred Bucks`);
     if (!this.shopConfirm) { this.shopConfirm = true; Sound.play('menuMove'); return; }
     this.shopConfirm = false;
-    if (Progress.buy(item) !== 'bought') return;
+    if (Progress.buy(item, price) !== 'bought') return;
     Outfit.set(item.cat, index);
     Sound.play('cash');
     this.sold = { name: item.name, t: 0 };
@@ -813,6 +845,11 @@ class Menu {
     const y0 = ly + 52;
     MAIN_ITEMS.forEach((item, i) => {
       this.button(ctx, item, x, y0 + i * (bh + gap), bw, bh, i === this.sel, 100 + i, () => this.choose(i));
+      // fresh stock in the shop you haven't looked at yet
+      if (item === 'SKATE SHOP' && shopSeenDay() !== shopDay()) {
+        const bob = Math.sin(time * 5) * 2;
+        markerText(ctx, 'NEW!', x + bw - 8, y0 + i * (bh + gap) + 4 + bob, Math.min(20, bh * 0.42), '#e2553f', 0.2);
+      }
     });
 
     const d = Stats.data;
@@ -940,15 +977,19 @@ class Menu {
   // in the window, and everything else hanging on the wall as cards with price tags.
   drawShop(ctx, w, h, dpr) {
     const wide = w > h * 1.1, now = performance.now() / 1000;
-    const item = SHOP_ITEMS[this.shopSel];
+    const today = this.shopStock(), item = today.items[this.shopSel];
     // (on a narrow screen the sign moves over to make room for your Shred Bucks)
     const { bottom: signBottom, mid } = this.drawShopFront(ctx, w, h, now, wide ? w / 2 : w * 0.47, wide ? Math.min(560, w * 0.48) : w * 0.46);
     this.drawWallet(ctx, w - 12, mid, Math.min(24, w / 17), w > 700);
     // a way back for when there's no Esc key (phones)
     this.fancyButton(ctx, wide ? '◀ BACK' : '◀', 12, mid - 20, wide ? 124 : 52, 40, '#fbf8f0', 652, () => this.back());
+    // when the stock changes next (every day at 12:00 PM)
+    const left = Math.max(0, today.nextAt - Date.now()), hrs = Math.floor(left / 3.6e6), mins = Math.floor((left % 3.6e6) / 6e4), secs = Math.floor((left % 6e4) / 1000);
+    const when = hrs ? `${hrs}h ${String(mins).padStart(2, '0')}m` : `${mins}m ${String(secs).padStart(2, '0')}s`;
+    markerText(ctx, `NEW STOCK IN ${when}`, wide ? w / 2 : w * 0.47, signBottom + 12, Math.min(16, w / 26), '#ffffff', -0.01);
 
     // the window: your skater wearing it, its name, price and the big button
-    const pad = 16, top = signBottom + 10;
+    const pad = 16, top = signBottom + (wide ? 10 : 26); // (room under the sign for the countdown)
     const panel = wide
       ? { x: pad, y: top, w: Math.min(w * 0.34, 430), h: h - top - pad }
       : { x: pad, y: top, w: w - pad * 2, h: Math.min(h * 0.34, 330) };
@@ -1057,7 +1098,7 @@ class Menu {
   drawShopWindow(ctx, item, p, w, h, dpr, wide, now) {
     drawCard(ctx, p.x, p.y, p.w, p.h, 640);
     const owned = Progress.owns(item), wearing = owned && Outfit.pick[item.cat] === OUTFIT_OPTIONS[item.cat].indexOf(item);
-    const afford = Progress.bucks >= item.shop;
+    const price = shopPrice(item, this.today), afford = Progress.bucks >= price, deal = this.today.deal === item;
     // the model: big in a wide window, beside the words in a short one
     const modelW = wide ? p.w : p.w * 0.45, modelH = wide ? p.h * 0.52 : p.h - 20;
     const cx = p.x + modelW / 2, gy = p.y + (wide ? modelH + 24 : p.h - 22), k = Math.min(modelH / 150, modelW / 140);
@@ -1100,14 +1141,29 @@ class Menu {
     const line = `${CATEGORY_LABEL[item.cat] || item.cat}  ·  ${SHOP_TAGLINES[`${item.cat}:${item.name}`] || 'only in the Skate Shop'}`;
     const lh = Math.max(15, Math.min(21, w / 52));
     y += lh * this.wrapText(ctx, line, tx, y, tw, lh).length + 8;
-    if (!owned) { drawBucks(ctx, item.shop, tx, y + 8, Math.min(30, w / 20), afford ? '#f4c542' : '#ef5a4a'); y += 30; }
+    if (!owned) {
+      const size = Math.min(30, w / 20);
+      if (deal) {
+        // today's deal: the usual price crossed out, then the deal price
+        const old = fmtScore(item.shop);
+        ctx.font = `${size * 0.6}px ${MARKER}`;
+        const ow = ctx.measureText(old).width;
+        ctx.font = `${size}px ${MARKER}`;
+        const nw = size * 1.26 + ctx.measureText(fmtScore(price)).width, left = tx - (ow + 14 + nw) / 2;
+        markerText(ctx, old, left + ow / 2, y + 8, size * 0.6, '#b9b4aa');
+        Sketch.stroke(ctx, [{ x: left - 3, y: y + 11 }, { x: left + ow + 3, y: y + 5 }], thin('#e2553f', 2.6));
+        drawBucks(ctx, price, left + ow + 14, y + 8, size, afford ? '#7fd36b' : '#ef5a4a', 'left');
+      } else drawBucks(ctx, price, tx, y + 8, size, afford ? '#f4c542' : '#ef5a4a');
+      y += 30;
+    }
+    if (deal && !owned) markerText(ctx, `DAILY DEAL · ${Math.round(SHOP_DEAL_OFF * 100)}% OFF`, tx, p.y + 18, Math.min(22, w / 30), '#e2553f', -0.04);
     else y += 6;
 
     // the big button
     const bw = Math.min(tw, 300), bh = Math.max(44, Math.min(58, h * 0.07)), bx = tx - bw / 2, by = Math.min(y + 8, p.y + p.h - bh - 12);
     const pulse = 1 + Math.sin(now * 8) * 0.03;
     const look = wearing ? ['WEARING IT', '#e7eef3'] : owned ? ['WEAR IT', '#7fd36b']
-      : !afford ? [`NEED ${fmtScore(item.shop - Progress.bucks)} MORE`, '#d9d5cb']
+      : !afford ? [`NEED ${fmtScore(price - Progress.bucks)} MORE`, '#d9d5cb']
       : this.shopConfirm ? ['SURE? TAP AGAIN', '#f4c542'] : ['BUY IT', '#7fd36b'];
     this.fancyButton(ctx, look[0], bx, by, bw, bh, look[1], 650, () => this.shopPick(), this.shopConfirm ? pulse : 1);
   }
@@ -1116,19 +1172,26 @@ class Menu {
   drawShopWall(ctx, wall, dpr, now) {
     // room above and below for the "more" arrows
     const g = { x: wall.x, y: wall.y + 22, w: wall.w, h: wall.h - 44 };
-    const cols = clamp(Math.floor(g.w / 150), 3, 6), gap = 14;
-    let cw = (g.w - gap * (cols - 1)) / cols, ch = cw * 1.2;
-    // short screens: smaller cards so at least a whole row fits
-    if (ch > g.h) { ch = Math.max(80, g.h); cw = Math.min(cw, ch / 1.2); }
-    const rows = Math.ceil(SHOP_ITEMS.length / cols), show = Math.max(1, Math.floor((g.h + gap) / (ch + gap)));
+    const stock = this.today.items, gap = 14;
+    // the biggest cards that still fit everything on the wall (or, if nothing does, 3 across and scroll)
+    let cols = 3, cw = 0, ch = 0;
+    for (let c = 2; c <= 6; c++) {
+      const w0 = Math.min(240, (g.w - gap * (c - 1)) / c), h0 = w0 * 1.2, r0 = Math.ceil(stock.length / c);
+      if (r0 * (h0 + gap) - gap <= g.h && w0 > cw) { cols = c; cw = w0; ch = h0; }
+    }
+    if (!cw) { cols = clamp(Math.floor(g.w / 150), 3, 6); cw = (g.w - gap * (cols - 1)) / cols; ch = cw * 1.2; }
+    if (ch > g.h) { ch = Math.max(80, g.h); cw = Math.min(cw, ch / 1.2); } // short screens: at least a row
+    // centre the cards on the wall
+    g.x += (g.w - (cw * cols + gap * (cols - 1))) / 2;
+    const rows = Math.ceil(stock.length / cols), show = Math.max(1, Math.floor((g.h + gap) / (ch + gap)));
     this.shopCols = cols;
     const selRow = Math.floor(this.shopSel / cols);
     this.shopTop = clamp(this.shopTop ?? 0, Math.max(0, selRow - show + 1), Math.min(selRow, Math.max(0, rows - show)));
     for (let r = 0; r < show && this.shopTop + r < rows; r++) {
       for (let c = 0; c < cols; c++) {
         const i = (this.shopTop + r) * cols + c;
-        if (i >= SHOP_ITEMS.length) break;
-        this.drawShopCard(ctx, SHOP_ITEMS[i], g.x + c * (cw + gap), g.y + r * (ch + gap), cw, ch, i === this.shopSel, dpr, i, now);
+        if (i >= stock.length) break;
+        this.drawShopCard(ctx, stock[i], g.x + c * (cw + gap), g.y + r * (ch + gap), cw, ch, i === this.shopSel, dpr, i, now);
       }
     }
     // more up or down the wall
@@ -1142,7 +1205,7 @@ class Menu {
 
   drawShopCard(ctx, it, x, y, cw, ch, sel, dpr, i, now) {
     const owned = Progress.owns(it), wearing = owned && Outfit.pick[it.cat] === OUTFIT_OPTIONS[it.cat].indexOf(it);
-    const afford = Progress.bucks >= it.shop;
+    const price = shopPrice(it, this.today), afford = Progress.bucks >= price, deal = this.today.deal === it;
     const lift = sel ? 5 + Math.sin(now * 4) * 1.5 : 0;
     y -= lift;
     const rect = (x0, y0, w0, h0) => [{ x: x0, y: y0 }, { x: x0 + w0, y: y0 }, { x: x0 + w0, y: y0 + h0 }, { x: x0, y: y0 + h0 }];
@@ -1183,9 +1246,19 @@ class Menu {
     if (owned) {
       const s = tagH * 0.3;
       Sketch.stroke(ctx, [{ x: -s * 0.4, y: 0 }, { x: s * 0.2, y: s * 0.6 }, { x: s * 1.5, y: -s * 0.8 }], thin(INK, 2.6));
-    } else drawBucks(ctx, it.shop, tagH * 0.22, 0.5, tagH * 0.56, '#ffffff');
+    } else drawBucks(ctx, price, tagH * 0.22, 0.5, tagH * 0.56, '#ffffff');
     ctx.restore();
     if (owned) markerText(ctx, wearing ? 'WEARING' : 'OWNED', px + pw / 2, py + ph * 0.84, Math.min(18, cw * 0.11), '#7fd36b', -0.14);
+    else if (deal) {
+      // a DEAL ribbon across the top-left corner
+      ctx.save();
+      ctx.translate(x + cw * 0.17, y + cw * 0.17);
+      ctx.rotate(-Math.PI / 4);
+      ctx.fillStyle = '#e2553f';
+      ctx.fillRect(-cw * 0.32, -10, cw * 0.64, 20);
+      markerText(ctx, `${Math.round(SHOP_DEAL_OFF * 100)}% OFF`, 0, 1, Math.min(14, cw * 0.09), '#ffffff');
+      ctx.restore();
+    }
     // a twinkle on the one you've picked
     if (sel) for (let k = 0; k < 3; k++) {
       const a = now * 2 + k * 2.1, tw = Math.max(0, Math.sin(now * 5 + k * 1.7));
@@ -1424,7 +1497,32 @@ class Menu {
       while (ctx.measureText(text).width > cw * 0.58 && text.length > 4) text = text.slice(0, -2);
       ctx.fillText(text === String(value) ? text : text + '…', cx + cw - 18, y);
     });
-    const bw = Math.min(220, cw), bh = Math.min(50, h * 0.08);
-    this.button(ctx, 'BACK', (w - bw) / 2, cy + chh + 14, bw, bh, false, 320, () => { this.screen = 'main'; });
+    // your save as a code, to keep safe or to move to another phone or computer
+    const bh = Math.min(50, h * 0.08), gap = 12, bw = Math.min(220, (cw - gap * 2) / 3), by = cy + chh + 14;
+    const x0 = (w - (bw * 3 + gap * 2)) / 2;
+    this.button(ctx, 'SAVE CODE', x0, by, bw, bh, false, 321, () => this.copySaveCode());
+    this.button(ctx, 'LOAD CODE', x0 + bw + gap, by, bw, bh, false, 322, () => this.loadSaveCode());
+    this.button(ctx, 'BACK', x0 + (bw + gap) * 2, by, bw, bh, false, 320, () => { this.screen = 'main'; });
+    ctx.font = `${Math.max(12, Math.min(15, w / 70))}px ${HAND}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = INK;
+    ctx.fillText('Everything saves by itself in this browser. A save code takes it to another phone or computer.', w / 2, by + bh + 8);
+  }
+
+  copySaveCode() {
+    const code = Progress.saveCode();
+    const fallback = () => window.prompt('Your save code (copy it and keep it somewhere safe):', code);
+    try {
+      navigator.clipboard.writeText(code).then(() => this.note('SAVE CODE COPIED · keep it somewhere safe'), fallback);
+    } catch (e) { fallback(); }
+  }
+
+  loadSaveCode() {
+    const code = window.prompt('Paste a save code (it only adds to what you have, never takes away):');
+    if (!code) return;
+    if (!Progress.loadCode(code)) return this.flash("that code didn't work · check you copied all of it");
+    this.refreshMaps();
+    this.note('SAVE LOADED!');
   }
 }
