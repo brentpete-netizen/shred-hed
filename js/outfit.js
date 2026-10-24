@@ -51,6 +51,8 @@ const OUTFIT_OPTIONS = {
     { name: 'Neon Beanie', type: 'beanie', color: '#c6ff3d', accent: '#ff3dbb', shop: 160 },
     { name: 'Gold Bandana', type: 'bandana', color: '#1c1c20', accent: '#f4c542', hair: '#26262b', shop: 140 },
     { name: 'Galaxy Helmet', type: 'helmet', color: '#2b1d4a', accent: '#a593e6', shop: 300 },
+    // Halloween: free in the shop until the end of October (keep it for good if you grab it)
+    { name: 'Pumpkin Head', type: 'pumpkin', color: '#ff8c1a', shade: '#e06d0b', accent: '#5b8c2a', shop: 0, until: [2026, 10, 31] },
   ],
   // hairstyles (drawn in hair.js); a hat hides the top of it
   hair: [
@@ -219,6 +221,8 @@ const OUTFIT_OPTIONS = {
     { name: 'Gold Shades', type: 'shades', color: '#e0b23c', shop: 150 },
     { name: 'Ice Shades', type: 'shades', color: '#bfefff', shop: 140 },
     { name: 'Galaxy Cape', type: 'cape', color: '#2b1d4a', accent: '#a593e6', shop: 450 },
+    // Halloween: a joke axe "stuck" in your head, like the costume one (free until the end of October)
+    { name: 'Axe in Head', type: 'axe', color: '#b9c0c8', accent: '#8a5a2b', shop: 0, until: [2026, 10, 31] },
   ],
   // which foot goes forward; goofy flicks flips and shove-its the other way round
   stance: [
@@ -284,7 +288,11 @@ const OUTFIT_OPTIONS = {
 // every item knows its category (handy for the shop)
 for (const cat in OUTFIT_OPTIONS) for (const o of OUTFIT_OPTIONS[cat]) o.cat = cat;
 // everything the Skate Shop ever sells, cheapest first
-const SHOP_ITEMS = Object.values(OUTFIT_OPTIONS).flat().filter(o => o.shop).sort((a, b) => a.shop - b.shop);
+const SHOP_ITEMS = Object.values(OUTFIT_OPTIONS).flat().filter(o => o.shop && !o.until).sort((a, b) => a.shop - b.shop);
+// for a short time only, on top of the daily stock: until: [year, month, day] it's there up to the
+// end of that day (yours for good if you get it in time)
+const SHOP_LIMITED = Object.values(OUTFIT_OPTIONS).flat().filter(o => o.until);
+const limitedEnds = item => new Date(item.until[0], item.until[1] - 1, item.until[2], 23, 59, 59, 999).getTime();
 
 // The shop changes completely every day at 12:00 PM (your time): everything in it goes, and 8 new
 // things come in, one of them the Daily Deal. It's the same shop for everyone.
@@ -329,7 +337,9 @@ function shopToday(at = Date.now()) {
   const next = new Date(at);
   next.setHours(12, 0, 0, 0);
   if (next.getTime() <= at) next.setDate(next.getDate() + 1);
-  return { day, items, deal, nextAt: next.getTime() };
+  // the limited-time things go first, while they're still around
+  const limited = SHOP_LIMITED.filter(it => at <= limitedEnds(it));
+  return { day, items: [...limited, ...items], deal, nextAt: next.getTime() };
 }
 // what it costs today (the Daily Deal is cheaper)
 function shopPrice(item, today = shopToday()) {

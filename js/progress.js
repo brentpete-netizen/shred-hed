@@ -149,7 +149,7 @@ const Progress = (() => {
       const item = (OUTFIT_OPTIONS[type] || []).find(o => o.name === key);
       // you have to really get there: no cheat opens it (and once you have, it's yours for good)
       if (item?.earned) return levelFor(data.rep) >= item.earned || data.owned.includes(`${type}:${key}`);
-      if (item?.shop) return api.owns(item);                       // only ever bought in the shop
+      if (item?.shop !== undefined) return api.owns(item);         // only ever bought (or picked up free) in the shop
       if (data.everything) return true;
       if (item?.secret) return api.secretOwned(item);
       const need = api.lockLevel(type, key);
@@ -203,7 +203,7 @@ const Progress = (() => {
 
     // secret closet items (like the Ghost) only show up once you've earned them
     secretOwned(item) {
-      if (item.shop) return api.owns(item); // shop things don't show in the closet until they're yours
+      if (item.shop !== undefined) return api.owns(item); // shop things don't show in the closet until they're yours
       return !item.secret || !!data.everything || (item.secret === 'letters' && api.allLetters) || (item.secret === 'tag' && !!data.nameTag);
     },
     // a secret cosmetic of its own: yours for good once you've found it

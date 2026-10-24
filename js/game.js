@@ -253,7 +253,12 @@ function leaveOnline(why) {
 
 Net.on('start', msg => startOnline(msg));
 Net.on('roster', () => Online.syncRoster());
-Net.on('closed', why => { if (online) leaveOnline(why); });
+Net.on('closed', (why, wasPublic) => {
+  if (!online) return;
+  leaveOnline(why);
+  // a public park closed (its host left): off to find another one, or open one
+  if (wasPublic) { menu.open('lobby'); menu.note('PARK CLOSED · FINDING ANOTHER'); Net.joinPublic(); }
+});
 Net.on('left', id => skateGame?.online && skateGame.playerLeft(id));
 Net.on('result', msg => skateGame?.online && skateGame.onNetResult(msg));
 // the other skater's tricks pop up for you while you watch their S.K.A.T.E. attempt
@@ -407,7 +412,7 @@ function render() {
     // while you watch someone's S.K.A.T.E. attempt, your own skater steps aside
     if (!skateGame?.watching) {
       drawFx(ctx, skater.fx);
-      Bonus.draw(ctx, time);
+      if (!online) Bonus.draw(ctx, time); // (golden letters can't be collected online, so they don't show)
       ComboTrail.draw(ctx, skater, time);
       drawSkater(ctx, skater);
     }
@@ -426,7 +431,7 @@ function render() {
     ctx.textAlign = 'right';
     ctx.textBaseline = 'top';
     ctx.fillStyle = INK;
-    const corner = testRide ? 'TEST RIDE · Esc back to the builder' : online ? `ONLINE · room ${Net.code} · ${Net.players.length} here${TouchPad.enabled ? '' : ' · T chat · Esc leave'}` : TouchPad.enabled ? '' : 'Esc · menu';
+    const corner = testRide ? 'TEST RIDE · Esc back to the builder' : online ? `${Net.public ? 'PUBLIC PARK' : `ONLINE · room ${Net.code}`} · ${Net.players.length} here${TouchPad.enabled ? '' : ' · T chat · Esc leave'}` : TouchPad.enabled ? '' : 'Esc · menu';
     ctx.fillText(corner, cw - 14, 12);
     // "Sam joined", "Sam left"
     Net.toasts.forEach((t, i) => {

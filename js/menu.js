@@ -53,13 +53,15 @@ const SHOP_TAGLINES = {
   'trail:Sunset': 'Ride off into it',
   'extra:Ice Shades': 'Too cool',
   'extra:Galaxy Cape': 'Wear the stars',
+  'hat:Pumpkin Head': 'Happy Halloween!',
+  'extra:Axe in Head': "Don't worry, it's just pretend",
 };
 // a card's background, by category (trails glow best in the dark)
 const SHOP_TINT = { trail: '#26262b', board: '#dfe9f0', grip: '#dfe9f0', skin: '#efe2cf', hat: '#f6e3d3', top: '#e9e2f3', pants: '#e2ecdf', shoes: '#f3e6cf', extra: '#f6dfe6' };
 // where on the skater a card zooms in: how far up from the wheels, and how much fits
 const SHOP_FOCUS = { hat: [104, 44], skin: [64, 134], top: [70, 62], pants: [36, 70], shoes: [14, 36], extra: [86, 60] };
 const EXTRA_FOCUS = { shades: [101, 34], chain: [82, 44], cape: [70, 96] };
-const ONLINE_ITEMS = ['HOST FREE SKATE', 'HOST S.K.A.T.E.', 'JOIN A ROOM'];
+const ONLINE_ITEMS = ['PUBLIC PARK', 'HOST FREE SKATE', 'HOST S.K.A.T.E.', 'JOIN A ROOM'];
 const VERSUS_ITEMS = ['VS CPU', '2 PLAYERS'];
 
 // What a Fit slider's setting looks like in words: "normal", "a bit baggy", "skinny"...
@@ -190,8 +192,10 @@ class Menu {
   chooseOnline(i) {
     this.onSel = i;
     Sound.play('menuPick');
-    if (i === 2) { this.screen = 'join'; this.joinCode = ''; this.startTyping('code'); }
-    else { this.game = i === 0 ? 'online-free' : 'online-skate'; this.refreshMaps(); this.screen = 'maps'; }
+    const item = ONLINE_ITEMS[i];
+    if (item === 'PUBLIC PARK') { this.screen = 'lobby'; Net.joinPublic(); }
+    else if (item === 'JOIN A ROOM') { this.screen = 'join'; this.joinCode = ''; this.startTyping('code'); }
+    else { this.game = item === 'HOST FREE SKATE' ? 'online-free' : 'online-skate'; this.refreshMaps(); this.screen = 'maps'; }
   }
 
   // Typing your online name (it's the name on your Name Tag too) or a room code.
@@ -426,7 +430,7 @@ class Menu {
       return this.note(`WEARING ${item.name.toUpperCase()}`);
     }
     if (Progress.bucks < price) return this.flash(`you need ${price - Progress.bucks} more Shred Bucks`);
-    if (!this.shopConfirm) { this.shopConfirm = true; Sound.play('menuMove'); return; }
+    if (price > 0 && !this.shopConfirm) { this.shopConfirm = true; Sound.play('menuMove'); return; } // (free things: no need to ask)
     this.shopConfirm = false;
     if (Progress.buy(item, price) !== 'bought') return;
     Outfit.set(item.cat, index);
@@ -593,7 +597,7 @@ class Menu {
   drawOnline(ctx, w, h) {
     markerText(ctx, 'ONLINE', w / 2, Math.min(70, h * 0.11), Math.min(52, w / 9), '#f4c542', -0.04);
     const fs = Math.max(14, Math.min(18, w / 60));
-    this.note2(ctx, ['Skate with friends on their own computers or phones.', 'Host a room and send them its code, or join theirs.'], w, Math.min(70, h * 0.11) + 36, fs);
+    this.note2(ctx, ['Public Park: drop in and skate with whoever\'s there (real people only).', 'Or host a room for friends and send them its code, or join theirs.'], w, Math.min(70, h * 0.11) + 36, fs);
     // your name, as everyone else will see it
     const bw = Math.min(360, w - 48), bh = Math.min(58, h * 0.085), x = (w - bw) / 2;
     const ny = h * 0.3, typing = this.typing === 'name';
@@ -615,7 +619,7 @@ class Menu {
     });
     const y0 = ny + bh + 26;
     ONLINE_ITEMS.forEach((label, i) => this.button(ctx, label, x, y0 + i * bh * 1.3, bw, bh, i === this.onSel, 392 + i, () => this.chooseOnline(i)));
-    this.note2(ctx, ['Free Skate: up to 4 skaters on one map · S.K.A.T.E.: you vs one friend', 'Esc back'], w, y0 + 3 * bh * 1.3 + 6, fs * 0.85);
+    this.note2(ctx, ['Public Park: up to 6 · Free Skate: up to 4 · S.K.A.T.E.: you vs one friend', 'Esc back'], w, y0 + ONLINE_ITEMS.length * bh * 1.3 + 6, fs * 0.85);
     if (Net.error) markerText(ctx, Net.error, w / 2, h * 0.94, Math.min(22, w / 30), '#ef5a4a');
   }
 
@@ -652,14 +656,14 @@ class Menu {
     this.note2(ctx, lines, w, Math.min(70, h * 0.11) + 38, fs);
     // who's here
     const bw = Math.min(360, w - 48), rh = Math.min(48, h * 0.07), x = (w - bw) / 2, y0 = h * 0.36;
-    const slots = Net.mode ? ROOM_SIZE[Net.mode] : 0;
+    const slots = Net.mode ? Net.size || ROOM_SIZE[Net.mode] : 0;
     for (let i = 0; i < slots; i++) {
       const p = Net.players[i], y = y0 + i * (rh + 8);
       Sketch.seedFor(410 + i);
       const box = [{ x, y }, { x: x + bw, y }, { x: x + bw, y: y + rh }, { x, y: y + rh }];
       Sketch.fill(ctx, box, p ? '#fbf8f0' : 'rgba(251, 248, 240, 0.4)', 1.5);
       Sketch.stroke(ctx, box, { color: INK, width: 1.8, amp: 1, closed: true });
-      const label = p ? `${p.name}${p.id === Net.me ? ' (you)' : ''}${p.id === 'h' ? ' · host' : ''}` : 'waiting…';
+      const label = p ? `${p.id === Net.me ? p.name : cleanName(p.name)}${p.id === Net.me ? ' (you)' : ''}${p.id === 'h' ? ' · host' : ''}` : 'waiting…';
       markerText(ctx, label, w / 2, y + rh / 2, Math.min(rh * 0.42, 22), p ? '#ffffff' : '#b9b4aa');
     }
     const by = y0 + Math.max(slots, 1) * (rh + 8) + 16, bh = Math.min(54, h * 0.08), half = (bw - 14) / 2;
@@ -1142,7 +1146,17 @@ class Menu {
     const line = `${CATEGORY_LABEL[item.cat] || item.cat}  ·  ${SHOP_TAGLINES[`${item.cat}:${item.name}`] || 'only in the Skate Shop'}`;
     const lh = Math.max(15, Math.min(21, w / 52));
     y += lh * this.wrapText(ctx, line, tx, y, tw, lh).length + 8;
-    if (!owned) {
+    if (!owned && item.until) {
+      // a limited-time freebie: when it goes
+      const ends = new Date(limitedEnds(item)), when = ends.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      markerText(ctx, 'FREE', tx, y + 10, Math.min(34, w / 18), '#7fd36b', -0.03);
+      ctx.font = `${Math.max(12, Math.min(16, w / 70))}px ${HAND}`;
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#e2553f';
+      ctx.fillText(`leaves the shop after ${when} · yours for good if you grab it`, tx, y + 34);
+      y += 44;
+      markerText(ctx, 'HALLOWEEN · LIMITED TIME', tx, p.y + 18, Math.min(22, w / 30), '#ff8c1a', -0.04);
+    } else if (!owned) {
       const size = Math.min(30, w / 20);
       if (deal) {
         // today's deal: the usual price crossed out, then the deal price
@@ -1165,6 +1179,7 @@ class Menu {
     const pulse = 1 + Math.sin(now * 8) * 0.03;
     const look = wearing ? ['WEARING IT', '#e7eef3'] : owned ? ['WEAR IT', '#7fd36b']
       : !afford ? [`NEED ${fmtScore(price - Progress.bucks)} MORE`, '#d9d5cb']
+      : price === 0 ? ['GET IT FREE', '#7fd36b']
       : this.shopConfirm ? ['SURE? TAP AGAIN', '#f4c542'] : ['BUY IT', '#7fd36b'];
     this.fancyButton(ctx, look[0], bx, by, bw, bh, look[1], 650, () => this.shopPick(), this.shopConfirm ? pulse : 1);
   }
@@ -1247,19 +1262,22 @@ class Menu {
     if (owned) {
       const s = tagH * 0.3;
       Sketch.stroke(ctx, [{ x: -s * 0.4, y: 0 }, { x: s * 0.2, y: s * 0.6 }, { x: s * 1.5, y: -s * 0.8 }], thin(INK, 2.6));
-    } else drawBucks(ctx, price, tagH * 0.22, 0.5, tagH * 0.56, '#ffffff');
+    } else if (price === 0) markerText(ctx, 'FREE', tagH * 0.22, 0.5, tagH * 0.56, '#ffffff');
+    else drawBucks(ctx, price, tagH * 0.22, 0.5, tagH * 0.56, '#ffffff');
     ctx.restore();
-    if (owned) markerText(ctx, wearing ? 'WEARING' : 'OWNED', px + pw / 2, py + ph * 0.84, Math.min(18, cw * 0.11), '#7fd36b', -0.14);
-    else if (deal) {
-      // a DEAL ribbon across the top-left corner
+    // a ribbon across the top-left corner: today's deal, or a limited-time freebie
+    const ribbon = (text, color) => {
       ctx.save();
       ctx.translate(x + cw * 0.17, y + cw * 0.17);
       ctx.rotate(-Math.PI / 4);
-      ctx.fillStyle = '#e2553f';
+      ctx.fillStyle = color;
       ctx.fillRect(-cw * 0.32, -10, cw * 0.64, 20);
-      markerText(ctx, `${Math.round(SHOP_DEAL_OFF * 100)}% OFF`, 0, 1, Math.min(14, cw * 0.09), '#ffffff');
+      markerText(ctx, text, 0, 1, Math.min(14, cw * 0.09), '#ffffff');
       ctx.restore();
-    }
+    };
+    if (owned) markerText(ctx, wearing ? 'WEARING' : 'OWNED', px + pw / 2, py + ph * 0.84, Math.min(18, cw * 0.11), '#7fd36b', -0.14);
+    else if (it.until) ribbon('HALLOWEEN', '#ff8c1a');
+    else if (deal) ribbon(`${Math.round(SHOP_DEAL_OFF * 100)}% OFF`, '#e2553f');
     // a twinkle on the one you've picked
     if (sel) for (let k = 0; k < 3; k++) {
       const a = now * 2 + k * 2.1, tw = Math.max(0, Math.sin(now * 5 + k * 1.7));
@@ -1321,6 +1339,7 @@ class Menu {
     if (it.cat === 'extra') {
       if (it.type === 'shades') return { at: f.head, size: 32 };
       if (it.type === 'chain') return { at: mix(f.neck, f.hip, 0.25), size: 42 };
+      if (it.type === 'axe') return { at: add(f.head, f.torsoDir, 8), size: 56 };
       return { at: mix(f.shoulder, f.hip, 0.4), size: 90 };
     }
     return { at: mix(m.pos, f.head, 0.5), size: 134 }; // a skin: all of you

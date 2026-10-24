@@ -566,6 +566,20 @@ function drawHead(ctx, h, up, F) {
   } else if (hat.type === 'headphones') {
     Sketch.limb(ctx, arcPts(h, R + 4, ua - half - 0.1, ua + half + 0.1, 8), 2.2, hat.color, { amp: 0.2 });
     Sketch.circle(ctx, ear.x, ear.y, 4.3, hat.accent, { width: 2 });
+  } else if (hat.type === 'pumpkin') {
+    // a carved pumpkin right over your head: ribs, a curly stalk, and a glowing jack-o'-lantern face
+    const c = add(h, up, 1.5), r = R + 4.5, glow = '#ffd23f', dark = '#5a2a08';
+    Sketch.limb(ctx, [add(c, up, r - 1), add(add(c, up, r + 4.5), back, 2.5)], 3.2, hat.accent, { amp: 0.2 });
+    Sketch.circle(ctx, c.x, c.y, r, hat.color, { width: 2.2 });
+    for (const k of [-0.55, 0, 0.55]) {
+      Sketch.stroke(ctx, [add(add(c, up, r * 0.92), F, k * r * 0.25), add(c, F, k * r * 0.8), add(add(c, up, -r * 0.92), F, k * r * 0.25)], thin(hat.shade, 1.6));
+    }
+    const eye = add(add(c, F, r * 0.5), up, r * 0.2);
+    Sketch.shape(ctx, [add(eye, up, 3.2), add(add(eye, up, -2), F, 3), add(add(eye, up, -2), F, -3)], glow, thin(dark, 1.2));
+    const m = add(add(c, F, r * 0.42), up, -r * 0.36);
+    const mouth = [add(m, F, -5.5), add(add(m, F, -3.5), up, -2.4), add(add(m, F, -1.5), up, -0.6), add(add(m, F, 0.5), up, -2.6),
+      add(add(m, F, 2.5), up, -0.6), add(add(m, F, 4.5), up, -2.4), add(add(m, F, 5.5), up, 0.6), add(add(m, F, 2), up, 1.4), add(add(m, F, -2), up, 1.4)];
+    Sketch.shape(ctx, mouth, glow, thin(dark, 1.2));
   }
   // (no hat, or a head item that's a hairstyle itself: nothing more to draw)
   ctx.restore();
@@ -879,6 +893,15 @@ function drawExtraFront(ctx, f, extra) {
     const p = add(add(h, F, 1.5), up, -2.8); // on the cheek, under the eye
     Sketch.limb(ctx, [add(add(p, F, -2.8), up, 1.2), add(add(p, F, 2.8), up, -1.2)], 2.8, extra.color, { amp: 0.1 });
     Sketch.stroke(ctx, [add(p, F, -0.6), add(p, F, 0.6)], thin('#c99a7a', 1));
+  } else if (extra.type === 'axe') {
+    // the joke-costume axe: only the back of the blade shows, "stuck in" the top of your head,
+    // with the handle sticking up and back. (No blood: it's pretend!)
+    const e = add(add(h, up, HEAD_R - 1.5), F, 1.5), at = (k, u) => add(add(e, F, k), up, u);
+    Sketch.limb(ctx, [at(-5, 6), add(add(e, up, 22), back, 15)], 3.2, extra.accent, { amp: 0.2 });
+    Sketch.shape(ctx, [at(-8, 0.5), at(-7, 8), at(-3, 9), at(3, 7), at(8.5, 0.5)], extra.color, { color: INK, width: 1.7, amp: 0.2 });
+    Sketch.circle(ctx, at(-5, 6).x, at(-5, 6).y, 1.6, '#6e747b', { width: 0.8 }); // where the handle fits
+    Sketch.stroke(ctx, [at(-2, 5.5), at(5, 2.5)], thin('#eef2f5', 1.3)); // a glint on the steel
+    Sketch.stroke(ctx, [at(-8.5, 0.4), at(9, 0.4)], thin(INK, 1.9));   // where it "goes in"
   }
 }
 

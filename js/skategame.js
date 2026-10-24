@@ -18,7 +18,7 @@ function secondOutfit() {
   for (const cat in OUTFIT_OPTIONS) {
     pick[cat] = (Outfit.pick[cat] + (cat === 'skin' ? 1 : 2)) % OUTFIT_OPTIONS[cat].length;
     const o = OUTFIT_OPTIONS[cat][pick[cat]];
-    if (o.secret || o.shop || o.earned) pick[cat] = 0; // don't give the secret (or bought, or earned) stuff away
+    if (o.secret || o.shop !== undefined || o.earned) pick[cat] = 0; // don't give the secret (or bought, or earned) stuff away
   }
   return pick;
 }
@@ -32,7 +32,7 @@ class SkateGame {
     this.online = !!online;
     this.players = online
       ? online.players.slice(0, 2).map(p => ({
-        id: p.id, name: p.name, letters: 0, cpu: false, remote: p.id !== online.me, outfit: p.id === online.me ? null : Outfit.clean(p.outfit),
+        id: p.id, name: p.id === online.me ? p.name : cleanName(p.name), letters: 0, cpu: false, remote: p.id !== online.me, outfit: p.id === online.me ? null : Outfit.clean(p.outfit),
       }))
       : [
         { name: 'P1', letters: 0, cpu: false, outfit: null },

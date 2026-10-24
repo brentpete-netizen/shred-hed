@@ -28,13 +28,21 @@ const DIRECT_WAIT = 6000;  // ms to wait for a direct connection before using a 
 const RELAY_WAIT = 7000;   // ms to wait for the host to answer through a relay
 const RELAY_QUIET = 75000; // ms without a word before someone on a relay counts as gone
 const PING_EVERY = 3000;
+// Public parks: Free Skate rooms anyone can drop into, no code needed (and only real people: no
+// CPU skaters). Each one says it's there on the relays every couple of seconds; to find one you
+// listen for a moment and join the busiest that has room. Nobody there? You open one.
+const PUBLIC_TOPIC = RELAY_ROOT + 'public/';
+const PUBLIC_SIZE = 6;
+const PUBLIC_MAPS = ['park', 'street', 'school', 'mega'];
+const ANNOUNCE_EVERY = 2000; // ms
+const PUBLIC_LISTEN = 3000;  // ms spent listening for public parks
 
 const Net = (() => {
   let peer = null, conns = new Map(), hostLink = null, nextGuest = 1;
   let session = 0;               // bumped on every host / join / leave, so old callbacks know to stop
   let relays = [];               // the host's relay connections
   let relayGuests = new Map();   // the host's guests on a relay, by relay and guest
-  let guestRelay = null, pinger = null;
+  let guestRelay = null, pinger = null, announcer = null, joinFallback = null;
   const handlers = {}, scripts = {};
   const api = {
     role: null,       // 'host' or 'guest' while in a room
@@ -42,6 +50,8 @@ const Net = (() => {
     me: null,         // my player id ('h' for the host)
     mode: null,       // 'free' or 'skate'
     map: null,        // the room's map id (set by the host)
+    public: false,    // a public park (anyone can come in)
+    size: 0,          // how many fit in the room
     started: false,
     players: [],      // [{ id, name, outfit }], host first
     status: '',       // what's happening, for the lobby screen
@@ -103,36 +113,46 @@ const Net = (() => {
     for (const c of relays) c.end();
     guestRelay?.end();
     clearInterval(pinger);
+    clearInterval(announcer);
     peer = null;
     conns = new Map();
     relayGuests = new Map();
     relays = [];
-    hostLink = guestRelay = pinger = null;
-    Object.assign(api, { role: null, code: null, me: null, mode: null, map: null, started: false, players: [], status: '' });
+    hostLink = guestRelay = pinger = announcer = joinFallback = null;
+    Object.assign(api, { role: null, code: null, me: null, mode: null, map: null, public: false, size: 0, started: false, players: [], status: '' });
     return session;
   }
 
   function fail(msg) {
+    // looking for a public park and that one didn't work out: open one instead
+    if (joinFallback && !api.role) { const next = joinFallback; joinFallback = null; return next(); }
+    const wasPublic = api.public;
     reset();
     api.error = msg;
-    emit('closed', msg);
+    emit('closed', msg, wasPublic);
   }
 
   // ------------------------------------------------------------ hosting
 
-  function host(mode, map, park) {
+  // pub: a public park (it starts straight away, and tells everyone it's there)
+  function host(mode, map, park, pub = false) {
     const s = reset();
     api.error = '';
-    api.status = 'opening a room…';
+    api.status = pub ? 'opening a public park…' : 'opening a room…';
     const open = code => {
       if (s !== session) return;
-      Object.assign(api, { role: 'host', code, me: 'h', mode, map, park, started: false, status: 'waiting for friends to join' });
+      Object.assign(api, { role: 'host', code, me: 'h', mode, map, park, public: pub, size: pub ? PUBLIC_SIZE : ROOM_SIZE[mode], started: false,
+        status: pub ? 'skating in a public park' : 'waiting for friends to join' });
       api.players = [{ id: 'h', ...me() }];
       emit('roster');
+      if (pub) {
+        announcer = setInterval(announce, ANNOUNCE_EVERY);
+        startGame();
+      }
     };
     Promise.allSettled([loadScript(PEERJS_URL), loadScript(MQTT_URL)]).then(([direct, relay]) => {
       if (s !== session) return;
-      const listen = code => relay.status === 'fulfilled' ? openRelays(code, s) : Promise.resolve(0);
+      const listen = code => relay.status === 'fulfilled' ? openRelays(code, s, pub) : Promise.resolve(0);
       const fallback = () => {
         // no direct room code: a made-up one, on the relays only
         const code = randomCode();
@@ -179,16 +199,18 @@ const Net = (() => {
   }
 
   // Listen for guests on every relay that can be reached: the number that could.
-  function openRelays(code, s) {
+  function openRelays(code, s, pub = false) {
     const room = RELAY_ROOT + code + '/';
     return Promise.all(RELAYS.map((url, i) => connectRelay(url, { will: { topic: room + 'down/all', payload: JSON.stringify({ t: 'bye' }) } }).then(c => {
       if (!c) return 0;
       if (s !== session) { c.end(true); return 0; }
       relays.push(c);
       c.subscribe(room + 'up/+');
+      if (pub) { c.subscribe(PUBLIC_TOPIC + '+'); announce(); } // other public parks (see heardPark)
       c.on('message', (topic, buf) => {
         const msg = readRelay(buf);
         if (!msg || s !== session) return;
+        if (topic.startsWith(PUBLIC_TOPIC)) return heardPark(msg);
         const rid = topic.slice(topic.lastIndexOf('/') + 1), key = i + ':' + rid;
         let link = relayGuests.get(key);
         if (!link) {
@@ -215,7 +237,7 @@ const Net = (() => {
   }
 
   function guestJoined(link) {
-    if (conns.size + 1 >= ROOM_SIZE[api.mode] || (api.started && api.mode === 'skate')) {
+    if (conns.size + 1 >= api.size || (api.started && api.mode === 'skate')) {
       link.send({ t: 'full' });
       setTimeout(() => link.close(), 500);
       return;
@@ -229,7 +251,7 @@ const Net = (() => {
     if (msg.t === 'hello') {
       const p = { id: link.playerId, name: cleanName(msg.name), outfit: msg.outfit || {} };
       api.players = api.players.filter(q => q.id !== p.id).concat(p);
-      link.send({ t: 'welcome', you: p.id, mode: api.mode, map: api.map, players: api.players });
+      link.send({ t: 'welcome', you: p.id, mode: api.mode, map: api.map, players: api.players, public: api.public, size: api.size });
       broadcast({ t: 'roster', players: api.players });
       toast(`${p.name} joined`);
       emit('roster');
@@ -268,8 +290,10 @@ const Net = (() => {
 
   // ------------------------------------------------------------ joining
 
-  function join(code) {
+  // fallback: what to do instead if it doesn't work out (for public parks: open one)
+  function join(code, fallback = null) {
     const s = reset();
+    joinFallback = fallback;
     api.error = '';
     code = code.toUpperCase();
     api.status = `looking for room ${code}…`;
@@ -331,11 +355,69 @@ const Net = (() => {
   function fromHost(msg, code) {
     if (msg.t === 'full') return fail('that room is full (or already playing)');
     if (msg.t === 'welcome') {
-      Object.assign(api, { role: 'guest', code, me: msg.you, mode: msg.mode, map: msg.map, players: msg.players, status: 'waiting for the host to start' });
+      joinFallback = null;
+      Object.assign(api, { role: 'guest', code, me: msg.you, mode: msg.mode, map: msg.map, players: msg.players,
+        public: !!msg.public, size: +msg.size || ROOM_SIZE[msg.mode] || 4, status: 'waiting for the host to start' });
       emit('roster');
     } else if (msg.t === 'roster') { api.players = msg.players; emit('roster'); }
     else if (msg.t === 'start') { api.started = true; api.map = msg.map; emit('start', msg); }
     else emit(msg.t, msg);
+  }
+
+  // ------------------------------------------------------------ public parks
+
+  // Find a public park and go in: the busiest one with room, or a new one if there aren't any.
+  async function joinPublic() {
+    const s = reset();
+    api.error = '';
+    api.status = 'looking for a public park…';
+    const parks = await listenForParks(s);
+    if (s !== session) return;
+    const open = (parks || []).filter(p => p.n < p.max).sort((a, b) => b.n - a.n || (a.code < b.code ? -1 : 1));
+    if (open.length) join(open[0].code, hostPublic);
+    else hostPublic();
+  }
+
+  function hostPublic() {
+    host('free', PUBLIC_MAPS[Math.floor(Math.random() * PUBLIC_MAPS.length)], null, true);
+  }
+
+  // Every public park that says it's there, within a few seconds (null if no relay could be reached).
+  async function listenForParks(s) {
+    try { await loadScript(MQTT_URL); } catch { return null; }
+    for (const url of RELAYS) {
+      const c = await connectRelay(url);
+      if (s !== session) { c?.end(true); return null; }
+      if (!c) continue;
+      const parks = new Map();
+      c.on('message', (topic, buf) => {
+        const m = readRelay(buf);
+        if (m && /^[A-Z]{4}$/.test(m.code) && Number.isFinite(m.n) && Number.isFinite(m.max)) parks.set(m.code, m);
+      });
+      c.subscribe(PUBLIC_TOPIC + '+');
+      await new Promise(done => setTimeout(done, PUBLIC_LISTEN));
+      c.end(true);
+      return [...parks.values()];
+    }
+    return null;
+  }
+
+  // A public park host: say the park's here (and how full it is).
+  function announce() {
+    if (!api.public || api.role !== 'host') return;
+    const msg = JSON.stringify({ v: 1, code: api.code, map: api.map, n: api.players.length, max: api.size });
+    for (const c of relays) c.publish(PUBLIC_TOPIC + api.code, msg);
+  }
+
+  // Another public park, heard while hosting one. Skating there all alone? If that one has people
+  // (or it's alone too, and comes first), go over there, so people don't end up in parks by themselves.
+  function heardPark(m) {
+    if (api.role !== 'host' || !api.public || api.players.length > 1) return;
+    if (!m || m.code === api.code || !(m.n < m.max) || !/^[A-Z]{4}$/.test(m.code)) return;
+    if (m.n > 1 || m.code < api.code) {
+      toast('heading to a busier park');
+      join(m.code, hostPublic);
+    }
   }
 
   // ------------------------------------------------------------ both
@@ -369,7 +451,7 @@ const Net = (() => {
   // closing the tab: say goodbye so friends don't wait for you
   addEventListener('pagehide', () => api.active && reset());
 
-  Object.assign(api, { host, join, leave, send, startGame, update });
+  Object.assign(api, { host, join, joinPublic, leave, send, startGame, update });
   return api;
 })();
 
@@ -377,4 +459,18 @@ const Net = (() => {
 function onlineName() {
   return Outfit.pick.tagName || (Outfit.pick.onlineName ||= `Skater ${Math.floor(100 + Math.random() * 900)}`);
 }
-function cleanName(s) { return cleanTagName(s).trim() || 'Skater'; }
+function cleanName(s) {
+  const name = cleanTagName(s).trim();
+  return name && !rudeName(name) ? name : 'Skater';
+}
+
+// Names other people see: anything with a swear word in it (spelt with numbers or not) just shows
+// as "Skater".
+const RUDE = ['fuck', 'fuk', 'shit', 'bitch', 'cunt', 'dick', 'cock', 'pussy', 'penis', 'vagina', 'porn', 'sex', 'slut',
+  'whore', 'ass', 'bastard', 'rape', 'nazi', 'hitler', 'nigg', 'fag', 'retard', 'kkk', 'wank', 'twat', 'boob', 'tits', 'kys'];
+function rudeName(s) {
+  const plain = s.toLowerCase().replace(/[0@4]/g, m => ({ 0: 'o', '@': 'a', 4: 'a' })[m]).replace(/[1!|]/g, 'i').replace(/3/g, 'e')
+    .replace(/[5$]/g, 's').replace(/7/g, 't').replace(/[^a-z]/g, '');
+  // "ass" only on its own (not in "class" or "Cassie")
+  return RUDE.some(w => (w === 'ass' ? /(^|[^a-z])ass($|[^a-z])|^ass/.test(s.toLowerCase()) : plain.includes(w)));
+}

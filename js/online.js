@@ -54,7 +54,7 @@ const Online = (() => {
     let r = remotes.get(id);
     if (!r) {
       const p = Net.players.find(q => q.id === id) || { name: 'Skater', outfit: {} };
-      r = { id, name: p.name, outfit: Outfit.clean(p.outfit), snaps: [], lags: [], base: 0, delay: PLAY_DELAY_MIN, want: PLAY_DELAY_MIN, pose: null, track: new TrailTrack(), air: false, n: 0 };
+      r = { id, name: cleanName(p.name), outfit: Outfit.clean(p.outfit), snaps: [], lags: [], base: 0, delay: PLAY_DELAY_MIN, want: PLAY_DELAY_MIN, pose: null, track: new TrailTrack(), air: false, n: 0 };
       remotes.set(id, r);
     }
     return r;
@@ -89,7 +89,7 @@ const Online = (() => {
     for (const p of Net.players) {
       if (p.id === Net.me) continue;
       const r = remote(p.id);
-      r.name = p.name;
+      r.name = cleanName(p.name);
       r.outfit = Outfit.clean(p.outfit);
     }
     for (const id of remotes.keys()) if (!Net.players.some(p => p.id === id)) remotes.delete(id);
