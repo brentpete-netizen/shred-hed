@@ -133,6 +133,11 @@ const Sound = (() => {
       tone({ freq: 1568, dur: 0.6, gain: 0.08, type: 'triangle', delay: 0.38 });
     },
     newTrick() { tone({ freq: 988, dur: 0.12, gain: 0.08, type: 'triangle' }); tone({ freq: 1480, dur: 0.18, gain: 0.07, type: 'triangle', delay: 0.07 }); },
+    tung() { // a hollow wooden knock (Tung Tung Tung Sahur's ollie)
+      tone({ freq: 620, to: 540, dur: 0.11, gain: 0.22, type: 'triangle' });
+      tone({ freq: 1240, to: 1100, dur: 0.05, gain: 0.06, type: 'sine' });
+      burst({ type: 'bandpass', freq: 1500, Q: 5, dur: 0.03, gain: 0.18 });
+    },
     cash() { // cha-ching: the drawer clunks open, then the bell
       burst({ type: 'bandpass', freq: 900, Q: 1.2, dur: 0.07, gain: 0.25 });
       tone({ freq: 140, to: 90, dur: 0.08, gain: 0.25 });

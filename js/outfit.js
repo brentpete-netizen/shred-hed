@@ -20,6 +20,7 @@ const OUTFIT_OPTIONS = {
     { name: 'Ghost', color: '#eef3f8', secret: 'letters' },
     { name: 'Skeleton', color: '#efe8d2', bones: true, earned: 12 }, // a skull and bones, under your clothes
     { name: 'Chrome', color: '#d5dbe1', shop: 700 },
+    { name: 'Tung Tung Tung Sahur', color: '#c28a52', wood: true }, // a wooden log with a face, and his bat
   ],
   hat: [
     { name: 'Backwards Cap', type: 'capBack', color: '#26262b', accent: '#e2553f' },

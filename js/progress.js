@@ -19,7 +19,7 @@ const UNLOCKS = {
   7:  [['map', 'mega'], ['board', 'Toxic'], ['top', 'Tie-Dye Tee'], ['hat', 'Viking Helmet'], ['shoes', 'Light-Ups'], ['extra', 'Gold Chain'], ['skin', 'Ice']],
   8:  [['hat', 'Spiky Hair'], ['shoes', 'Green High-Tops'], ['piece', 'diyQuarter'], ['pants', 'Red Pants'], ['hat', 'Halo'], ['board', 'Neon Grid'], ['extra', 'Hero Cape']],
   9:  [['end', 'rollin'], ['board', 'Checker'], ['hat', 'Mohawk'], ['board', 'Camo'], ['shoes', 'Combat Boots']],
-  10: [['skin', 'Robot'], ['top', 'Rainbow Hoodie'], ['pants', 'Tan Cargos']],
+  10: [['skin', 'Robot'], ['skin', 'Tung Tung Tung Sahur'], ['top', 'Rainbow Hoodie'], ['pants', 'Tan Cargos']],
   11: [['hat', 'Gold Crown'], ['shoes', 'Gold Kicks']],
   12: [['skin', 'Alien'], ['board', 'Galaxy']],
   13: [['board', 'Gold'], ['skin', 'Gold Statue']],

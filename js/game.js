@@ -543,6 +543,8 @@ function frame(now) {
       Stats.onMessage(m, skateGame ? null : mapId, hud.score);
     }
     Sound.onMessage(m);
+    // Tung Tung Tung Sahur goes "tung" when he pops
+    if (m.type === 'pop' && OUTFIT_OPTIONS.skin[(skater.outfit || Outfit.pick).skin]?.wood) Sound.play('tung');
     feelMessage(m);
     if (skateGame) skateGame.onMessage(m);
     if (telling && SAY_TYPES.has(m.type)) Net.send({ t: 'say', m });

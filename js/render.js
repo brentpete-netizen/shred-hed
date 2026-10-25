@@ -456,12 +456,32 @@ function drawHead(ctx, h, up, F) {
   const cap = (r, a = 0.15, center = h) => arcPts(center, r, ua - half - a, ua + half + a); // covers the top of the head
 
   // hair (see hair.js): the long bits hang behind your head, the rest goes on top
-  const hair = hairLook(hat);
-  drawHairBack(ctx, h, up, F, hair);
+  const hair = hairLook(hat), wood = Outfit.get('skin').wood;
+  if (!wood) drawHairBack(ctx, h, up, F, hair);
 
-  Sketch.circle(ctx, h.x, h.y, R, skin, { width: 2.2 });
   const ear = add(add(h, back, 3), up, -1); // (headphones sit on it too)
-  if (Outfit.get('skin').bones) {
+  if (wood) {
+    // Tung Tung Tung Sahur: a tall wooden log for a head, with the cut end on top, wood grain,
+    // one big wide eye under a heavy brow, and a little mouth
+    const top = add(h, up, R + 7), bot = add(h, up, -R + 1), wd = R - 0.5;
+    Sketch.shape(ctx, [add(bot, back, wd), add(top, back, wd), add(top, F, wd), add(bot, F, wd)], skin, { color: INK, width: 2.2, amp: 0.4 });
+    const ring = Array.from({ length: 14 }, (_, i) => { const a = (i / 14) * TAU; return add(add(top, F, Math.cos(a) * wd), up, Math.sin(a) * 2.4); });
+    Sketch.shape(ctx, ring, '#e0b07a', { color: INK, width: 1.6, amp: 0.2 });
+    Sketch.stroke(ctx, [add(top, F, -wd * 0.45), add(top, F, wd * 0.45)], thin('rgba(120, 70, 30, 0.6)', 1));
+    for (const k of [-0.7, -0.15, 0.45]) Sketch.stroke(ctx, [add(add(top, F, k * wd), up, -3), add(add(bot, F, k * wd + 0.6), up, 2)], thin('rgba(110, 66, 28, 0.45)', 1.1));
+    const eye = add(add(h, F, 4.8), up, 2.5);
+    Sketch.circle(ctx, eye.x, eye.y, 3.8, '#ffffff', { width: 1.4, amp: 0.2 });
+    const pupil = add(eye, F, 1.2);
+    ctx.fillStyle = INK;
+    ctx.beginPath();
+    ctx.arc(pupil.x, pupil.y, 1.7, 0, TAU);
+    ctx.fill();
+    Sketch.limb(ctx, [add(add(eye, F, -4), up, 5.5), add(add(eye, F, 4.5), up, 4.6)], 2.4, '#3a2410', { amp: 0.15 }); // the brow
+    Sketch.stroke(ctx, [add(add(h, F, 3.5), up, -5.5), add(add(h, F, 7.5), up, -5)], thin(INK, 1.6));
+  } else {
+    Sketch.circle(ctx, h.x, h.y, R, skin, { width: 2.2 });
+  }
+  if (wood) { /* (face drawn above) */ } else if (Outfit.get('skin').bones) {
     // a skull: a big dark eye socket, a hole for a nose and a grin of teeth
     const eye = add(add(h, F, 4.6), up, -0.4);
     Sketch.circle(ctx, eye.x, eye.y, 3.2, BONE_DARK, { width: 1, amp: 0.3 });
@@ -480,10 +500,11 @@ function drawHead(ctx, h, up, F) {
     ctx.fill();
     Sketch.stroke(ctx, [add(add(h, F, 6), up, -5.8), add(add(h, F, 9), up, -4.6)], thin(INK, 1.4));
   }
-  drawHairTop(ctx, h, up, F, hair);
+  if (!wood) drawHairTop(ctx, h, up, F, hair);
 
-  // Fit: tip the hat back or forward, and wear it pulled down or perched up (hair comes along)
-  const tipSide = Math.sign(up.y * F.x - up.x * F.y) || 1, lift = Outfit.fit('hatHeight') * 1.8;
+  // Fit: tip the hat back or forward, and wear it pulled down or perched up (hair comes along).
+  // (On a log head, hats sit on top of the log.)
+  const tipSide = Math.sign(up.y * F.x - up.x * F.y) || 1, lift = Outfit.fit('hatHeight') * 1.8 + (wood ? 7 : 0);
   ctx.save();
   ctx.translate(h.x + up.x * lift, h.y + up.y * lift);
   ctx.rotate(Outfit.fit('hatTilt') * 0.13 * tipSide);
@@ -905,6 +926,16 @@ function drawExtraFront(ctx, f, extra) {
   }
 }
 
+// Tung Tung Tung Sahur's wooden bat, held in his front hand, carrying on from the forearm.
+function drawBat(ctx, arm) {
+  const hand = arm[2], d = Math.hypot(hand.x - arm[1].x, hand.y - arm[1].y) || 1;
+  const dir = { x: (hand.x - arm[1].x) / d, y: (hand.y - arm[1].y) / d };
+  const grip = add(hand, dir, -3), end = add(hand, dir, 26);
+  Sketch.limb(ctx, [grip, add(hand, dir, 11)], 3.4, '#a8743f', { amp: 0.15 });
+  Sketch.limb(ctx, [add(hand, dir, 9), end], 6.5, '#b98552', { amp: 0.2 });
+  Sketch.circle(ctx, end.x, end.y, 3.4, '#e0b07a', { width: 1.2, amp: 0.2 });
+}
+
 function drawFigure(ctx, f) {
   Sketch.seedFor(40);
   const skin = Outfit.get('skin').color, top = Outfit.get('top'), pants = Outfit.get('pants'), shoe = Outfit.get('shoes');
@@ -928,6 +959,7 @@ function drawFigure(ctx, f) {
   drawHead(ctx, f.head, f.torsoDir, f.F);
   drawExtraFront(ctx, f, extra);
   if (bigHead) ctx.restore();
+  if (Outfit.get('skin').wood) drawBat(ctx, f.frontArm);
   drawArm(ctx, f.frontArm, top, top.color, skin);
   if (extra.type === 'nametag') drawNameTag(ctx, f, extra, Outfit.tagName());
 }
