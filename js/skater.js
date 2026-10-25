@@ -15,6 +15,8 @@ const SEQ_KEY = { up: 'U', down: 'D', left: 'L', right: 'R' };
 const GOOFY_KEY = { up: 'U', down: 'D', left: 'R', right: 'L' };
 // Hold the arrow for a flip and it does it again every this many seconds (if you're still in the air).
 const TRICK_REPEAT = 1.5;
+// An arrow pressed this many seconds (or less) before the ollie still counts as the flip.
+const TRICK_EARLY = 0.12;
 const KEY_DIR = { U: 'up', D: 'down', L: 'left', R: 'right' };
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -138,14 +140,19 @@ class Skater {
     for (let i = 0; i < events.length; i++) {
       const e = events[i];
       if (e === 'up') {
+        // An arrow pressed together with the ollie (or just before it) and still held is the trick,
+        // so pressing both at once works whichever key goes down first.
+        const a = this.earlyArrow, early = a && this.time - a.at <= TRICK_EARLY && this.held(a.e) ? [a.e] : [];
+        this.earlyArrow = null;
         this.ollie();
         // anything pressed in the same instant after the pop is already in the air
-        this.updateAir(0, events.slice(i + 1));
+        this.updateAir(0, [...early, ...events.slice(i + 1)]);
         return;
       }
       if (e === 'down' && this.manual) { this.endManual(); continue; }
       if (e === 'down' && this.grace > 0) { this.startManual('manual'); continue; }
       if ((e === 'spinBack' || e === 'spinFront') && !this.manual) { this.revert(); continue; }
+      if (e === 'left' || e === 'right' || e === 'down') this.earlyArrow = { e, at: this.time };
       pressed.add(e);
     }
 
