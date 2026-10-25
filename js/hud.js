@@ -156,7 +156,7 @@ function drawCard(ctx, x, y, w, h, id) {
 const HELP_LINES = [
   ['← →  or  A D', 'push · hold backwards to brake / turn around'],
   ['↑  or  W', 'ollie (hold ↓ first to pop higher) · hold ↓ on ramps to pump'],
-  ['after the ollie:', '→ kickflip   ← heelflip   ↓ shove-it   ↑ impossible'],
+  ['after the ollie:', '→ kickflip   ← heelflip   ↓ shove-it   ↑ impossible   (hold it to keep doing it)'],
   ['two quick taps:', '↓→ tre flip   ↓← laser   →→ double kick   ↓↓ 360 shuv   →↓ varial   ↑↑ double impossible'],
   ['hold Q / E', 'spin backside / frontside (180, 360, 540...)'],
   ['Space + arrow', 'grab:  → Indy   ← Melon   ↓ Stalefish   ↑ Method   ↑↓ Christ Air  (let go to land!)'],

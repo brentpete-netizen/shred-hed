@@ -51,6 +51,7 @@ class CpuDriver {
 function cpuSimulate(terrain, plan, maxT = 7) {
   const sk = new Skater(terrain), drv = new CpuDriver(plan);
   sk.regular = true; // plans are worked out in regular stance (the CPU skates regular)
+  sk.holdRepeat = false; // and one trick at a time
   let names = null, landed = false, landedAt = null, lockT = null;
   for (let i = 0; i < maxT / CPU_STEP; i++) {
     const { ev, held } = drv.step(sk);

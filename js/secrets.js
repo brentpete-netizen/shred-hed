@@ -11,6 +11,7 @@ const Secrets = (() => {
     [7, 631033509, () => Progress.toggleCheat('trail', 'COLOR TRAIL')],
     [4, 356882152, () => Progress.toggleCheat('mini', 'MINI SKATER')],
     [4, 358316207, () => Progress.unlockNameTag()],
+    [9, 857435008, () => Progress.unlockTung()],
   ];
   let recent = '';
   const api = { listening: false };

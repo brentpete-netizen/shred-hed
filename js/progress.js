@@ -19,7 +19,7 @@ const UNLOCKS = {
   7:  [['map', 'mega'], ['board', 'Toxic'], ['top', 'Tie-Dye Tee'], ['hat', 'Viking Helmet'], ['shoes', 'Light-Ups'], ['extra', 'Gold Chain'], ['skin', 'Ice']],
   8:  [['hat', 'Spiky Hair'], ['shoes', 'Green High-Tops'], ['piece', 'diyQuarter'], ['pants', 'Red Pants'], ['hat', 'Halo'], ['board', 'Neon Grid'], ['extra', 'Hero Cape']],
   9:  [['end', 'rollin'], ['board', 'Checker'], ['hat', 'Mohawk'], ['board', 'Camo'], ['shoes', 'Combat Boots']],
-  10: [['skin', 'Robot'], ['skin', 'Tung Tung Tung Sahur'], ['top', 'Rainbow Hoodie'], ['pants', 'Tan Cargos']],
+  10: [['skin', 'Robot'], ['top', 'Rainbow Hoodie'], ['pants', 'Tan Cargos']],
   11: [['hat', 'Gold Crown'], ['shoes', 'Gold Kicks']],
   12: [['skin', 'Alien'], ['board', 'Galaxy']],
   13: [['board', 'Gold'], ['skin', 'Gold Statue']],
@@ -89,6 +89,7 @@ function mergeProgress(a, b) {
   a.spots = a.spots || {};
   for (const [id, found] of Object.entries(b.spots || {})) if (found) a.spots[id] = true;
   a.nameTag = !!(a.nameTag || b.nameTag);
+  a.tung = !!(a.tung || b.tung);
   // today's challenges: the newer day wins; on the same day, the furthest you got on each
   const bd = b.daily;
   if (bd && Array.isArray(bd.prog)) {
@@ -178,6 +179,7 @@ const Progress = (() => {
       // you have to really get there: no cheat opens it (and once you have, it's yours for good)
       if (item?.earned) return levelFor(data.rep) >= item.earned || data.owned.includes(`${type}:${key}`);
       if (item?.shop !== undefined) return api.owns(item);         // only ever bought (or picked up free) in the shop
+      if (item?.secret === 'tung') return !!data.tung;             // only ever by typing his code
       if (data.everything) return true;
       if (item?.secret) return api.secretOwned(item);
       const need = api.lockLevel(type, key);
@@ -232,9 +234,18 @@ const Progress = (() => {
     // secret closet items (like the Ghost) only show up once you've earned them
     secretOwned(item) {
       if (item.shop !== undefined) return api.owns(item); // shop things don't show in the closet until they're yours
+      if (item.secret === 'tung') return !!data.tung;     // (no cheat shows this one)
       return !item.secret || !!data.everything || (item.secret === 'letters' && api.allLetters) || (item.secret === 'tag' && !!data.nameTag);
     },
     // a secret cosmetic of its own: yours for good once you've found it
+    unlockTung() {
+      const had = data.tung;
+      data.tung = true;
+      store();
+      events.push(had
+        ? { type: 'banner', title: 'TUNG TUNG TUNG', lines: ['already yours', 'Closet → Skin'] }
+        : { type: 'banner', title: 'TUNG TUNG TUNG SAHUR!', lines: ['secret skin unlocked', 'Closet → Skin'] });
+    },
     unlockNameTag() {
       const had = data.nameTag;
       data.nameTag = true;

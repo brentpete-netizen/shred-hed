@@ -50,6 +50,7 @@ class SkateGame {
     this.driver = null;
     this.state = 'banner';
     this.skater = new Skater(terrain);
+    this.skater.holdRepeat = false; // (one trick per attempt in S.K.A.T.E.)
     this.showBanner('GAME OF S.K.A.T.E.', `${this.players[0].name} sets first`, 2.2);
   }
 
@@ -72,6 +73,7 @@ class SkateGame {
     const p = this.current;
     this.attemptNo++;
     this.skater = new Skater(this.terrain);
+    this.skater.holdRepeat = false; // (one trick per attempt in S.K.A.T.E.)
     this.skater.outfit = p.outfit;
     this.attempt = { t: 0, landedAt: null, names: null, done: false };
     this.driver = null;

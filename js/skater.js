@@ -13,6 +13,8 @@ const SEQ_KEY = { up: 'U', down: 'D', left: 'L', right: 'R' };
 // Goofy (right foot forward) is regular in a mirror: ← and → swap for flips and grabs, and Q and E
 // swap for spins. (Pushing still goes the way you press: that's just where you're going.)
 const GOOFY_KEY = { up: 'U', down: 'D', left: 'R', right: 'L' };
+// Hold the arrow for a flip and it does it again every this many seconds (if you're still in the air).
+const TRICK_REPEAT = 1.5;
 const KEY_DIR = { U: 'up', D: 'down', L: 'left', R: 'right' };
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -63,6 +65,7 @@ class Skater {
     this.vert = null;
     this.grind = null;
     this.manual = null;
+    this.flipHold = null;
     this.grace = 0;
     this.fakie = false;
     this.bail = null;
@@ -146,13 +149,18 @@ class Skater {
       pressed.add(e);
     }
 
+    // still holding the arrow from your last flip: time for another one?
+    if (this.holdTrick(dt)) return;
+
     if (this.manual) {
       this.updateManual(dt);
       if (this.state !== 'ground') return;
     } else {
       this.crouchHeld = held('down');
       this.crouchTime = this.crouchHeld ? this.crouchTime + dt : 0;
-      this.handleDirections(dt, d => held(d) || pressed.has(d));
+      // (the arrow you're holding for the flip doesn't push or brake)
+      const flipDir = this.flipHold ? this.flipHold.dir : null;
+      this.handleDirections(dt, d => d !== flipDir && (held(d) || pressed.has(d)));
     }
 
     if (this.push) {
@@ -389,9 +397,14 @@ class Skater {
       else if (e in keys) {
         if (e === 'up' && !this.popped && this.airTime <= C.coyoteTime) this.latePop();
         else if (held('grab')) this.grabInput(keys[e]);
-        else this.trickInput(keys[e]);
+        else {
+          this.trickInput(keys[e]);
+          // keep holding it and it'll go again (see holdTrick)
+          if (this.trick && !this.trick.done && this.holdRepeat !== false) this.flipHold = { keys: this.trick.keys, dir: e, t: 0 };
+        }
       }
     }
+    this.holdTrick(dt);
     const tr = this.trick;
     if (tr && !tr.done) {
       tr.t += dt;
@@ -408,6 +421,27 @@ class Skater {
     if (dt === 0) return;
     if (this.vert) this.updateVert(dt);
     else this.updateFlight(dt);
+  }
+
+  // Still holding the arrow you flipped with: the same trick again every TRICK_REPEAT seconds.
+  // In the air it goes again once the last one's caught; back on the ground it pops a fresh ollie
+  // for it. Let go (or grab) and it stops. True if it just popped you off the ground.
+  holdTrick(dt) {
+    const h = this.flipHold;
+    if (!h) return false;
+    if (!this.held(h.dir) || this.held('grab')) { this.flipHold = null; return false; }
+    if ((h.t += dt) < TRICK_REPEAT) return false;
+    if (this.state === 'air') {
+      if (this.trick && !this.trick.done) return false;
+      h.t = 0;
+      for (const k of h.keys) this.trickInput(k); // (both taps, for a two-tap trick)
+      return false;
+    }
+    if (this.state !== 'ground' || this.manual || this.pivot) return false;
+    h.t = 0;
+    this.ollie();
+    for (const k of h.keys) this.trickInput(k);
+    return true;
   }
 
   heldDirKey() {
@@ -692,6 +726,7 @@ class Skater {
     this.grab = null;
     this.grind = null;
     this.manual = null;
+    this.flipHold = null;
     this.spin = 0;
     this.spinVel = 0;
     this.grace = 0;
