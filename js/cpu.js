@@ -192,7 +192,7 @@ function cpuFluff(terrain, plan, target) {
 const CPU_SETS = [
   { tier: 0, names: ['Kickflip', 'Heelflip', 'Pop Shove-it', 'FS 180', 'BS 180', 'Indy', '50-50'] },
   { tier: 1, names: ['Varial Kickflip', '360 Shove-it', 'BS 180 Kickflip', 'FS 180 Heelflip', 'Melon', 'Boardslide', '5-0', 'Kickflip + 50-50', 'Impossible'] },
-  { tier: 2, names: ['Tre Flip', 'Laser Flip', 'Hardflip', 'Inward Heelflip', 'BS 360', 'Method', 'Nosegrind', 'Crooked Grind', 'Fakie Kickflip', 'Christ Air'] },
+  { tier: 2, names: ['Tre Flip', 'Laser Flip', 'Hardflip', 'Inward Heelflip', 'BS 360', 'Method', 'Nosegrind', 'Crooked Grind', 'Fakie Kickflip', 'Christ Air', 'Double Impossible', '360 Hardflip'] },
 ];
 
 // The chance the CPU fluffs a trick, by how hard it is.

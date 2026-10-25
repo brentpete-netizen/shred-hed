@@ -24,6 +24,9 @@ const TRICKS = {
   RL: { name: 'Ghost Flip',      flip:  1, shuv:  3, dur: 0.7, pts: 800 },
   UD: { name: 'Hospital Flip',   flip:  1, shuv:  0, imp: 1, dur: 0.6, pts: 650 },
   DU: { name: 'Nightmare Flip',  flip: -2, shuv:  2, dur: 0.66, pts: 900 },
+  UU: { name: 'Double Impossible', flip: 0, shuv: 0, imp: 2, dur: 0.66, pts: 500 },
+  UR: { name: '360 Hardflip',    flip:  1, shuv: -2, dur: 0.6, pts: 600 },
+  UL: { name: '360 Inward Heelflip', flip: -1, shuv: 2, dur: 0.6, pts: 600 },
 };
 
 const TRICKS_BY_NAME = Object.fromEntries(Object.values(TRICKS).map(t => [t.name, t]));

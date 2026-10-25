@@ -33,7 +33,7 @@ const PING_EVERY = 3000;
 // listen for a moment and join the busiest that has room. Nobody there? You open one.
 const PUBLIC_TOPIC = RELAY_ROOT + 'public/';
 const PUBLIC_SIZE = 6;
-const PUBLIC_MAPS = ['park', 'street', 'school', 'mega'];
+const PUBLIC_MAPS = ['park', 'street', 'school', 'mega', 'boardwalk'];
 const ANNOUNCE_EVERY = 2000; // ms
 const PUBLIC_LISTEN = 3000;  // ms spent listening for public parks
 

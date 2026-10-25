@@ -102,6 +102,27 @@ function makeSkyline(kind, worldWidth) {
       for (let k = 0; k < 4; k++) Sketch.circle(g, x + (r() - 0.5) * 60, -vh - 30 - k * 40, 22 + k * 8, 'rgba(120, 110, 100, 0.18)', { color: 'rgba(80,74,66,0.25)', width: 1.2 });
       Sketch.stroke(g, [{ x: x - 30, y: -vh + 4 }, { x: x - 10, y: -vh + 60 }, { x: x + 6, y: -vh + 110 }], { ...pencil, color: 'rgba(226, 85, 63, 0.6)', width: 4 });
     }
+  } else if (kind === 'beach') {
+    // the sea out to the horizon, sailboats, a lighthouse and a few gulls
+    const sea = [{ x: 0, y: 0 }, { x: 0, y: -90 }, { x: width, y: -90 }, { x: width, y: 0 }];
+    Sketch.fill(g, sea, 'rgba(110, 175, 215, 0.35)', 2);
+    Sketch.stroke(g, [{ x: 0, y: -90 }, { x: width, y: -90 }], pencil);
+    for (let y = -70; y < 0; y += 18) for (let x = (y * 37) % 90; x < width; x += 90 + r() * 60) {
+      Sketch.stroke(g, [{ x, y }, { x: x + 14, y: y - 3 }, { x: x + 28, y }], { ...pencil, width: 1, passes: 1 });
+    }
+    for (let x = 300; x < width; x += 900 + r() * 500) {
+      Sketch.shape(g, [{ x, y: -96 }, { x: x + 60, y: -96 }, { x: x + 50, y: -86 }, { x: x + 10, y: -86 }], wash, { ...pencil, width: 1.2 });
+      Sketch.shape(g, [{ x: x + 30, y: -98 }, { x: x + 30, y: -160 }, { x: x + 58, y: -102 }], 'rgba(244, 241, 234, 0.7)', { ...pencil, width: 1.2 });
+    }
+    for (let x = 1500; x < width; x += 3200) {
+      Sketch.shape(g, [{ x: x - 16, y: -90 }, { x: x - 10, y: -230 }, { x: x + 10, y: -230 }, { x: x + 16, y: -90 }], 'rgba(244, 241, 234, 0.6)', pencil);
+      for (const yy of [-120, -170, -215]) Sketch.stroke(g, [{ x: x - 14, y: yy }, { x: x + 14, y: yy }], { ...pencil, color: 'rgba(226, 85, 63, 0.6)', width: 6 });
+      Sketch.circle(g, x, -244, 12, 'rgba(244, 197, 66, 0.4)', { color: pencil.color, width: 1.4 });
+    }
+    for (let i = 0; i < 26; i++) {
+      const x = r() * width, y = -200 - r() * 240, s = 6 + r() * 6;
+      Sketch.stroke(g, [{ x: x - s, y: y - s * 0.4 }, { x, y }, { x: x + s, y: y - s * 0.4 }], { ...pencil, width: 1.4, passes: 1 });
+    }
   } else if (kind === 'downtown') towers(160, 440, 0.7);
   else if (kind === 'suburb') {
     for (let x = 0; x < width; x += 150 + r() * 80) {
@@ -518,6 +539,7 @@ function frame(now) {
     hud.handle(m);
     if (yours) {
       Progress.onMessage(m); // before Stats, so it can tell which tricks are new
+      Challenges.onMessage(m);
       Stats.onMessage(m, skateGame ? null : mapId, hud.score);
     }
     Sound.onMessage(m);

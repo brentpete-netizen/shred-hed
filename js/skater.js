@@ -77,6 +77,8 @@ class Skater {
     else if (this.state === 'air') this.updateAir(dt, events);
     else if (this.state === 'grind') this.updateGrind(dt, events);
     else this.updateBail(dt, events);
+    // came up short over the water
+    if (this.state !== 'bail' && this.terrain.inWater?.(this.pos.x, this.pos.y)) this.startBail('splash!');
     this.updateBody(dt);
     this.updateFx(dt);
   }
@@ -710,7 +712,8 @@ class Skater {
   recover() {
     const T = this.terrain, b = this.bail;
     const near = T.closest(b.body.x, b.body.y);
-    this.respawn(T.flatNear(near.s));
+    // out of the water and back to the start; otherwise somewhere flat nearby
+    this.respawn(T.inWater?.(b.body.x, b.body.y + 40) ? T.spawnS : T.flatNear(near.s));
     this.out.push({ type: 'recover' });
   }
 

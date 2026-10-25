@@ -123,6 +123,7 @@ const THEMES = {
   lava:   { ground: '#c97a5e', hatch: 'rgba(110, 30, 20, 0.25)', sky: 'volcano' },
   hill:   { ground: '#cfc6ae', hatch: 'rgba(100, 86, 60, 0.22)', sky: 'hills' },
   drain:  { ground: '#aaa69c', hatch: 'rgba(60, 60, 56, 0.25)', sky: 'hills' },
+  beach:  { ground: '#e6d3a3', hatch: 'rgba(150, 110, 60, 0.22)', sky: 'beach' },
 };
 
 function buildSkatepark() {
@@ -223,6 +224,39 @@ function buildMega() {
   return T;
 }
 
+// The boardwalk by the beach: a bench and a long rail, then the lifeguard kicker and a jump over
+// the water (come up short and you're swimming), a picnic table, a sand dune and the sea wall.
+const BOARDWALK = { kicker: 70, lipAng: 0.45, pool: 150, deck: -40, landing: 0.22 };
+
+function buildBoardwalk() {
+  const b = MapBuilder.qpStart(0, 0, 200, 10);
+  b.flat(140).prop('bench', 90, 160, 26).flat(460);
+  b.prop('rail', 40, 300, 30).flat(420);
+  // the lifeguard kicker, straight down into the water, and a landing deck on the far side
+  const K = BOARDWALK, R = 240;
+  b.bend(R, -K.lipAng).line((K.kicker - R * (1 - Math.cos(K.lipAng))) / Math.sin(K.lipAng), -K.lipAng);
+  const lip = { ...b.cur };
+  b.to(0, K.kicker + 120);
+  const poolStart = b.cur.x;
+  b.flat(K.pool);
+  const poolEnd = b.cur.x;
+  b.to(0, -(120 - K.deck));
+  b.line(-K.deck / Math.sin(K.landing), K.landing); // the landing ramp, down to the boardwalk
+  b.flat(240).prop('table', 70, 160, 42).flat(420);
+  b.line(70, -0.5).flat(120).line(70, 0.5); // a sand dune
+  b.flat(300).prop('ledge', 40, 320, 30).flat(520); // the sea wall
+  b.qpEnd(230, 12);
+  for (const x of [120, 900, 1900, 2700, 3500]) b.scenery({ type: 'palm', x, y: 0, s: 0.9 + (x % 3) * 0.12 });
+  for (const [x, c] of [[600, '#e2553f'], [2300, '#2f80ed'], [3200, '#f4c542']]) b.scenery({ type: 'umbrella', x, y: 0, color: c });
+  b.scenery({ type: 'lifeguard', x: lip.x - 230, y: 0 });
+  b.front.push({ type: 'water', x0: poolStart, x1: poolEnd, y: 30, bottom: 120 });
+  b.front.push({ type: 'paint', x: poolEnd + 210, y: -60, text: 'SURF & SHRED' });
+  const T = b.build({ spawn: { x: 300, y: 0 }, theme: THEMES.beach, name: 'Boardwalk' });
+  T.water = [{ x0: poolStart, x1: poolEnd, y: 30 }];
+  T.kickerLip = lip;
+  return T;
+}
+
 // ---------------------------------------------------------------- the hidden ones
 
 function buildMoon() {
@@ -313,4 +347,5 @@ const MAPS = [
   { id: 'street', name: 'STREET', blurb: 'Stairs, handrails, benches and a parked car', build: buildStreet },
   { id: 'school', name: 'SCHOOL YARD', blurb: 'The big eight-stair, a gap and the court', build: buildSchool },
   { id: 'mega', name: 'MEGA RAMP', blurb: 'Giant roll-in, huge gap, DIY spot under the bridge', build: buildMega },
+  { id: 'boardwalk', name: 'BOARDWALK', blurb: 'Palm trees, the sea wall, and a jump over the water', build: buildBoardwalk },
 ];

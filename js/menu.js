@@ -3,7 +3,7 @@
 
 const PX_PER_FT = 23; // the skater is about 5.5 ft tall
 
-const MAIN_ITEMS = ['FREE SKATE', 'S.K.A.T.E.', 'ONLINE', 'PARK BUILDER', 'CLOSET', 'SKATE SHOP', 'STATS', 'AUDIO'];
+const MAIN_ITEMS = ['FREE SKATE', 'S.K.A.T.E.', 'ONLINE', 'CHALLENGES', 'PARK BUILDER', 'CLOSET', 'SKATE SHOP', 'STATS', 'AUDIO'];
 const CATEGORY_LABEL = Object.fromEntries(OUTFIT_CATEGORIES);
 
 // the last shop day you looked in the shop (so the menu can say there's new stock)
@@ -184,6 +184,7 @@ class Menu {
       try { localStorage.setItem(SHOP_SEEN_KEY, String(shopDay())); } catch (e) { /* storage blocked */ }
     }
     else if (item === 'STATS') this.screen = 'stats';
+    else if (item === 'CHALLENGES') this.screen = 'challenges';
     else { this.screen = 'audio'; this.audioRow = 0; }
   }
 
@@ -561,13 +562,14 @@ class Menu {
     else if (this.screen === 'audio') this.drawAudio(ctx, w, h);
     else if (this.screen === 'closet') this.drawCloset(ctx, w, h, dpr);
     else if (this.screen === 'shop') this.drawShop(ctx, w, h, dpr);
+    else if (this.screen === 'challenges') this.drawChallenges(ctx, w, h);
     else if (this.screen === 'fit') this.drawFit(ctx, w, h, dpr);
     else if (this.screen === 'online') this.drawOnline(ctx, w, h);
     else if (this.screen === 'join') this.drawJoin(ctx, w, h);
     else if (this.screen === 'lobby') this.drawLobby(ctx, w, h);
     else this.drawStats(ctx, w, h);
     // screens you leave with Esc get a button too, for phones and tablets with no Esc key
-    if (['maps', 'versus', 'parks', 'audio', 'online', 'join'].includes(this.screen)) {
+    if (['maps', 'versus', 'parks', 'audio', 'online', 'join', 'challenges'].includes(this.screen)) {
       const leave = this.screen === 'join' ? () => { this.stopTyping(); this.screen = 'online'; Sound.play('menuMove'); } : () => this.back();
       this.button(ctx, '◀', 12, w < 600 ? h - 52 : 12, 52, 40, false, 653, leave); // (clear of the titles on a phone)
     }
@@ -850,11 +852,10 @@ class Menu {
     const y0 = ly + 52;
     MAIN_ITEMS.forEach((item, i) => {
       this.button(ctx, item, x, y0 + i * (bh + gap), bw, bh, i === this.sel, 100 + i, () => this.choose(i));
-      // fresh stock in the shop you haven't looked at yet
-      if (item === 'SKATE SHOP' && shopSeenDay() !== shopDay()) {
-        const bob = Math.sin(time * 5) * 2;
-        markerText(ctx, 'NEW!', x + bw - 8, y0 + i * (bh + gap) + 4 + bob, Math.min(20, bh * 0.42), '#e2553f', 0.2);
-      }
+      // fresh stock in the shop you haven't looked at yet, and challenges still to do today
+      const bob = Math.sin(time * 5) * 2, by = y0 + i * (bh + gap) + 4 + bob, bs = Math.min(20, bh * 0.42);
+      if (item === 'SKATE SHOP' && shopSeenDay() !== shopDay()) markerText(ctx, 'NEW!', x + bw - 8, by, bs, '#e2553f', 0.2);
+      if (item === 'CHALLENGES' && Challenges.left()) markerText(ctx, `${Challenges.left()} LEFT`, x + bw - 14, by, bs, '#f4c542', 0.2);
     });
 
     const d = Stats.data;
@@ -1476,6 +1477,59 @@ class Menu {
       this.dragging = f.key;
       this.setFit(f.key, f.min + ((x - x0) / (x1 - x0)) * span);
     });
+  }
+
+  // Today's three challenges: how far you've got, what they pay, and when new ones come.
+  drawChallenges(ctx, w, h) {
+    markerText(ctx, 'DAILY CHALLENGES', w / 2, Math.min(60, h * 0.09), Math.min(52, w / 11), '#f4c542', -0.04);
+    const list = Challenges.today(), now = performance.now() / 1000;
+    const cw = Math.min(w - 32, 640), chh = Math.max(84, Math.min(124, (h * 0.6) / 3)), x = (w - cw) / 2, top = Math.min(118, h * 0.16);
+    const TIER_COLOR = ['#7fd36b', '#f4c542', '#e2553f'];
+    list.forEach((c, i) => {
+      const y = top + i * (chh + 14);
+      Sketch.seedFor(720 + i);
+      const box = [{ x, y }, { x: x + cw, y }, { x: x + cw, y: y + chh }, { x, y: y + chh }];
+      ctx.fillStyle = 'rgba(40, 30, 20, 0.2)';
+      ctx.fillRect(x + 5, y + 6, cw, chh);
+      Sketch.fill(ctx, box, c.done ? '#e3f3d6' : '#fbf8f0', 2);
+      Sketch.stroke(ctx, box, { color: INK, width: 2.2, amp: 1, closed: true });
+      // EASY / MEDIUM / HARD
+      const tag = [{ x: x + 14, y: y + 12 }, { x: x + 112, y: y + 12 }, { x: x + 104, y: y + 40 }, { x: x + 14, y: y + 40 }];
+      Sketch.shape(ctx, tag, TIER_COLOR[c.tier], { color: INK, width: 1.8, amp: 0.4 });
+      markerText(ctx, CHALLENGE_TIER[c.tier], x + 60, y + 27, 18, '#ffffff');
+      // what to do (the reward gets the right-hand part of the card)
+      const rw = Math.min(184, cw * 0.28), textW = cw - rw - 30;
+      const size = this.fitText(ctx, c.text, textW, Math.min(30, chh * 0.3), MARKER);
+      ctx.font = `${size}px ${MARKER}`;
+      markerText(ctx, c.text, x + 18 + ctx.measureText(c.text).width / 2, y + chh * 0.6, size, '#ffffff', -0.01);
+      // how far (for the ones you count up)
+      if (c.goal > 1) {
+        const bx = x + 18, bw = textW - 8, by = y + chh - 20, f = c.prog / c.goal;
+        Sketch.seedFor(730 + i);
+        const bar = [{ x: bx, y: by }, { x: bx + bw, y: by }, { x: bx + bw, y: by + 10 }, { x: bx, y: by + 10 }];
+        Sketch.fill(ctx, bar, '#ece6d8', 1);
+        if (f > 0) Sketch.fill(ctx, [{ x: bx, y: by }, { x: bx + bw * f, y: by }, { x: bx + bw * f, y: by + 10 }, { x: bx, y: by + 10 }], TIER_COLOR[c.tier], 1);
+        Sketch.stroke(ctx, bar, { color: INK, width: 1.6, amp: 0.5, closed: true });
+        ctx.font = `14px ${HAND}`;
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'bottom';
+        ctx.fillStyle = INK;
+        ctx.fillText(`${c.prog} / ${c.goal}`, bx + bw, by - 2);
+      }
+      // what it pays, or DONE
+      if (c.done) markerText(ctx, 'DONE!', x + cw - rw / 2 - 6, y + chh / 2, Math.min(40, chh * 0.38, rw / 2.6), '#7fd36b', -0.18, 1 + Math.sin(now * 3 + i) * 0.03);
+      else drawBucks(ctx, `+${c.reward}`, x + cw - rw / 2 - 6, y + chh / 2, Math.min(32, chh * 0.3, rw / 3.6), '#f4c542');
+    });
+    const ends = shopToday().nextAt - Date.now(), hrs = Math.floor(ends / 3.6e6), mins = Math.floor((ends % 3.6e6) / 6e4);
+    const by = top + 3 * (chh + 14) + 4;
+    markerText(ctx, `NEW CHALLENGES IN ${hrs}h ${String(mins).padStart(2, '0')}m`, w / 2, by + 10, Math.min(20, w / 30), '#ffffff');
+    ctx.font = `${Math.max(13, Math.min(16, w / 70))}px ${HAND}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = INK;
+    const notes = this.wrapText(ctx, 'New ones every day at 12:00 PM · your own skating counts, anywhere · cheats pause them', w / 2, by + 26, w - 32, 18);
+    const bw = Math.min(220, w - 48), bh = Math.min(50, h * 0.08);
+    this.button(ctx, 'BACK', (w - bw) / 2, by + 34 + notes.length * 18, bw, bh, false, 740, () => { this.screen = 'main'; });
   }
 
   drawStats(ctx, w, h) {

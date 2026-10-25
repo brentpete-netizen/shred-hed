@@ -157,7 +157,7 @@ const HELP_LINES = [
   ['← →  or  A D', 'push · hold backwards to brake / turn around'],
   ['↑  or  W', 'ollie (hold ↓ first to pop higher) · hold ↓ on ramps to pump'],
   ['after the ollie:', '→ kickflip   ← heelflip   ↓ shove-it   ↑ impossible'],
-  ['two quick taps:', '↓→ tre flip   ↓← laser   →→ double kick   ↓↓ 360 shuv   →↓ varial'],
+  ['two quick taps:', '↓→ tre flip   ↓← laser   →→ double kick   ↓↓ 360 shuv   →↓ varial   ↑↑ double impossible'],
   ['hold Q / E', 'spin backside / frontside (180, 360, 540...)'],
   ['Space + arrow', 'grab:  → Indy   ← Melon   ↓ Stalefish   ↑ Method   ↑↓ Christ Air  (let go to land!)'],
   ['land on a rail', 'nothing 50-50 · forward nosegrind · back 5-0 · ↓ boardslide · ↑ crooked'],

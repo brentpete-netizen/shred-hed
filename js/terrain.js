@@ -71,6 +71,9 @@ class Terrain {
     for (let x = this.minX - H; x < this.maxX; x += 15) this.hatch.push([{ x, y: bottom }, { x: x + H, y: bottom - H }]);
   }
 
+  // In the water (the boardwalk's pool)? Then you're swimming, not skating.
+  inWater(x, y) { return !!this.water && this.water.some(w => x > w.x0 && x < w.x1 && y > w.y); }
+
   segIndexAt(s) {
     for (const seg of this.segs) if (s <= seg.s1) return seg.i;
     return this.segs.length - 1;

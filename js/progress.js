@@ -12,7 +12,7 @@ for (let lvl = 2; lvl <= MAX_LEVEL; lvl++) REP_LEVELS.push(REP_LEVELS[lvl - 2] +
 //   map: a map id · piece / prop / end: a Park Builder part · anything else: a closet item by name
 const UNLOCKS = {
   2:  [['map', 'street'], ['board', 'Black & Gold'], ['hat', 'Helmet'], ['hat', 'Cowboy Hat'], ['top', 'Hawaiian Shirt'], ['board', 'Pizza'], ['extra', 'Backpack']],
-  3:  [['hat', 'Bucket Hat'], ['top', 'Team Jersey'], ['piece', 'halfpipe'], ['hat', 'Afro'], ['pants', 'Ripped Jeans'], ['shoes', 'Neon Kicks'], ['extra', 'Mustache']],
+  3:  [['map', 'boardwalk'], ['hat', 'Bucket Hat'], ['top', 'Team Jersey'], ['piece', 'halfpipe'], ['hat', 'Afro'], ['pants', 'Ripped Jeans'], ['shoes', 'Neon Kicks'], ['extra', 'Mustache']],
   4:  [['map', 'school'], ['shoes', 'Red High-Tops'], ['top', 'Black Hoodie'], ['top', 'Varsity Jacket'], ['pants', 'Camo Pants'], ['board', 'Lightning']],
   5:  [['board', 'Ocean'], ['pants', 'Khaki Shorts'], ['prop', 'kinkRail'], ['hat', 'Top Hat'], ['top', 'Tuxedo'], ['extra', 'Scarf']],
   6:  [['hat', 'Headphones'], ['top', 'Red Flannel'], ['piece', 'bankLedge'], ['skin', 'Zombie'], ['hat', 'Propeller Beanie'], ['top', 'Camo Hoodie'], ['pants', 'Plaid Pants'], ['board', 'Rainbow']],
@@ -70,7 +70,7 @@ const BUCKS = {
 // cheats that make skating easier: no Rep or Shred Bucks while one's on
 const EASY_CHEATS = ['lowgrav', 'halfspeed'];
 
-const MAP_NAMES = { street: 'Street map', school: 'School Yard map', mega: 'Mega Ramp map' };
+const MAP_NAMES = { street: 'Street map', school: 'School Yard map', mega: 'Mega Ramp map', boardwalk: 'Boardwalk map' };
 const BUILDER_NAMES = { halfpipe: 'Halfpipe piece', kinkRail: 'Kink Rail piece', bankLedge: 'Bank-to-Ledge piece', diyQuarter: 'DIY Quarter piece', rollin: 'Roll-in tower start' };
 const unlockLabel = ([type, key]) => MAP_NAMES[key] || BUILDER_NAMES[key] || (type === 'trail' ? `${key} trail` : key);
 
@@ -89,6 +89,12 @@ function mergeProgress(a, b) {
   a.spots = a.spots || {};
   for (const [id, found] of Object.entries(b.spots || {})) if (found) a.spots[id] = true;
   a.nameTag = !!(a.nameTag || b.nameTag);
+  // today's challenges: the newer day wins; on the same day, the furthest you got on each
+  const bd = b.daily;
+  if (bd && Array.isArray(bd.prog)) {
+    if (!a.daily || bd.day > a.daily.day) a.daily = { day: bd.day, prog: [...bd.prog] };
+    else if (bd.day === a.daily.day) a.daily.prog = a.daily.prog.map((p, i) => Math.max(+p || 0, +bd.prog[i] || 0));
+  }
   return a;
 }
 
@@ -101,17 +107,39 @@ const Progress = (() => {
   const data = saved || { rep: 0, owned: [] };
   const events = [];   // for the HUD: rep gained, new tricks, level ups
 
+  // Running totals (Rep, and Shred Bucks earned and spent) add up across open tabs: what this tab
+  // has added since it last looked goes on top of whatever's saved now, so two tabs both earning
+  // keep both. `synced`: the totals as this tab last saw them saved.
+  const COUNTERS = ['rep', 'bucksEarned', 'bucksSpent'];
+  const synced = {};
+  for (const k of COUNTERS) if (main && Number.isFinite(+main[k])) synced[k] = +main[k];
+  const absorb = disk => {
+    for (const k of COUNTERS) {
+      if (data[k] === undefined) continue; // not started yet (a brand-new save)
+      const mine = +data[k] || 0, base = synced[k] ?? mine, theirs = +disk?.[k] || 0;
+      if (theirs >= base) data[k] = theirs + (mine - base);
+      synced[k] = theirs >= base ? theirs : base;
+    }
+  };
+  const markSynced = () => { for (const k of COUNTERS) synced[k] = +data[k] || 0; };
+
   // Save: first fold in anything another open tab saved since, so the two never undo each other.
   const store = () => {
     try {
-      mergeProgress(data, read(KEY));
+      const disk = read(KEY);
+      absorb(disk);
+      mergeProgress(data, disk);
       const json = JSON.stringify(data);
       localStorage.setItem(KEY, json);
       localStorage.setItem(BACKUP, json);
+      markSynced();
     } catch (e) { /* storage blocked */ }
   };
   // another tab saved: keep up with it
-  addEventListener('storage', e => { if (e.key === KEY && e.newValue) { try { mergeProgress(data, JSON.parse(e.newValue)); } catch (err) { /* broken */ } } });
+  addEventListener('storage', e => {
+    if (e.key !== KEY || !e.newValue) return;
+    try { const disk = JSON.parse(e.newValue); absorb(disk); mergeProgress(data, disk); } catch (err) { /* broken */ }
+  });
 
   // An easy-mode cheat is on: nothing earned, and a heads-up the first time.
   let warned = false;
@@ -259,6 +287,7 @@ const Progress = (() => {
 
     // ---------------------------------------------------------------- Shred Bucks and the shop
     get bucks() { return Math.max(0, data.bucksEarned - data.bucksSpent); },
+    save() { store(); },
     get cheating() { return EASY_CHEATS.some(c => api.cheat(c)); },
     earn(amount, reason) {
       if (amount <= 0 || blocked()) return;

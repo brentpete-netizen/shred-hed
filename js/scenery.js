@@ -73,6 +73,40 @@ const SCENERY = {
     Sketch.limb(sc, [{ x: x + 40, y: y - 60 }, { x: x + 40, y: y - 120 }], 2, '#9aa0a6', { amp: 0.3 });
     Sketch.circle(sc, x + 40, y - 124, 5, '#ef5a4a', { width: 1.4 });
   },
+  palm({ x, y, s = 1 }) {
+    // a curvy trunk with rings, and a burst of fronds on top
+    const trunk = [{ x, y }, { x: x + 10 * s, y: y - 70 * s }, { x: x + 28 * s, y: y - 150 * s }];
+    Sketch.limb(sc, trunk, 10 * s, '#a7804f', { amp: 0.4 });
+    for (let k = 0.15; k < 0.95; k += 0.12) {
+      const p = { x: x + 28 * s * k * k + 2, y: y - 150 * s * k };
+      Sketch.stroke(sc, [{ x: p.x - 5 * s, y: p.y }, { x: p.x + 5 * s, y: p.y - 2 }], thin('rgba(90, 60, 30, 0.5)', 1.2));
+    }
+    const top = { x: x + 28 * s, y: y - 150 * s };
+    for (const [ang, len] of [[-2.9, 70], [-2.3, 62], [-1.6, 50], [-0.9, 62], [-0.25, 72], [0.4, 54], [-3.5, 54]]) {
+      const tip = { x: top.x + Math.cos(ang) * len * s, y: top.y + Math.sin(ang) * len * s + 26 * s };
+      const mid = { x: (top.x + tip.x) / 2, y: Math.min(top.y, tip.y) - 12 * s };
+      Sketch.limb(sc, [top, mid, tip], 9 * s, '#5fa84a', { amp: 0.5 });
+    }
+    for (const dx of [-5, 4]) Sketch.circle(sc, top.x + dx * s, top.y + 6 * s, 5 * s, '#7a5230', { width: 1.4 });
+  },
+  umbrella({ x, y, color }) {
+    Sketch.limb(sc, [{ x, y }, { x: x + 6, y: y - 92 }], 3, '#e8e2d2', { amp: 0.3 });
+    const top = { x: x + 6, y: y - 92 }, pts = [];
+    for (let i = 0; i <= 10; i++) { const a = Math.PI + (Math.PI * i) / 10; pts.push({ x: top.x + Math.cos(a) * 58, y: top.y + 6 + Math.sin(a) * 26 }); }
+    Sketch.shape(sc, pts, color, { color: INK, width: 2, amp: 0.6 });
+    for (const k of [-0.5, 0, 0.5]) Sketch.stroke(sc, [{ x: top.x, y: top.y - 20 }, { x: top.x + k * 58, y: top.y + 6 }], thin('rgba(255,255,255,0.8)', 3));
+    Sketch.shape(sc, [{ x: x - 40, y: y - 2 }, { x: x + 30, y: y - 2 }, { x: x + 34, y: y - 10 }, { x: x - 36, y: y - 10 }], '#f4f1ea', thin(PENCIL, 1.2)); // a towel
+  },
+  lifeguard({ x, y }) {
+    // a lifeguard tower on stilts
+    for (const dx of [-30, 30]) Sketch.stroke(sc, [{ x: x + dx, y }, { x: x + dx * 0.6, y: y - 120 }], { color: '#8a6240', width: 4, amp: 0.4 });
+    Sketch.stroke(sc, [{ x: x - 26, y: y - 50 }, { x: x + 26, y: y - 90 }], thin('#8a6240', 3));
+    const hut = [{ x: x - 34, y: y - 120 }, { x: x + 34, y: y - 120 }, { x: x + 34, y: y - 176 }, { x: x - 34, y: y - 176 }];
+    Sketch.shape(sc, hut, '#f4f1ea', { color: INK, width: 2.2, amp: 0.6 });
+    Sketch.shape(sc, [{ x: x - 44, y: y - 176 }, { x: x + 44, y: y - 176 }, { x: x, y: y - 204 }], '#e2553f', { color: INK, width: 2.2, amp: 0.6 });
+    Sketch.stroke(sc, [{ x: x - 34, y: y - 150 }, { x: x + 34, y: y - 150 }], thin('#e2553f', 4));
+    markerText(sc, '+', x, y - 134, 18, '#e2553f');
+  },
   graffiti({ x, y, color }) {
     for (let i = 0; i < 5; i++) {
       Sketch.circle(sc, x + i * 26 - 50, y + Math.sin(i * 1.7) * 10, 18, color, { color: INK, width: 2, amp: 2 });
@@ -124,6 +158,23 @@ const SCENERY = {
     }
   },
   paint({ x, y, text }) { markerText(sc, text, x, y, 30, '#f4c542', -0.08); },
+  water({ x0, x1, y, bottom }) {
+    // the pool under the jump, rippling
+    const t = performance.now() / 1000, top = [];
+    for (let x = x0; x <= x1; x += 12) top.push({ x, y: y + Math.sin(x / 26 + t * 2.4) * 2.5 });
+    sc.fillStyle = 'rgba(70, 150, 210, 0.72)';
+    sc.beginPath();
+    sc.moveTo(x0, bottom);
+    for (const p of top) sc.lineTo(p.x, p.y);
+    sc.lineTo(x1, bottom);
+    sc.closePath();
+    sc.fill();
+    Sketch.stroke(sc, top, { color: 'rgba(240, 250, 255, 0.9)', width: 2.4, amp: 0.3, passes: 1, maxLen: 0 });
+    for (let k = 0; k < 3; k++) {
+      const wx = x0 + ((k * 61 + t * 30) % (x1 - x0 - 30)) + 10, wy = y + 22 + k * 22;
+      Sketch.stroke(sc, [{ x: wx, y: wy }, { x: wx + 9, y: wy - 3 }, { x: wx + 18, y: wy }], thin('rgba(240, 250, 255, 0.6)', 1.6));
+    }
+  },
 };
 
 let sc = null, T_ACTIVE = null; // the canvas and terrain the drawers above are working with
