@@ -257,6 +257,12 @@ const Net = (() => {
       emit('roster');
       // dropping into a Free Skate that's already going
       if (api.started) link.send(startMessage());
+    } else if (msg.t === 'outfit') {
+      // a guest changed clothes: everyone gets the new roster
+      const p = api.players.find(q => q.id === link.playerId);
+      if (p && msg.outfit && typeof msg.outfit === 'object') p.outfit = msg.outfit;
+      broadcast({ t: 'roster', players: api.players });
+      emit('roster');
     } else {
       // pass it on to everyone else, then handle it here too
       msg.from = link.playerId;
@@ -431,6 +437,18 @@ const Net = (() => {
     else if (hostLink?.open) hostLink.send(msg);
   }
 
+  // Changed clothes (in the closet, say): let everyone in the room see the new look.
+  function updateOutfit() {
+    if (!api.role) return;
+    const outfit = { ...Outfit.pick };
+    if (api.role === 'host') {
+      const p = api.players.find(q => q.id === api.me);
+      if (p) p.outfit = outfit;
+      broadcast({ t: 'roster', players: api.players });
+      emit('roster');
+    } else send({ t: 'outfit', outfit });
+  }
+
   function leave() {
     reset();
     api.error = '';
@@ -453,7 +471,7 @@ const Net = (() => {
   // closing the tab: say goodbye so friends don't wait for you
   addEventListener('pagehide', () => api.active && reset());
 
-  Object.assign(api, { host, join, joinPublic, leave, send, startGame, update });
+  Object.assign(api, { host, join, joinPublic, leave, send, startGame, update, updateOutfit });
   return api;
 })();
 

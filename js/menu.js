@@ -4,6 +4,8 @@
 const PX_PER_FT = 23; // the skater is about 5.5 ft tall
 
 const MAIN_ITEMS = ['FREE SKATE', 'S.K.A.T.E.', 'ONLINE', 'CHALLENGES', 'PARK BUILDER', 'CLOSET', 'SKATE SHOP', 'STATS', 'AUDIO'];
+// the menu while you're still in an online room (you stay in it until you pick LEAVE ROOM)
+const ROOM_ITEMS = ['BACK TO THE ROOM', 'CLOSET', 'SKATE SHOP', 'CHALLENGES', 'STATS', 'AUDIO', 'LEAVE ROOM'];
 const CATEGORY_LABEL = Object.fromEntries(OUTFIT_CATEGORIES);
 
 // the last shop day you looked in the shop (so the menu can say there's new stock)
@@ -129,14 +131,19 @@ class Menu {
 
   open(screen = 'main') { this.screen = screen; this.result = null; this.confirmDelete = false; }
 
+  // inRoom: opened from an online room, which keeps going behind the menu
+  get mainItems() { return this.inRoom ? ROOM_ITEMS : MAIN_ITEMS; }
+  openInRoom() { this.inRoom = true; this.sel = 0; this.open(); }
+
   // Returns { map, game } once the player picks what to play (game is 'free', 'cpu' or '2p'),
   // or { build: parkId } to open the Park Builder.
   handle(events) {
     for (const e of events) {
       if (this.screen === 'main') {
-        if (e === 'up') { this.sel = (this.sel + MAIN_ITEMS.length - 1) % MAIN_ITEMS.length; Sound.play('menuMove'); }
-        else if (e === 'down') { this.sel = (this.sel + 1) % MAIN_ITEMS.length; Sound.play('menuMove'); }
+        if (e === 'up') { this.sel = (this.sel + this.mainItems.length - 1) % this.mainItems.length; Sound.play('menuMove'); }
+        else if (e === 'down') { this.sel = (this.sel + 1) % this.mainItems.length; Sound.play('menuMove'); }
         else if (e === 'start' || e === 'grab' || e === 'right') this.choose(this.sel);
+        else if (e === 'menu' && this.inRoom) this.result = { resume: true }; // Esc again: back to skating
       } else if (this.screen === 'online') {
         const n = ONLINE_ITEMS.length;
         if (e === 'up') { this.onSel = (this.onSel + n - 1) % n; Sound.play('menuMove'); }
@@ -207,8 +214,10 @@ class Menu {
   choose(i) {
     this.sel = i;
     Sound.play('menuPick');
-    const item = MAIN_ITEMS[i];
-    if (item === 'FREE SKATE') { this.game = 'free'; this.refreshMaps(); this.screen = 'maps'; }
+    const item = this.mainItems[i];
+    if (item === 'BACK TO THE ROOM') this.result = { resume: true };
+    else if (item === 'LEAVE ROOM') this.result = { leave: true };
+    else if (item === 'FREE SKATE') { this.game = 'free'; this.refreshMaps(); this.screen = 'maps'; }
     else if (item === 'S.K.A.T.E.') { this.screen = 'versus'; this.vsSel = this.vsSel || 0; }
     else if (item === 'ONLINE') { this.screen = 'online'; this.onSel = this.onSel || 0; }
     else if (item === 'PARK BUILDER') { this.screen = 'parks'; this.confirmDelete = false; }
@@ -865,7 +874,7 @@ class Menu {
 
     // your level and how close you are to the next one
     const ly = h * 0.2 + size * 0.95;
-    const bw = Math.min(320, w - 48), bh = Math.min(54, h * 0.07, (h - ly - 100) / (MAIN_ITEMS.length * 1.28)), gap = bh * 0.28;
+    const bw = Math.min(320, w - 48), bh = Math.min(54, h * 0.07, (h - ly - 100) / (this.mainItems.length * 1.28)), gap = bh * 0.28;
     const x = (w - bw) / 2;
     const next = Progress.nextAt();
     markerText(ctx, `LEVEL ${Progress.level}${Progress.everything ? ' ★' : ''}`, x + 52, ly + 9, 20, Progress.everything ? '#f4c542' : '#ffffff', -0.03);
@@ -888,7 +897,7 @@ class Menu {
     ctx.fillStyle = INK;
     ctx.fillText('Shred Bucks', w / 2 - 50 + bucksW / 2 + 8, ly + 36);
     const y0 = ly + 52;
-    MAIN_ITEMS.forEach((item, i) => {
+    this.mainItems.forEach((item, i) => {
       this.button(ctx, item, x, y0 + i * (bh + gap), bw, bh, i === this.sel, 100 + i, () => this.choose(i));
       // fresh stock in the shop you haven't looked at yet, and challenges still to do today
       const bob = Math.sin(time * 5) * 2, by = y0 + i * (bh + gap) + 4 + bob, bs = Math.min(20, bh * 0.42);
@@ -901,8 +910,9 @@ class Menu {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     ctx.fillStyle = INK;
-    ctx.fillText(`best combo ${fmtScore(d.bestCombo)}  ·  ${d.landed} trick${d.landed === 1 ? '' : 's'} landed  ·  ↑ ↓ + Enter, or click`,
-      w / 2, y0 + MAIN_ITEMS.length * (bh + gap) + 6);
+    ctx.fillText(this.inRoom ? `you're still in the room · Esc goes back to it`
+      : `best combo ${fmtScore(d.bestCombo)}  ·  ${d.landed} trick${d.landed === 1 ? '' : 's'} landed  ·  ↑ ↓ + Enter, or click`,
+      w / 2, y0 + this.mainItems.length * (bh + gap) + 6);
   }
 
   // The skater modelling what you're trying on (locked or not). Returns where it's drawn.

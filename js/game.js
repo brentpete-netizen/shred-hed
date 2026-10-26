@@ -236,6 +236,8 @@ function startSkating({ map, game }) {
 }
 
 function menuPicked(r) {
+  if (r.resume) return backToRoom();
+  if (r.leave) return leaveOnline();
   if (r.build) openBuilder(r.build);
   else startSkating(r);
 }
@@ -257,13 +259,25 @@ function startOnline(msg) {
     skater = skateGame.skater;
     showHelp = false;
   } else skateGame = null;
+  menu.inRoom = false;
   online = true;
   testRide = false;
   mode = 'play';
   hud.clear();
 }
 
+// out of the menu and skating in the room again (in whatever you put on in the closet)
+function backToRoom() {
+  menu.inRoom = false;
+  if (!online) { mode = 'menu'; menu.open('online'); return; }
+  mode = 'play';
+  Net.updateOutfit();
+  hud.clear();
+}
+
 function leaveOnline(why) {
+  menu.inRoom = false;
+  menu.sel = 0;
   online = false;
   skateGame = null;
   Online.clear();
@@ -455,7 +469,7 @@ function render() {
     ctx.textAlign = 'right';
     ctx.textBaseline = 'top';
     ctx.fillStyle = INK;
-    const corner = testRide ? 'TEST RIDE · Esc back to the builder' : online ? `${Net.public ? 'PUBLIC PARK' : `ONLINE · room ${Net.code}`} · ${Net.players.length} here${TouchPad.enabled ? '' : ' · T chat · Esc leave'}` : TouchPad.enabled ? '' : 'Esc · menu';
+    const corner = testRide ? 'TEST RIDE · Esc back to the builder' : online ? `${Net.public ? 'PUBLIC PARK' : `ONLINE · room ${Net.code}`} · ${Net.players.length} here${TouchPad.enabled ? '' : ' · T chat · Esc menu'}` : TouchPad.enabled ? '' : 'Esc · menu';
     ctx.fillText(corner, cw - 14, 12);
     // "Sam joined", "Sam left"
     Net.toasts.forEach((t, i) => {
@@ -486,7 +500,8 @@ function frame(now) {
     if (e === 'mute') { Sound.toggle(); return false; }
     if (mode === 'play' && e === 'reset' && !skateGame) { skater.facing = 1; skater.respawn(terrain.spawnS); hud.clear(); return false; }
     if (mode === 'play' && e === 'menu' && testRide) { openBuilder(builder.park.id, true); Stats.save(); return false; }
-    if (mode === 'play' && e === 'menu' && online) { leaveOnline(); Stats.save(); return false; }
+    // online, the menu opens over the room: you're still in it (and still there for everyone) until LEAVE ROOM
+    if (mode === 'play' && e === 'menu' && online) { mode = 'menu'; menu.openInRoom(); Stats.save(); return false; }
     if (mode === 'play' && e === 'test' && online) { Chat.open(); return false; }
     if (mode === 'play' && e === 'menu') { mode = 'menu'; menu.open(); Stats.save(); return false; }
     if (mode === 'play' && skateGame?.state === 'over' && e === 'start') {
@@ -527,11 +542,13 @@ function frame(now) {
   let first = true;
   while (acc >= STEP) {
     const keys = first ? events : [];
-    if (skateGame && mode === 'play') {
+    // (in the menu, the keys are for the menu, not the skater behind it)
+    const playing = mode === 'play';
+    if (skateGame && (playing || online)) {
       // in S.K.A.T.E. the game decides who's in control: you, player 2, the CPU, or nobody
-      const { ev, held } = skateGame.input(keys);
-      skater.update(STEP, ev, held);
-    } else skater.update(STEP, keys, a => Input.held(a));
+      const { ev, held } = skateGame.input(playing ? keys : []);
+      skater.update(STEP, ev, playing ? held : () => false);
+    } else skater.update(STEP, keys, a => (playing || !online) && Input.held(a));
     first = false;
     acc -= STEP;
     if (mode === 'play') wrapWorld();
@@ -558,8 +575,9 @@ function frame(now) {
     // (no warping off to a hidden spot online, or you'd lose everyone)
     const warp = Bonus.update(skater, dt, !skateGame && !testRide && !online);
     if (warp) { loadMap(warp); menu.lastChoice = { map: warp, game: 'free' }; }
-    if (online) Online.update(dt, skater, !skateGame || (!skateGame.watching && skateGame.state === 'attempt'));
   }
+  // the room goes on while you're in the menu: everyone keeps moving, and so do you (standing still)
+  if (online) Online.update(dt, skater, !skateGame || (!skateGame.watching && skateGame.state === 'attempt'));
   Net.update(dt);
   for (const ev of Progress.events.splice(0)) {
     hud.progress(ev);
@@ -567,7 +585,7 @@ function frame(now) {
     else if (ev.type === 'newTrick' || ev.type === 'letter') Sound.play('newTrick');
     if (ev.type === 'secret' || ev.type === 'banner') menu.refreshMaps();
   }
-  if (skateGame && mode === 'play') {
+  if (skateGame && (mode === 'play' || online)) {
     skateGame.update(dt);
     if (skater !== skateGame.skater) { skater = skateGame.skater; hud.clear(); }
   }
