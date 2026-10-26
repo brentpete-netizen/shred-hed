@@ -54,6 +54,11 @@ for (const [lvl, items] of Object.entries({
 // combo trails: a new one nearly every level (Glow and Off are yours from the start)
 ['Ice', 'Fire', 'Toxic', 'Bubblegum', 'Lightning', 'Rainbow', 'Galaxy', 'Shadow', 'Gold']
   .forEach((name, i) => UNLOCKS[i < 8 ? i + 2 : 11].push(['trail', name]));
+// new ways to bail, early ones quick to get, the wild ones way up the levels (Classic Slam is yours from the start)
+for (const [lvl, name] of [[2, 'Faceplant'], [3, 'Butt Slam'], [5, 'Cartwheel'], [7, 'Noodle'], [9, 'Starfish'], [11, 'Superman'],
+  [13, 'Bouncy Ball'], [15, 'Pancake'], [17, 'Dizzy Stars'], [20, 'Slow-Mo'], [23, 'Rocket'], [26, 'Ice Slide'], [30, 'Ghost Out'], [35, 'Tornado']]) {
+  (UNLOCKS[lvl] ||= []).push(['bail', name]);
+}
 
 const UNLOCK_LEVEL = {};
 for (const [lvl, items] of Object.entries(UNLOCKS)) for (const [type, key] of items) UNLOCK_LEVEL[`${type}:${key}`] = +lvl;
@@ -72,7 +77,7 @@ const EASY_CHEATS = ['lowgrav', 'halfspeed'];
 
 const MAP_NAMES = { street: 'Street map', school: 'School Yard map', mega: 'Mega Ramp map', boardwalk: 'Boardwalk map' };
 const BUILDER_NAMES = { halfpipe: 'Halfpipe piece', kinkRail: 'Kink Rail piece', bankLedge: 'Bank-to-Ledge piece', diyQuarter: 'DIY Quarter piece', rollin: 'Roll-in tower start' };
-const unlockLabel = ([type, key]) => MAP_NAMES[key] || BUILDER_NAMES[key] || (type === 'trail' ? `${key} trail` : key);
+const unlockLabel = ([type, key]) => MAP_NAMES[key] || BUILDER_NAMES[key] || (type === 'trail' ? `${key} trail` : type === 'bail' ? `${key} bail` : key);
 
 // Two copies of your progress put together (another tab's, a backup, or a save code), keeping the
 // best of each: the most Rep, everything you've ever owned or found. Shred Bucks are kept as how

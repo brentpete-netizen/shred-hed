@@ -285,6 +285,36 @@ const OUTFIT_OPTIONS = {
     { name: 'Neon Zap', colors: ['#ff3dbb', '#c6ff3d', '#ffffff'], zap: true, shop: 350 },
     { name: 'Sunset', colors: ['#ff5a1f', '#ff8fc4', '#fff1a0'], shop: 280 },
   ],
+  // How you fall when you bail (see ragdoll.js). Anything left out falls the classic way.
+  //   spin: how hard you tumble · carry: [x, y] how much of your speed you keep
+  //   kick: {x, y} a shove (x is forwards) · parts: shoves for just the head / hip / hands / feet
+  //   spread: limbs flung out by this much · bounce / grip: off the ground (0.12 / 0.25 normally)
+  //   gravity: times normal · floppy: how stretchy your limbs go (1 = not at all)
+  //   slow: slow motion · time: how much longer before you're back up
+  //   fx: something extra to see (and hear) · word: what pops up when you hit the ground
+  bail: [
+    { name: 'Classic Slam' },
+    { name: 'Faceplant', spin: 0.3, kick: { x: 80, y: 60 }, parts: { head: { x: 300, y: 320 }, hand: { x: 120, y: -140 }, foot: { x: -80, y: -380 } }, word: 'OOF', color: '#ef5a4a' },
+    { name: 'Butt Slam', spin: 0.1, carry: [0.4, 0.3], parts: { hip: { x: -40, y: 650 }, head: { x: -50, y: -120 }, foot: { x: 140, y: -320 } }, word: 'THUD', color: '#c98b5e' },
+    { name: 'Cartwheel', spin: 2.6, carry: [1.05, 0.5], grip: 0.03, bounce: 0.2, word: 'WHEEE', color: '#f4c542' },
+    { name: 'Noodle', spin: 0.6, floppy: 0.3, parts: { hand: { x: 60, y: -420 }, foot: { x: -60, y: -300 } }, word: 'WOBBLE', color: '#ffd84a' },
+    { name: 'Starfish', spin: 0.25, kick: { x: 0, y: -200 }, spread: 420, word: 'SPLAT', color: '#ff8fb8' },
+    { name: 'Superman', spin: 0, carry: [1, 0.2], kick: { x: 380, y: -420 }, parts: { hand: { x: 320, y: -160 }, head: { x: 160, y: -60 }, foot: { x: -160, y: 40 } }, gravity: 0.55, time: 1.3, word: 'UP, UP...', color: '#2f80ed' },
+    { name: 'Bouncy Ball', spin: 1.2, bounce: 0.82, grip: 0.04, time: 1.2, fx: 'boing', color: '#7fd36b' },
+    { name: 'Pancake', spin: 0.15, kick: { x: 0, y: 260 }, parts: { hip: { x: 0, y: 260 }, head: { x: 0, y: 160 } }, spread: 300, bounce: 0, grip: 0.9, word: 'SPLAT', color: '#e8b48a' },
+    { name: 'Dizzy Stars', fx: 'stars', time: 1.2 },
+    { name: 'Slow-Mo', slow: 0.35, time: 1.8, fx: 'noo', color: '#a593e6' },
+    { name: 'Rocket', spin: 1.4, carry: [0.25, 0], kick: { x: 0, y: -1450 }, time: 1.5, fx: 'rocket', color: '#ff8c2e' },
+    { name: 'Ice Slide', spin: 0.15, carry: [1.25, 0.3], kick: { x: 180, y: 160 }, grip: 0.003, bounce: 0, time: 1.2, fx: 'ice', word: 'WHOOSH', color: '#7fd8e0' },
+    { name: 'Ghost Out', fx: 'ghost', time: 1.3 },
+    { name: 'Tornado', spin: 6, carry: [0.2, 0.2], kick: { x: 0, y: -750 }, gravity: 0.7, time: 1.3, fx: 'tornado', word: 'WHIRL', color: '#9aa0a6' },
+    { name: 'Banana Peel', spin: -0.4, carry: [0.6, 0.4], parts: { foot: { x: 650, y: -520 }, knee: { x: 380, y: -300 }, head: { x: -220, y: 60 } }, word: 'WHOOPS', color: '#f4d35e', shop: 200 },
+    { name: 'Confetti Pop', fx: 'confetti', shop: 250 },
+    { name: 'Moon Float', gravity: 0.22, bounce: 0.3, time: 1.7, spin: 0.7, word: 'floaty...', color: '#bfe6f2', shop: 300 },
+    { name: 'Cartoon POW', fx: 'pow', shop: 350 },
+    { name: 'Pinball', spin: 1.4, bounce: 0.95, grip: 0.02, time: 1.3, fx: 'ding', shop: 400 },
+    { name: 'Coin Spill', fx: 'coins', shop: 450 },
+  ],
 };
 // every item knows its category (handy for the shop)
 for (const cat in OUTFIT_OPTIONS) for (const o of OUTFIT_OPTIONS[cat]) o.cat = cat;
@@ -350,7 +380,7 @@ function shopPrice(item, today = shopToday()) {
 // 'sag' isn't a list of looks, it's a slider in the closet (see SAG_MAX).
 const OUTFIT_CATEGORIES = [
   ['skin', 'Skin'], ['hat', 'Head'], ['hair', 'Hair'], ['hairColor', 'Hair Color'], ['top', 'Top'], ['pants', 'Pants'], ['sag', 'Sag'], ['shoes', 'Shoes'], ['board', 'Board'],
-  ['grip', 'Grip'], ['cutout', 'Grip Cut'], ['trail', 'Trail'], ['extra', 'Extra'], ['stance', 'Stance'],
+  ['grip', 'Grip'], ['cutout', 'Grip Cut'], ['trail', 'Trail'], ['bail', 'Bail'], ['extra', 'Extra'], ['stance', 'Stance'],
 ];
 
 // How high or low you wear your pants: 0 = pulled way up, SAG_NORMAL = regular, SAG_MAX = boxers out.

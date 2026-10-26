@@ -55,14 +55,48 @@ const SHOP_TAGLINES = {
   'extra:Galaxy Cape': 'Wear the stars',
   'hat:Pumpkin Head': 'Happy Halloween!',
   'extra:Axe in Head': "Don't worry, it's just pretend",
+  'bail:Banana Peel': 'Feet first, like in the cartoons',
+  'bail:Confetti Pop': 'Every slam is a party',
+  'bail:Moon Float': 'Fall like you left gravity at home',
+  'bail:Cartoon POW': 'Slam in comic-book style',
+  'bail:Pinball': 'Bounce around for bonus points',
+  'bail:Coin Spill': 'Your pockets empty out (not really)',
 };
 // a card's background, by category (trails glow best in the dark)
-const SHOP_TINT = { trail: '#26262b', board: '#dfe9f0', grip: '#dfe9f0', skin: '#efe2cf', hat: '#f6e3d3', top: '#e9e2f3', pants: '#e2ecdf', shoes: '#f3e6cf', extra: '#f6dfe6' };
+const SHOP_TINT = { bail: '#e4ecf2', trail: '#26262b', board: '#dfe9f0', grip: '#dfe9f0', skin: '#efe2cf', hat: '#f6e3d3', top: '#e9e2f3', pants: '#e2ecdf', shoes: '#f3e6cf', extra: '#f6dfe6' };
 // where on the skater a card zooms in: how far up from the wheels, and how much fits
 const SHOP_FOCUS = { hat: [104, 44], skin: [64, 134], top: [70, 62], pants: [36, 70], shoes: [14, 36], extra: [86, 60] };
 const EXTRA_FOCUS = { shades: [101, 34], chain: [82, 44], cape: [70, 96] };
 const ONLINE_ITEMS = ['PUBLIC PARK', 'HOST FREE SKATE', 'HOST S.K.A.T.E.', 'JOIN A ROOM'];
 const VERSUS_ITEMS = ['VS CPU', '2 PLAYERS'];
+
+// A bail, filmed once so the closet and the shop can play it back: you roll along a long flat
+// floor, slam the way that bail goes, and lie there a moment. 60 frames a second.
+const BAIL_DEMO_FLOOR = 0;
+const bailDemos = new Map();
+function bailDemo(index) {
+  if (bailDemos.has(index)) return bailDemos.get(index);
+  const T = MapBuilder.wallStart(-400, BAIL_DEMO_FLOOR, 60).flat(9000).build({ spawn: { x: 0, y: BAIL_DEMO_FLOOR }, theme: THEMES.park, name: 'demo' });
+  const sk = new Skater(T);
+  sk.outfit = { ...Outfit.pick, bail: index };
+  sk.v = 380;
+  for (let i = 0; i < 12; i++) sk.update(1 / 120, [], () => false);
+  sk.out.length = 0;
+  sk.startBail('demo');
+  const frames = [];
+  for (let i = 0; sk.state === 'bail' && i < 120 * 5; i++) {
+    sk.update(1 / 120, [], () => false);
+    if (sk.state !== 'bail') break;
+    const sounds = sk.out.filter(m => m.type === 'thud' || m.type === 'bail' || m.type === 'bailSfx');
+    sk.out.length = 0;
+    if (i % 2 && frames.length) { frames[frames.length - 1].sounds.push(...sounds); continue; }
+    const r = sk.bail.rag;
+    frames.push({ fig: r.figure(), board: r.boardPose(), hip: { x: r.hip.x, y: r.hip.y }, fx: sk.fx.map(f => ({ ...f })), sounds });
+  }
+  const demo = { frames, floor: BAIL_DEMO_FLOOR };
+  bailDemos.set(index, demo);
+  return demo;
+}
 
 // What a Fit slider's setting looks like in words: "normal", "a bit baggy", "skinny"...
 function fitWords(f, v) {
@@ -418,6 +452,7 @@ class Menu {
     } else this.shopSel = to;
     this.shopConfirm = false;
     Sound.play('menuMove');
+    if (this.shopStock().items[this.shopSel].cat === 'bail') this.replayBail();
   }
 
   // Buy it (press twice, so you don't spend by accident), or put it on if it's already yours.
@@ -427,7 +462,7 @@ class Menu {
     if (Progress.owns(item)) {
       Outfit.set(item.cat, index);
       this.shopConfirm = false;
-      this.kickflip(true);
+      if (item.cat === 'bail') this.replayBail(); else this.kickflip(true);
       return this.note(`WEARING ${item.name.toUpperCase()}`);
     }
     if (Progress.bucks < price) return this.flash(`you need ${price - Progress.bucks} more Shred Bucks`);
@@ -438,7 +473,7 @@ class Menu {
     Sound.play('cash');
     this.sold = { name: item.name, t: 0 };
     this.confettiBurst(this.shopModelAt || { x: innerWidth / 2, y: innerHeight / 2 });
-    this.kickflip(true);
+    if (item.cat === 'bail') this.replayBail(); else this.kickflip(true);
   }
 
   // Confetti and coins flying up out of a purchase.
@@ -477,6 +512,7 @@ class Menu {
     if (Progress.isUnlocked(cat, OUTFIT_OPTIONS[cat][this.trying[cat]].name)) Outfit.set(cat, this.trying[cat]);
     Sound.play('menuMove');
     if (cat === 'board' || cat === 'stance') this.kickflip(true); // show off the graphic underneath
+    if (cat === 'bail') this.replayBail();
     if (cat === 'stance') this.note(OUTFIT_OPTIONS.stance[this.trying.stance].goofy ? 'GOOFY: ← → AND Q / E SWAP FOR TRICKS' : 'REGULAR: CONTROLS BACK TO NORMAL');
   }
 
@@ -526,6 +562,7 @@ class Menu {
     if (p.state === 'ground' && p.out.some(m => m.type === 'land')) this.loud = false;
     p.out.length = 0;
     if ((this.screen === 'closet' || this.screen === 'shop') && (this.showoff += dt) > 4) this.kickflip();
+    this.bailClock = (this.bailClock || 0) + dt;
     if (this.msg && (this.msg.t += dt) > 2) this.msg = null;
     if (this.confetti) {
       for (const p of this.confetti) { p.vy += 900 * dt; p.vx *= Math.pow(0.4, dt); p.x += p.vx * dt; p.y += p.vy * dt; p.r += p.vr * dt; p.t += dt; }
@@ -870,10 +907,15 @@ class Menu {
   // The skater modelling what you're trying on (locked or not). Returns where it's drawn.
   // trail: a combo trail style to show swooping around the model
   // at: { cx, gy, k } to put the model somewhere else (where its feet go, and its size)
-  drawPreview(ctx, w, h, dpr, wide, zoom = 1, trail = null, at = null) {
+  // bail: a bail (its index) to act out instead of standing there
+  drawPreview(ctx, w, h, dpr, wide, zoom = 1, trail = null, at = null, bail = null) {
     const p = this.preview;
     const k = zoom * (at ? at.k : Math.min(wide ? h * 0.0042 : h * 0.0026, wide ? w * 0.0026 : w * 0.006));
     const cx = at ? at.cx : wide ? w * 0.3 : w / 2, gy = at ? at.gy : wide ? h * 0.82 : h * 0.47;
+    if (bail !== null) {
+      this.drawBailDemo(ctx, bail, this.bailClock || 0, cx, gy, k, dpr, this.trying, true);
+      return { cx, gy };
+    }
     ctx.save();
     ctx.setTransform(dpr * k, 0, 0, dpr * k, dpr * cx - p.pos.x * dpr * k, dpr * gy - p.pos.y * dpr * k);
     Sketch.seedFor(7);
@@ -885,12 +927,49 @@ class Menu {
     return { cx, gy };
   }
 
+  // Plays a filmed bail (see bailDemo) with its feet-on-the-floor spot at (cx, gy), k times life size.
+  // The camera follows you along the floor, and up if you fly. loud: with its sounds.
+  drawBailDemo(ctx, index, t, cx, gy, k, dpr, look, loud = false) {
+    const { frames, floor } = bailDemo(index), hold = 50;
+    if (!frames.length) return;
+    const at = Math.floor(t * 60) % (frames.length + hold), f = frames[Math.min(at, frames.length - 1)];
+    if (loud) {
+      // the sounds from the frames since last time (only the first time through after you pick it)
+      if (this.bailHeard === undefined || at < this.bailHeard) { if (this.bailHeard !== undefined) this.bailLoud = false; this.bailHeard = -1; }
+      if (this.bailLoud) for (let i = this.bailHeard + 1; i <= Math.min(at, frames.length - 1); i++) for (const m of frames[i].sounds) Sound.onMessage(m);
+      this.bailHeard = at;
+    }
+    const camX = f.hip.x, camY = Math.min(floor, f.hip.y + 100);
+    ctx.save();
+    ctx.setTransform(dpr * k, 0, 0, dpr * k, dpr * cx - camX * dpr * k, dpr * gy - camY * dpr * k);
+    Sketch.seedFor(7);
+    Sketch.stroke(ctx, [{ x: camX - 90, y: floor }, { x: camX + 90, y: floor }], { color: INK, width: 3, amp: 1 });
+    // cracks in the floor going by, so you can see the slide
+    for (let x = Math.ceil((camX - 80) / 45) * 45; x < camX + 80; x += 45) {
+      Sketch.stroke(ctx, [{ x, y: floor + 6 }, { x: x - 9, y: floor + 12 }], { color: INK, width: 1.4, amp: 0.3, passes: 1 });
+    }
+    drawFx(ctx, f.fx);
+    Outfit.override = look;
+    drawBoard(ctx, f.board);
+    drawFigure(ctx, f.fig);
+    Outfit.override = null;
+    ctx.restore();
+  }
+
+  // start a bail's playback from the top, with sound
+  replayBail() {
+    this.bailClock = 0;
+    this.bailHeard = undefined;
+    this.bailLoud = true;
+  }
+
   drawCloset(ctx, w, h, dpr) {
     const wide = w > h * 1.1;
     markerText(ctx, 'CLOSET', wide ? w * 0.3 : w / 2, Math.min(60, h * 0.09), Math.min(52, w / 9), '#ffffff', -0.04);
-    // picking a trail: show it swooping round your skater
-    const showTrail = OUTFIT_CATEGORIES[this.row][0] === 'trail' ? OUTFIT_OPTIONS.trail[this.trying.trail] : null;
-    const { cx } = this.drawPreview(ctx, w, h, dpr, wide, 1, showTrail);
+    // picking a trail: show it swooping round your skater; picking a bail: take a slam
+    const cat = OUTFIT_CATEGORIES[this.row][0];
+    const showTrail = cat === 'trail' ? OUTFIT_OPTIONS.trail[this.trying.trail] : null;
+    const { cx } = this.drawPreview(ctx, w, h, dpr, wide, 1, showTrail, null, cat === 'bail' ? this.trying.bail : null);
 
     this.drawHeldBoard(ctx, w, h, dpr, wide, cx, OUTFIT_CATEGORIES[this.row][0]);
 
@@ -1115,7 +1194,7 @@ class Menu {
     Sketch.seedFor(641);
     Sketch.shape(ctx, [{ x: cx - modelW * 0.36, y: gy + 2 }, { x: cx + modelW * 0.36, y: gy + 2 }, { x: cx + modelW * 0.32, y: gy + 14 }, { x: cx - modelW * 0.32, y: gy + 14 }], '#b98a52', { color: INK, width: 2, amp: 0.4 });
     this.trying = this.shopLook();
-    this.drawPreview(ctx, w, h, dpr, wide, 1, item.cat === 'trail' ? item : null, { cx, gy, k });
+    this.drawPreview(ctx, w, h, dpr, wide, 1, item.cat === 'trail' ? item : null, { cx, gy, k }, item.cat === 'bail' ? OUTFIT_OPTIONS.bail.indexOf(item) : null);
     this.shopModelAt = { x: cx, y: gy - 60 * k };
     if (item.cat === 'board' || item.cat === 'grip') {
       // hold the board up so you can see it properly
@@ -1243,6 +1322,14 @@ class Menu {
       const s = Math.min(pw, ph) * 0.4 / 72;
       ctx.scale(s, s);
       ComboTrail.drawDemo(ctx, 0, 0, 72, now + i, it);
+      ctx.restore();
+    } else if (it.cat === 'bail') {
+      // the slam, over and over
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(px, py, pw, ph);
+      ctx.clip();
+      this.drawBailDemo(ctx, OUTFIT_OPTIONS.bail.indexOf(it), now + i * 0.7, px + pw / 2, py + ph * 0.8, Math.min(ph / 120, pw / 110), dpr, Outfit.pick);
       ctx.restore();
     } else ctx.drawImage(this.shopThumb(it, pw, ph, dpr), px, py, pw, ph);
     Sketch.stroke(ctx, rect(px, py, pw, ph), { ...thin(INK, 1.3), closed: true });

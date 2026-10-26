@@ -6,9 +6,13 @@ const RAG_RADIUS = { head: 10, hip: 9, neck: 7 }; // everything else uses 4.5
 
 class Ragdoll {
   // fig: the rider's pose at the moment of the bail (from riderPose), vel: skater velocity.
-  constructor(fig, board, vel, facing, onHit) {
+  // style: how you fall (a Bail from the closet, see outfit.js); leave it out for the classic slam.
+  constructor(fig, board, vel, facing, onHit, style = {}) {
     this.facing = facing;
     this.onHit = onHit;
+    this.bounce = style.bounce ?? 0.12;
+    this.grip = style.grip ?? 0.25;
+    this.gravityK = style.gravity ?? 1;
     const start = {
       hip: fig.hip, neck: fig.neck, head: fig.head,
       kneeF: fig.legs.front.knee, footF: fig.legs.front.foot,
@@ -17,25 +21,33 @@ class Ragdoll {
       elbowB: fig.backArm[1], handB: fig.backArm[2],
     };
     // send the body tumbling: everything spins a little around the hips
-    const spin = facing * (2.5 + Math.random() * 3);
+    const spin = facing * (2.5 + Math.random() * 3) * (style.spin ?? 1);
+    const [cx, cy] = style.carry || [0.85, 0.55], kick = style.kick || { x: 0, y: 0 };
     this.p = {};
     for (const [name, q] of Object.entries(start)) {
-      const rx = q.x - fig.hip.x, ry = q.y - fig.hip.y;
+      const rx = q.x - fig.hip.x, ry = q.y - fig.hip.y, rl = Math.hypot(rx, ry) || 1;
+      // a shove for just this part ("hand" is both hands, and so on)
+      const part = style.parts?.[name.replace(/[FB]$/, '')] || { x: 0, y: 0 };
+      // spread: hands and feet flung out away from the hips
+      const out = style.spread && /^(hand|foot)/.test(name) ? style.spread / rl : 0;
       this.p[name] = {
         x: q.x, y: q.y,
-        vx: vel.x * 0.85 - ry * spin, vy: vel.y * 0.55 - 160 + rx * spin,
+        vx: vel.x * cx - ry * spin + (kick.x + part.x) * facing + rx * out,
+        vy: vel.y * cy - 160 + rx * spin + kick.y + part.y + ry * out,
         r: RAG_RADIUS[name] || 4.5, ground: null,
       };
     }
     const d = (a, b) => Math.hypot(start[a].x - start[b].x, start[a].y - start[b].y);
     const stick = (a, b, stiff = 1) => ({ a, b, len: d(a, b), stiff });
+    const limb = style.floppy ?? 1; // a noodle's arms and legs stretch
     this.sticks = [
       stick('hip', 'neck'), stick('neck', 'head'), stick('hip', 'head', 0.6), // spine stays fairly straight
-      stick('hip', 'kneeF'), stick('kneeF', 'footF'), stick('hip', 'kneeB'), stick('kneeB', 'footB'),
-      stick('neck', 'elbowF'), stick('elbowF', 'handF'), stick('neck', 'elbowB'), stick('elbowB', 'handB'),
+      stick('hip', 'kneeF', limb), stick('kneeF', 'footF', limb), stick('hip', 'kneeB', limb), stick('kneeB', 'footB', limb),
+      stick('neck', 'elbowF', limb), stick('elbowF', 'handF', limb), stick('neck', 'elbowB', limb), stick('elbowB', 'handB', limb),
     ];
-    // limbs can fold, but not all the way flat
-    this.spacers = [['hip', 'footF', 20], ['hip', 'footB', 20], ['neck', 'handF', 10], ['neck', 'handB', 10], ['head', 'hip', 30]];
+    // limbs can fold, but not all the way flat (and a starfish keeps them stretched right out)
+    const [legs, arms] = style.spread ? [52, 42] : [20, 10];
+    this.spacers = [['hip', 'footF', legs], ['hip', 'footB', legs], ['neck', 'handF', arms], ['neck', 'handB', arms], ['head', 'hip', 30]];
 
     // the board: tail and nose wheel points
     const T = { x: Math.cos(board.ang) * facing, y: Math.sin(board.ang) * facing };
@@ -52,7 +64,7 @@ class Ragdoll {
   get hip() { return this.p.hip; }
 
   step(dt, terrain) {
-    const g = terrain.gravity || (typeof Progress !== 'undefined' && Progress.cheat('lowgrav') ? 760 : CONFIG.gravity);
+    const g = (terrain.gravity || (typeof Progress !== 'undefined' && Progress.cheat('lowgrav') ? 760 : CONFIG.gravity)) * this.gravityK;
     this.hitCooldown -= dt;
     const all = [...Object.values(this.p), this.board.tail, this.board.nose];
     const old = new Map();
@@ -87,12 +99,12 @@ class Ragdoll {
       const vn = q.vx * n.nx + q.vy * n.ny;
       if (vn < 0) {
         hardest = Math.max(hardest, -vn * (isBoard ? 0.6 : 1));
-        const rest = isBoard ? 0.3 : 0.12;
+        const rest = isBoard ? 0.3 : this.bounce;
         q.vx -= n.nx * vn * (1 + rest);
         q.vy -= n.ny * vn * (1 + rest);
       }
       // skid: bodies grip the ground, a board slides
-      const fr = isBoard ? 0.02 : 0.25;
+      const fr = isBoard ? 0.02 : this.grip;
       const tx = -n.ny, ty = n.nx, vt = q.vx * tx + q.vy * ty;
       q.vx -= tx * vt * fr;
       q.vy -= ty * vt * fr;

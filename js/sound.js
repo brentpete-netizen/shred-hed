@@ -146,6 +146,19 @@ const Sound = (() => {
     },
   };
 
+  // the extra noises some bails make
+  Object.assign(SFX, {
+    boing() { tone({ freq: 180, to: 520, dur: 0.18, gain: 0.2, type: 'sine' }); tone({ freq: 520, to: 260, dur: 0.16, gain: 0.12, type: 'sine', delay: 0.15 }); },
+    ding() { tone({ freq: 1568, dur: 0.35, gain: 0.12, type: 'triangle' }); tone({ freq: 2093, dur: 0.3, gain: 0.07, type: 'sine', delay: 0.04 }); },
+    whee() { tone({ freq: 500, to: 1800, dur: 0.9, gain: 0.09, type: 'triangle', attack: 0.05 }); burst({ type: 'bandpass', freq: 700, Q: 0.6, dur: 0.9, gain: 0.12 }); },
+    tweet() { for (let i = 0; i < 4; i++) tone({ freq: 2400, to: 3200, dur: 0.07, gain: 0.06, type: 'sine', delay: 0.15 + i * 0.13 }); },
+    ghost() { tone({ freq: 420, to: 260, dur: 1.1, gain: 0.08, type: 'sine', attack: 0.2 }); tone({ freq: 430, to: 270, dur: 1.1, gain: 0.05, type: 'triangle', attack: 0.2 }); },
+    party() { burst({ type: 'highpass', freq: 2000, dur: 0.05, gain: 0.3 }); [784, 988, 1175, 1568].forEach((f, i) => tone({ freq: f, dur: 0.12, gain: 0.08, type: 'square', delay: 0.05 + i * 0.07 })); },
+    pow() { burst({ type: 'lowpass', freq: 600, dur: 0.25, gain: 0.5 }); tone({ freq: 120, to: 35, dur: 0.3, gain: 0.45 }); },
+    noo() { tone({ freq: 260, to: 130, dur: 1.6, gain: 0.1, type: 'sawtooth', attack: 0.1 }); },
+    coins() { for (let i = 0; i < 7; i++) tone({ freq: 3000 + Math.random() * 1800, dur: 0.06, gain: 0.05, type: 'triangle', delay: 0.05 + i * 0.07 + Math.random() * 0.03 }); },
+  });
+
   function play(name, arg) {
     if (!ac || settings.muted || !SFX[name]) return;
     SFX[name](arg);
@@ -162,6 +175,7 @@ const Sound = (() => {
       case 'pivot': return play('pivot');
       case 'thud': return play('thud', m.power);
       case 'bail': return play('bail');
+      case 'bailSfx': return play(m.name);
       case 'combo': return play('combo', m.mult);
       case 'comboLost': return play('lost');
     }

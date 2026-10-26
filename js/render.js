@@ -1025,6 +1025,106 @@ function drawSkaterBody(ctx, sk) {
   }
 }
 
+// A 5-point star, filled.
+function starPath(ctx, x, y, r, rot = 0) {
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const a = rot - Math.PI / 2 + (i * Math.PI) / 5, rr = i % 2 ? r * 0.45 : r;
+    ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+  }
+  ctx.closePath();
+}
+
+// The extras some bails come with (see bailHit in skater.js). k: 0 when it appears, 1 when it's gone.
+const BAIL_FX = {
+  word(ctx, f, k) {
+    ctx.globalAlpha = clamp((1 - k) / 0.35, 0, 1);
+    markerText(ctx, f.text, f.x, f.y, f.size, f.color, f.rot, 1 + 0.7 * Math.exp(-f.life * 14));
+  },
+  star(ctx, f, k) {
+    // little stars going round and round your head
+    ctx.globalAlpha = clamp((1 - k) / 0.2, 0, 1);
+    const x = f.x + Math.cos(f.a) * 22, y = f.y - 20 + Math.sin(f.a) * 7;
+    starPath(ctx, x, y, 7, f.a * 2);
+    ctx.fillStyle = '#ffd84a';
+    ctx.fill();
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+  },
+  ghost(ctx, f, k) {
+    // your ghost floats up out of you, waving
+    const wob = Math.sin(f.life * 6) * 6, x = f.x + wob, y = f.y;
+    ctx.globalAlpha = 0.8 * (k < 0.15 ? k / 0.15 : 1 - (k - 0.15) / 0.85);
+    ctx.beginPath();
+    ctx.arc(x, y - 14, 15, Math.PI, 0);
+    ctx.lineTo(x + 15, y + 14);
+    for (let i = 0; i < 4; i++) ctx.quadraticCurveTo(x + 15 - i * 7.5 - 3.75, y + 14 + (i % 2 ? -6 : 6) * Math.cos(f.life * 8), x + 15 - (i + 1) * 7.5, y + 14);
+    ctx.closePath();
+    ctx.fillStyle = '#f4f7fb';
+    ctx.fill();
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = INK;
+    for (const ex of [-5, 5]) { ctx.beginPath(); ctx.ellipse(x + ex, y - 14, 2.4, 3.6, 0, 0, TAU); ctx.fill(); }
+    ctx.beginPath();
+    ctx.ellipse(x, y - 4, 3, 4 + Math.sin(f.life * 5), 0, 0, TAU); // "ooooo"
+    ctx.fill();
+  },
+  confetti(ctx, f, k) {
+    ctx.globalAlpha = clamp((1 - k) / 0.3, 0, 1);
+    ctx.save();
+    ctx.translate(f.x, f.y);
+    ctx.rotate(f.r);
+    ctx.fillStyle = f.color;
+    const h = 8 * Math.abs(Math.cos(f.r * 1.7)) + 2;
+    ctx.fillRect(-3, -h / 2, 6, h);
+    ctx.restore();
+  },
+  coin(ctx, f, k) {
+    ctx.globalAlpha = clamp((1 - k) / 0.3, 0, 1);
+    const sx = Math.max(0.15, Math.abs(Math.cos(f.spin + f.life * 9)));
+    ctx.beginPath();
+    ctx.ellipse(f.x, f.y, 7 * sx, 7, 0, 0, TAU);
+    ctx.fillStyle = '#f4c542';
+    ctx.fill();
+    ctx.strokeStyle = '#a67814';
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+    if (sx > 0.5) { ctx.fillStyle = '#a67814'; ctx.font = `bold 9px ${HAND}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('$', f.x, f.y + 0.5); }
+  },
+  smoke(ctx, f, k) {
+    ctx.globalAlpha = 0.55 * (1 - k);
+    ctx.beginPath();
+    ctx.arc(f.x, f.y, f.r, 0, TAU);
+    ctx.fillStyle = f.color;
+    ctx.fill();
+  },
+  pow(ctx, f, k) {
+    // a comic-book POW!
+    const s = 1 + 0.8 * Math.exp(-f.life * 16);
+    ctx.globalAlpha = clamp((1 - k) / 0.3, 0, 1);
+    ctx.save();
+    ctx.translate(f.x, f.y);
+    ctx.scale(s, s);
+    ctx.rotate(-0.12);
+    ctx.beginPath();
+    for (let i = 0; i < 24; i++) {
+      const a = (i * Math.PI) / 12, r = i % 2 ? 22 : 40 + (i % 4) * 4;
+      ctx.lineTo(Math.cos(a) * r * 1.3, Math.sin(a) * r);
+    }
+    ctx.closePath();
+    ctx.fillStyle = '#ffd84a';
+    ctx.fill();
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.restore();
+    markerText(ctx, 'POW!', f.x, f.y, 30 * s, '#e2553f', -0.12);
+  },
+};
+
 function drawFx(ctx, fx) {
   Sketch.seedFor(60);
   for (const f of fx) {
@@ -1035,10 +1135,12 @@ function drawFx(ctx, fx) {
     } else if (f.kind === 'spark') {
       ctx.globalAlpha = 1 - k;
       Sketch.stroke(ctx, [{ x: f.x, y: f.y }, { x: f.x - f.vx * 0.025, y: f.y - f.vy * 0.025 }],
-        { color: k < 0.5 ? '#ffd166' : '#f08a3c', width: 2, amp: 0.2, passes: 1, maxLen: 0 });
+        { color: f.color || (k < 0.5 ? '#ffd166' : '#f08a3c'), width: 2, amp: 0.2, passes: 1, maxLen: 0 });
+    } else if (BAIL_FX[f.kind]) {
+      BAIL_FX[f.kind](ctx, f, k);
     } else {
       ctx.globalAlpha = 1 - k;
-      const a = 10 + k * 14, b = 22 + k * 14;
+      const s = f.s || 1, a = (10 + k * 14) * s, b = (22 + k * 14) * s;
       Sketch.stroke(ctx, [{ x: f.x + f.dx * a, y: f.y + f.dy * a }, { x: f.x + f.dx * b, y: f.y + f.dy * b }],
         { color: INK, width: 2, amp: 0.3, passes: 1, maxLen: 0 });
     }

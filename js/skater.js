@@ -722,9 +722,11 @@ class Skater {
 
   startBail(why) {
     // the ragdoll starts from exactly the pose you were in, moving the way you were moving
-    const pose = riderPose(this);
-    const rag = new Ragdoll(pose.fig, pose.board, this.vel, this.facing, power => this.out.push({ type: 'thud', power }));
-    this.bail = { t: 0, why, rag, body: { x: rag.hip.x, y: rag.hip.y, vx: rag.hip.vx, vy: rag.hip.vy } };
+    const pose = riderPose(this), style = this.bailStyle;
+    const rag = new Ragdoll(pose.fig, pose.board, this.vel, this.facing, power => { this.out.push({ type: 'thud', power }); this.bailHit(power); }, style);
+    this.bail = { t: 0, why, rag, style, hits: 0, body: { x: rag.hip.x, y: rag.hip.y, vx: rag.hip.vx, vy: rag.hip.vy } };
+    if (style.fx === 'noo') { this.wordFx('NOOOOO!', style.color, 34, 2.2); this.bailSfx('noo'); }
+    if (style.fx === 'rocket') this.bailSfx('whee');
     if (this.combo.active) this.out.push({ type: 'comboLost', names: this.combo.names() });
     this.combo.reset();
     this.endChain(false);
@@ -743,12 +745,100 @@ class Skater {
   }
 
   updateBail(dt, events) {
-    const C = CONFIG, b = this.bail, hip = b.rag.hip;
+    const C = CONFIG, b = this.bail, hip = b.rag.hip, s = b.style;
     b.t += dt;
-    b.rag.step(dt, this.terrain);
+    b.rag.step(dt * (s.slow || 1), this.terrain);
     b.body = { x: hip.x, y: hip.y, vx: hip.vx, vy: hip.vy }; // for the camera
     this.pos = { x: hip.x, y: hip.y };
-    if (b.t > C.bailResetTime || (events.length && b.t > C.bailSkipTime)) this.recover();
+    this.bailTrailFx(dt);
+    if (b.t > C.bailResetTime * (s.time || 1) || (events.length && b.t > C.bailSkipTime)) this.recover();
+  }
+
+  // The bail you're wearing (Classic Slam if there's no closet, like in the tests).
+  get bailStyle() {
+    if (typeof Outfit === 'undefined' || !OUTFIT_OPTIONS.bail) return {};
+    const o = this.outfit || Outfit.pick;
+    return OUTFIT_OPTIONS.bail[o.bail] || {};
+  }
+
+  bailSfx(name) { this.out.push({ type: 'bailSfx', name }); }
+
+  // a word that pops up and floats away
+  wordFx(text, color = '#ffffff', size = 30, max = 1.1) {
+    const h = this.bail ? this.bail.rag.p.head : this.pos;
+    this.fx.push({ kind: 'word', text, color, size, x: h.x, y: h.y - 30, vy: -60, rot: (Math.random() - 0.5) * 0.4, life: 0, max });
+  }
+
+  // Each time you smack into the ground.
+  bailHit(power) {
+    const b = this.bail;
+    if (!b) return;
+    const s = b.style;
+    b.hits++;
+    this.bailLanded();
+    if (s.fx === 'boing' && power > 0.15) {
+      this.wordFx('BOING!', s.color, 22 + power * 14, 0.7);
+      this.bailSfx('boing');
+    }
+    if (s.fx === 'ding' && power > 0.12) {
+      this.wordFx(['DING!', 'BONUS!', '+1000', 'TILT!'][b.hits % 4], ['#ff3dbb', '#3dd6ff', '#c6ff3d', '#f4c542'][b.hits % 4], 20 + power * 12, 0.7);
+      this.sparkFx(6);
+      this.bailSfx('ding');
+    }
+  }
+
+  // The first time you hit the ground (or a moment in, for a soft one): the big moment.
+  bailLanded() {
+    const b = this.bail;
+    if (b.landed) return;
+    b.landed = true;
+    const s = b.style, at = b.rag.hip, f = this.facing;
+    const burst = (n, make) => { for (let i = 0; i < n; i++) this.fx.push({ life: 0, ...make(i) }); };
+    if (s.word) this.wordFx(s.word, s.color);
+    if (s.fx === 'stars') {
+      burst(3, i => ({ kind: 'star', follow: true, a: (i * 2 * Math.PI) / 3, max: 3.2 }));
+      this.bailSfx('tweet');
+    }
+    if (s.fx === 'ghost') {
+      this.fx.push({ kind: 'ghost', x: b.rag.p.head.x, y: b.rag.p.head.y, life: 0, max: 2.4 });
+      this.bailSfx('ghost');
+    }
+    if (s.fx === 'confetti') {
+      const colors = ['#e2553f', '#f4c542', '#7fd36b', '#2f80ed', '#ff8fb8', '#a593e6'];
+      burst(40, i => ({ kind: 'confetti', x: at.x, y: at.y - 20, vx: (Math.random() - 0.5) * 700, vy: -250 - Math.random() * 550,
+        r: Math.random() * 6, vr: (Math.random() - 0.5) * 20, color: colors[i % colors.length], max: 1.6 + Math.random() * 0.6 }));
+      this.wordFx('PARTY!', '#ff8fb8');
+      this.bailSfx('party');
+    }
+    if (s.fx === 'pow') {
+      this.fx.push({ kind: 'pow', x: at.x, y: at.y - 30, life: 0, max: 0.7 });
+      burst(10, i => ({ kind: 'line', x: at.x, y: at.y - 20, dx: Math.cos((i * Math.PI) / 5), dy: Math.sin((i * Math.PI) / 5), s: 2.2, max: 0.3 }));
+      this.dustFx(1.4);
+      this.bailSfx('pow');
+    }
+    if (s.fx === 'coins') {
+      burst(18, () => ({ kind: 'coin', x: at.x, y: at.y - 15, vx: (Math.random() - 0.5) * 500 + f * 80, vy: -300 - Math.random() * 400,
+        spin: Math.random() * 6, max: 1.8 + Math.random() * 0.5 }));
+      this.bailSfx('coins');
+    }
+  }
+
+  // Things that keep coming out of you while you fall.
+  bailTrailFx(dt) {
+    const b = this.bail, s = b.style, hip = b.rag.hip;
+    if (b.t > (s.fx === 'rocket' ? 1.6 : 0.45)) this.bailLanded();
+    if (s.fx === 'rocket' && b.t < 1.2 && Math.random() < 0.7) {
+      this.fx.push({ kind: 'smoke', x: hip.x + (Math.random() - 0.5) * 14, y: hip.y + 20, vx: (Math.random() - 0.5) * 40, vy: 60, r: 5 + Math.random() * 5,
+        color: Math.random() < 0.4 ? '#ff8c2e' : '#b9b4aa', life: 0, max: 0.6 });
+    }
+    if (s.fx === 'tornado' && b.t < 1.6 && Math.random() < 0.5) {
+      const a = Math.random() * 2 * Math.PI;
+      this.fx.push({ kind: 'line', x: hip.x + Math.cos(a) * 30, y: hip.y + Math.sin(a) * 30, dx: -Math.sin(a), dy: Math.cos(a), life: 0, max: 0.25 });
+    }
+    if (s.fx === 'ice' && Math.abs(hip.vx) > 80 && hip.ground && Math.random() < 0.6) {
+      this.fx.push({ kind: 'spark', x: hip.x, y: hip.y + 6, vx: -hip.vx * 0.2 + (Math.random() - 0.5) * 60, vy: -60 - Math.random() * 80,
+        color: '#bfefff', life: 0, max: 0.3 });
+    }
   }
 
   recover() {
@@ -815,6 +905,19 @@ class Skater {
       f.life += dt;
       if (f.kind === 'dust') { f.x += f.vx * dt; f.y += f.vy * dt; f.vx *= 0.92; f.vy *= 0.92; }
       if (f.kind === 'spark') { f.vy += this.gravity * 0.6 * dt; f.x += f.vx * dt; f.y += f.vy * dt; }
+      // bail extras
+      if (f.kind === 'confetti' || f.kind === 'coin') {
+        f.vy += 1200 * dt; f.vx *= Math.pow(0.5, dt); f.x += f.vx * dt; f.y += f.vy * dt; f.r = (f.r || 0) + (f.vr || 8) * dt;
+        const g = this.terrain.groundYAt?.(f.x, f.y - 20); // the ground under it, not a roof above
+        if (g !== undefined && f.y > g - 3 && f.vy > 0) { f.y = g - 3; f.vy *= -0.3; f.vx *= 0.6; }
+      }
+      if (f.kind === 'word') { f.y += f.vy * dt; f.vy *= Math.pow(0.3, dt); }
+      if (f.kind === 'smoke') { f.x += f.vx * dt; f.y += f.vy * dt; f.r += 14 * dt; }
+      if (f.kind === 'ghost') f.y -= 55 * dt;
+      if (f.kind === 'star') {
+        f.a += 5 * dt;
+        if (this.bail) { const h = this.bail.rag.p.head; f.x = h.x; f.y = h.y; } else f.life = f.max;
+      }
     }
     this.fx = this.fx.filter(f => f.life < f.max);
     if (this.braking && Math.abs(this.v) > 150 && Math.random() < 0.3) {
