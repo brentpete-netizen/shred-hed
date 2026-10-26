@@ -46,6 +46,47 @@ function blendPose(a, b, k) {
   return a.map((v, i) => (ANGLE_SLOTS.includes(i) && Math.abs(b[i] - v) > Math.PI) || i === 35 ? b[i] : v + (b[i] - v) * k);
 }
 
+// Slide a figure along: its points, not torsoDir and F (which way it's leaning and facing, which
+// everything you wear is drawn from: shifting those threw hats, hair and shoes way off).
+function moveFig(f, dx, dy) {
+  const pts = new Set([f.hip, f.neck, f.shoulder, f.head, f.legs.front.knee, f.legs.front.foot, f.legs.back.knee, f.legs.back.foot, ...f.backArm, ...f.frontArm]);
+  for (const p of pts) { p.x += dx; p.y += dy; }
+}
+
+// The extras from another skater's bail (stars, a ghost, confetti...), made on this screen from
+// the bail they're wearing and how their body moves, using the same code as your own bails.
+function remoteBailFx(r, dt, terrain) {
+  const fig = r.pose.fig, style = OUTFIT_OPTIONS.bail[r.outfit.bail] || {};
+  let e = r.bailFx;
+  if (!r.bailing) {
+    if (e) e.bail = null; // up again: let what's flying finish
+  } else if (!e || !e.bail) {
+    if (!e) {
+      e = r.bailFx = Object.create(Skater.prototype);
+      Object.assign(e, { fx: [], out: [], v: 0, braking: false, vel: { x: 0, y: 0 } });
+    }
+    e.bail = { t: 0, style, hits: 0, landed: false, rag: { p: { head: { ...fig.head } }, hip: { ...fig.hip, vx: 0, vy: 0 } } };
+    e.outfit = r.outfit;
+    if (style.fx === 'noo') { e.pos = fig.hip; e.wordFx('NOOOOO!', style.color, 34, 2.2); }
+  }
+  if (!e) return;
+  e.terrain = terrain;
+  e.facing = r.pose.board.facing;
+  if (e.bail) {
+    const b = e.bail, hip = b.rag.hip, vy = (fig.hip.y - hip.y) / Math.max(dt, 1e-3);
+    // coming down and then not: that's a hit on the ground
+    if (hip.vy > 200 && vy < 40) e.bailHit(Math.min(1, hip.vy / 900));
+    Object.assign(hip, { vx: (fig.hip.x - hip.x) / Math.max(dt, 1e-3), vy, x: fig.hip.x, y: fig.hip.y, ground: vy < 40 && vy > -40 ? {} : null });
+    b.rag.p.head = { ...fig.head };
+    b.t += dt;
+    e.pos = { x: hip.x, y: hip.y };
+    e.vel = { x: hip.vx, y: hip.vy };
+    e.bailTrailFx(dt);
+  }
+  e.updateFx(dt);
+  e.out.length = 0;
+}
+
 const Online = (() => {
   const remotes = new Map(); // id -> { name, outfit, snaps, pose, track, air, n }
   let sendTimer = 0, mine = null;
@@ -70,7 +111,7 @@ const Online = (() => {
     // they just stepped back a copy of the endless hill: don't slide them all the way across
     const last = r.snaps[r.snaps.length - 1];
     if (last && Math.abs(msg.p[32] - last.p[32]) > 1000) { r.snaps.length = 0; r.track = new TrailTrack(); r.jump = true; }
-    r.snaps.push({ ts, p: msg.p, air: msg.air, n: msg.n });
+    r.snaps.push({ ts, p: msg.p, air: msg.air, n: msg.n, bail: !!msg.bail });
     if (r.snaps.length > 40) r.snaps.shift();
     // Their clock against ours, plus the trip: the quickest trip lately is the best guess. And how
     // bumpy it is: how much slower than that the slow ones are (nine in ten get here within it).
@@ -100,7 +141,7 @@ const Online = (() => {
     mine = sk;
     if (sendPose && (sendTimer -= dt) <= 0) {
       sendTimer = 1 / POSE_RATE;
-      Net.send({ t: 'pose', p: packPose(sk), air: sk.state === 'air', n: sk.combo.entries.length, ts: netClock() });
+      Net.send({ t: 'pose', p: packPose(sk), air: sk.state === 'air', bail: sk.state === 'bail', n: sk.combo.entries.length, ts: netClock() });
     }
     const t = netClock();
     for (const r of remotes.values()) {
@@ -118,23 +159,26 @@ const Online = (() => {
       while (i < s.length && s[i].ts <= r.play) i++;
       const a = s[Math.max(0, i - 1)], b = s[Math.min(i, s.length - 1)];
       const k = b.ts > a.ts ? clamp((r.play - a.ts) / (b.ts - a.ts), 0, 1) : 1;
-      let p = blendPose(a.p, b.p, k);
+      const pose = unpackPose(blendPose(a.p, b.p, k));
       // caught up with the newest pose (a hiccup): keep them rolling the way they were going, briefly
       if (i >= s.length && s.length >= 2) {
         const q = s[s.length - 2], span = b.ts - q.ts, ahead = Math.min(r.play - b.ts, 0.25);
         if (span > 0 && ahead > 0) {
           const dx = (b.p[32] - q.p[32]) / span * ahead, dy = (b.p[33] - q.p[33]) / span * ahead;
-          p = p.slice();
-          for (let j = 0; j <= 33; j += 2) { p[j] += dx; p[j + 1] += dy; }
+          moveFig(pose.fig, dx, dy);
+          pose.board.cx += dx;
+          pose.board.cy += dy;
         }
       }
       while (s.length > 2 && s[1].ts < r.play - 0.5) s.shift(); // long gone
       const prev = r.pose;
-      r.pose = unpackPose(p);
+      r.pose = pose;
+      r.bailing = !!a.bail;
       r.vx = prev ? (r.pose.board.cx - prev.board.cx) / Math.max(dt, 1e-3) : 0;
       r.air = b.air;
       r.n = b.n;
       r.track.update(r.pose.board.cx, r.pose.board.cy, r.n, true, dt);
+      remoteBailFx(r, dt, sk.terrain);
     }
   }
 
@@ -146,6 +190,7 @@ const Online = (() => {
       ctx.save();
       ctx.translate(k * (L?.dx || 0), k * (L?.dy || 0));
       r.track.draw(ctx, OUTFIT_OPTIONS.trail[r.outfit.trail], time);
+      if (r.bailFx) drawFx(ctx, r.bailFx.fx);
       Outfit.override = r.outfit;
       drawBoard(ctx, r.pose.board);
       drawFigure(ctx, r.pose.fig);

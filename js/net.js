@@ -33,7 +33,7 @@ const PING_EVERY = 3000;
 // listen for a moment and join the busiest that has room. Nobody there? You open one.
 const PUBLIC_TOPIC = RELAY_ROOT + 'public/';
 const PUBLIC_SIZE = 6;
-const PUBLIC_MAPS = ['park', 'street', 'school', 'mega', 'boardwalk'];
+const PUBLIC_MAPS = ['park', 'street', 'school', 'mega', 'boardwalk', 'spot'];
 const ANNOUNCE_EVERY = 2000; // ms
 const PUBLIC_LISTEN = 3000;  // ms spent listening for public parks
 
@@ -119,7 +119,7 @@ const Net = (() => {
     relayGuests = new Map();
     relays = [];
     hostLink = guestRelay = pinger = announcer = joinFallback = null;
-    Object.assign(api, { role: null, code: null, me: null, mode: null, map: null, public: false, size: 0, started: false, players: [], status: '' });
+    Object.assign(api, { role: null, code: null, me: null, mode: null, map: null, spot: undefined, public: false, size: 0, started: false, players: [], status: '' });
     return session;
   }
 
@@ -278,11 +278,13 @@ const Net = (() => {
 
   function broadcast(msg) { for (const l of conns.values()) if (l.open) l.send(msg); }
 
-  function startMessage() { return { t: 'start', mode: api.mode, map: api.map, park: api.park || null }; }
+  // spot: which hour's Street Spot (the room keeps the one it started on, even for late joiners)
+  function startMessage() { return { t: 'start', mode: api.mode, map: api.map, park: api.park || null, spot: api.spot }; }
 
   function startGame() {
     if (api.role !== 'host') return;
     api.started = true;
+    if (api.map === 'spot') api.spot = spotHour();
     const msg = startMessage();
     broadcast(msg);
     emit('start', msg);

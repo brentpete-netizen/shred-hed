@@ -2,9 +2,9 @@
 // and for playing Game of S.K.A.T.E. Every level unlocks something: maps, outfits, boards and
 // bonus Park Builder pieces. Progress is saved in the browser.
 
-// Rep needed to reach each level (index 0 = level 1), all the way to level 50. Each level takes a
+// Rep needed to reach each level (index 0 = level 1), all the way to level 999. Each level takes a
 // bit more than the last, levelling off at 650 more a level from level 14 on.
-const MAX_LEVEL = 50;
+const MAX_LEVEL = 999;
 const REP_LEVELS = [0];
 for (let lvl = 2; lvl <= MAX_LEVEL; lvl++) REP_LEVELS.push(REP_LEVELS[lvl - 2] + Math.min(650, 50 * (lvl - 1)));
 
@@ -70,7 +70,7 @@ const BUCKS = {
   start: 50,                                                 // to get you going
   combo: score => score >= 400 ? Math.min(30, Math.floor(score / 400)) : 0,
   newTrick: 5, letter: 25, skateWin: 40, skateGame: 10,
-  levelUp: lvl => 25 * lvl,
+  levelUp: lvl => 25 * Math.min(lvl, 50), // (no more than at level 50, way up past it)
 };
 // cheats that make skating easier: no Rep or Shred Bucks while one's on
 const EASY_CHEATS = ['lowgrav', 'halfspeed'];
@@ -384,6 +384,12 @@ const Progress = (() => {
       data.bucksSpent = 0;
     }
     delete data.bucks;
+  }
+  // For a while the Skeleton came at level 12 by mistake (it's level 50). Anyone who got there in
+  // that time has it, and keeps it. (Checked once, so reaching 12 from now on doesn't count.)
+  if (!data.skeleton12) {
+    data.skeleton12 = true;
+    if (levelFor(data.rep) >= 12 && !data.owned.includes('skin:Skeleton')) data.owned.push('skin:Skeleton');
   }
   keepUnlocks();
   store();

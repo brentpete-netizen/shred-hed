@@ -824,7 +824,8 @@ class Menu {
       const best = Stats.map(m.id);
       ctx.font = `${Math.max(12, fs * 0.6)}px ${MARKER}`;
       const gold = [0, 1, 2, 3, 4].filter(i => Progress.hasLetter(m.id, i)).length; // only hinted once you've found one
-      const line = (best.bestCombo ? `best combo ${fmtScore(best.bestCombo)}` : 'not skated yet') + (gold ? `  ·  ${gold}/5 ★` : '');
+      const line = m.id === 'spot' && cardH <= 170 ? m.blurb // (small cards: which spot it is, and when it changes)
+        : (best.bestCombo ? `best combo ${fmtScore(best.bestCombo)}` : 'not skated yet') + (gold ? `  ·  ${gold}/5 ★` : '');
       ctx.fillText(line, x + cardW / 2, Math.min(y + cardH - fs * 0.95, by + fs * 1.7));
       if (!Progress.isUnlocked('map', m.id)) this.drawLock(ctx, x, y, cardW, cardH, Progress.lockLevel('map', m.id));
       this.hit(x, y, cardW, cardH, () => this.pickMap(i));

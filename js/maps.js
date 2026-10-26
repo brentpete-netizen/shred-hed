@@ -320,6 +320,118 @@ function buildHillBomb() {
   return T;
 }
 
+// Street Spot: a different street spot every hour, the same one for everyone. The hour picks the
+// name, the look and a run of street stuff (stairs, handrails, ledges, a parked car, banks, a gap,
+// a manual pad, a kicker...), each its own size, with room to roll between them.
+const SPOT_PLACES = ['Library', 'Bank', 'Courthouse', 'Mall', 'Museum', 'Post Office', 'City Hall', 'Parking Lot', 'Train Station',
+  'Office Park', 'Hospital', 'Harbor', 'Market', 'Stadium', 'High School', 'Hotel', 'Diner', 'Fire Station', 'Gas Station', 'Art School'];
+const SPOT_THINGS = ['Ledges', 'Stairs', 'Rails', 'Plaza', 'Banks', 'Gap', 'Spot', 'Drop', 'Curbs', 'Blocks', 'Steps', 'Lot'];
+const SPOT_HOUR = 3.6e6;
+const spotHour = (at = Date.now()) => Math.floor(at / SPOT_HOUR);
+// a run of random numbers that's the same every time for the same hour
+function spotRand(hour) {
+  let a = (Math.imul(hour, 2654435761) ^ 0x5bd1e995) >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function spotName(hour = spotHour()) {
+  const r = spotRand(hour);
+  return `${SPOT_PLACES[Math.floor(r() * SPOT_PLACES.length)]} ${SPOT_THINGS[Math.floor(r() * SPOT_THINGS.length)]}`;
+}
+
+function buildSpot(hour = spotHour()) {
+  const r = spotRand(hour);
+  r(); r(); // (those two were the name)
+  const between = (a, b) => a + r() * (b - a), pick = list => list[Math.floor(r() * list.length)];
+  const walled = r() < 0.5;
+  const b = walled ? MapBuilder.wallStart(0, 0, 520) : MapBuilder.qpStart(0, 0, Math.round(between(170, 220)), 10);
+  if (walled) b.front.push({ type: 'facade', x0: -160, x1: 0, top: -520, bottom: 0, style: pick(['shop', 'school']) });
+  const spawnX = b.cur.x + 140;
+  b.flat(860); // a long flat run-up first (room to warm up, and for the CPU to set tricks in S.K.A.T.E.)
+  const flat = () => b.flat(Math.round(between(170, 320)));
+  const onFlat = (kind, len, h, dx = 40) => { b.prop(kind, dx, len, h); b.flat(dx + len + 90); };
+  const lamps = [];
+  const FEATURES = {
+    rail: () => onFlat('rail', Math.round(between(200, 380)), Math.round(between(28, 36))),
+    ledge: () => onFlat('ledge', Math.round(between(220, 380)), Math.round(between(24, 32))),
+    bench: () => onFlat('bench', Math.round(between(130, 180)), Math.round(between(20, 28))),
+    planter: () => onFlat('planter', Math.round(between(180, 240)), Math.round(between(26, 32))),
+    curb: () => onFlat('curb', Math.round(between(150, 260)), 11, 0),
+    table: () => onFlat('table', 160, 42),
+    // stairs down (and somewhere to land), only while there's still room to go down
+    stairs: () => {
+      if (b.cur.y > 160) return FEATURES.bank();
+      b.stairs(Math.round(between(3, 8)), { rail: r() < 0.75 });
+      b.flat(Math.round(between(280, 380)));
+    },
+    car: () => { b.flat(60).car(pick(['#3f7fd6', '#d64545', '#3fae4a', '#f4c542', '#26262b', '#e8e4da'])); b.flat(220); },
+    // a bank back up to the next level
+    bank: () => {
+      if (b.cur.y < -60) return FEATURES.ledge();
+      const H = Math.round(between(50, 90));
+      b.bend(150, -0.42).line((H - 150 * (1 - Math.cos(0.42))) / Math.sin(0.42), -0.42);
+      b.flat(200);
+    },
+    // off a drop to the street below
+    drop: () => {
+      if (b.cur.y > 200) return FEATURES.bank();
+      b.flat(20).to(0, Math.round(between(28, 60)));
+      b.flat(320);
+    },
+    // a ditch to ollie over, landing a bit lower than you took off
+    gap: () => {
+      if (b.cur.y > 180) return FEATURES.rail();
+      const deep = Math.round(between(100, 120)), up = Math.round(between(44, 54));
+      b.to(0, deep).flat(Math.round(between(120, 160))).to(35, -up);
+      b.flat(320);
+    },
+    manualPad: () => {
+      const at = { ...b.cur }, len = Math.round(between(200, 300));
+      b.to(16, -16).flat(len).to(16, 16);
+      b.decor.push([{ x: at.x + 16, y: at.y - 16 }, { x: at.x + 16, y: at.y }], [{ x: at.x + 16 + len, y: at.y - 16 }, { x: at.x + 16 + len, y: at.y }]);
+      b.flat(160);
+    },
+    kicker: () => {
+      const base = b.cur.y, lip = between(0.32, 0.42);
+      b.bend(120, -lip).line(Math.round(between(30, 46)), -lip).to(0, base - b.cur.y);
+      b.flat(340);
+    },
+  };
+  const kinds = Object.keys(FEATURES);
+  let last = null;
+  for (let n = Math.round(between(6, 8)), i = 0; i < n; i++) {
+    let kind = pick(kinds);
+    if (kind === last) kind = pick(kinds); // (not the same thing twice in a row, mostly)
+    last = kind;
+    FEATURES[kind]();
+    if (r() < 0.5) lamps.push(b.cur.x - 60);
+    flat();
+  }
+  b.qpEnd(Math.round(between(190, 230)), 10);
+
+  // the buildings behind (standing on the lowest ground under them, so there's never a gap)
+  const lowest = (x0, x1) => Math.max(...b.pts.filter(p => p.x >= x0 - 20 && p.x <= x1 + 20).map(p => p.y), 0);
+  const colors = ['#cfc4b0', '#c9b8a8', '#bfc6c9', '#d1c2b4', '#c4c8c0', '#cdbfae', '#c2c6cc', '#d6c9b8', '#bfb8c4'];
+  for (let x = 60; x < b.cur.x - 100;) {
+    const w = Math.round(between(200, 320));
+    if (r() < 0.85) b.scenery({ type: 'building', x, w, h: Math.round(between(260, 470)), y: lowest(x, x + w), color: pick(colors) });
+    x += w + Math.round(between(40, 120));
+  }
+  const groundAt = x => (b.pts.find(p => p.x >= x) || b.cur).y;
+  for (const x of lamps) b.scenery({ type: 'lamp', x, y: groundAt(x) });
+  for (let i = 0; i < 3; i++) { const x = between(400, b.cur.x - 400); b.scenery({ type: 'tree', x, y: groundAt(x) - 4, s: between(0.9, 1.3) }); }
+  const signX = between(600, b.cur.x - 600);
+  b.scenery({ type: 'sign', x: signX, y: groundAt(signX), text: pick(['STOP', 'SLOW', 'ONE WAY', 'NO SKATING']) });
+  const theme = pick([THEMES.street, THEMES.school, THEMES.park]);
+  const T = b.build({ spawn: { x: spawnX, y: 0 }, theme, name: spotName(hour) });
+  T.spotHour = hour;
+  return T;
+}
+
 // Found, not given: each of these turns up when you pull off something special on a main map.
 
 function buildDrain() {
@@ -348,4 +460,9 @@ const MAPS = [
   { id: 'school', name: 'SCHOOL YARD', blurb: 'The big eight-stair, a gap and the court', build: buildSchool },
   { id: 'mega', name: 'MEGA RAMP', blurb: 'Giant roll-in, huge gap, DIY spot under the bridge', build: buildMega },
   { id: 'boardwalk', name: 'BOARDWALK', blurb: 'Palm trees, the sea wall, and a jump over the water', build: buildBoardwalk },
+  {
+    id: 'spot', name: 'STREET SPOT', build: () => buildSpot(),
+    // today's spot, and how long until the next one
+    get blurb() { return `${spotName()} · new spot in ${Math.ceil((SPOT_HOUR - (Date.now() % SPOT_HOUR)) / 6e4)} min`; },
+  },
 ];

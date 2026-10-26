@@ -216,7 +216,8 @@ function startTestRide() {
 // choice: { map, game: 'free' | 'cpu' | '2p' }
 function startSkating({ map, game }) {
   if (game === 'free') {
-    if (map !== mapId || skater.state === 'bail' || skateGame) loadMap(map);
+    // (Street Spot: a new hour is a new spot)
+    if (map !== mapId || skater.state === 'bail' || skateGame || (terrain.spotHour !== undefined && terrain.spotHour !== spotHour())) loadMap(map);
     skateGame = null;
   } else {
     loadMap(map);
@@ -245,7 +246,9 @@ let online = false; // skating in an online room right now
 
 // The host said go (or you dropped into a Free Skate already going): everyone loads the same map.
 function startOnline(msg) {
-  const def = msg.park ? { id: 'park:' + msg.park.id, build: () => buildPark(msg.park) } : findAnyMap(msg.map);
+  const def = msg.park ? { id: 'park:' + msg.park.id, build: () => buildPark(msg.park) }
+    : msg.map === 'spot' && Number.isFinite(msg.spot) ? { id: 'spot', build: () => buildSpot(msg.spot) } // the host's hour, for everyone
+    : findAnyMap(msg.map);
   loadTerrain(def.build(), def.id);
   Online.syncRoster();
   if (msg.mode === 'skate') {
