@@ -52,8 +52,17 @@ const OUTFIT_OPTIONS = {
     { name: 'Neon Beanie', type: 'beanie', color: '#c6ff3d', accent: '#ff3dbb', shop: 160 },
     { name: 'Gold Bandana', type: 'bandana', color: '#1c1c20', accent: '#f4c542', hair: '#26262b', shop: 140 },
     { name: 'Galaxy Helmet', type: 'helmet', color: '#2b1d4a', accent: '#a593e6', shop: 300 },
-    // Halloween: free in the shop until the end of October (keep it for good if you grab it)
-    { name: 'Pumpkin Head', type: 'pumpkin', color: '#ff8c1a', shade: '#e06d0b', accent: '#5b8c2a', shop: 0, until: [2026, 10, 31] },
+    // Halloween: free in the shop all October (keep it for good if you grab it)
+    { name: 'Pumpkin Head', type: 'pumpkin', color: '#ff8c1a', shade: '#e06d0b', accent: '#5b8c2a', shop: 0, event: 'halloween' },
+    // the other holidays' hats (see HOLIDAYS): free in the shop that month
+    { name: 'Party Hat', type: 'party', color: '#6c4bd1', accent: '#f4c542', stripe: '#ff5fae', shop: 0, event: 'newyear' },
+    { name: 'Cupid Halo', type: 'halo', color: '#ff8fc4', accent: '#ff5fae', shop: 0, event: 'valentine' },
+    { name: 'Leprechaun Hat', type: 'tophat', color: '#2e9e4f', accent: '#f4c542', shop: 0, event: 'stpatricks' },
+    { name: 'Bunny Ears', type: 'bunny', color: '#f4f1ea', accent: '#ffb3d1', shop: 0, event: 'easter' },
+    { name: 'Star Bandana', type: 'bandana', color: '#2f4fa8', accent: '#f4f1ea', hair: '#3a2416', shop: 0, event: 'fourth' },
+    { name: 'Witch Hat', type: 'witch', color: '#2b1d4a', accent: '#a593e6', shop: 0, event: 'halloween' },
+    { name: 'Pilgrim Hat', type: 'tophat', color: '#26262b', accent: '#e0b23c', shop: 0, event: 'thanksgiving' },
+    { name: 'Santa Hat', type: 'santa', color: '#d64545', accent: '#f4f1ea', shop: 0, event: 'christmas' },
   ],
   // hairstyles (drawn in hair.js); a hat hides the top of it
   hair: [
@@ -130,6 +139,13 @@ const OUTFIT_OPTIONS = {
     { name: 'Neon Jersey', type: 'jersey', color: '#c6ff3d', shade: '#a8dd2c', accent: '#ff3dbb', shop: 250 },
     { name: 'Ice Hoodie', type: 'hoodie', color: '#bfe6f2', shade: '#a3d2e2', accent: '#3dd6ff', spots: ['#ffffff', '#3dd6ff'], shop: 320 },
     { name: 'Money Tee', type: 'tee', color: '#2e9e4f', shade: '#258540', accent: '#f4c542', spots: ['#f4c542', '#7fd36b'], shop: 220 },
+    { name: 'Party Tux', type: 'tux', color: '#1c1c20', shade: '#141417', accent: '#f4c542', under: '#f4f1ea', shop: 0, event: 'newyear' },
+    { name: 'Love Tee', type: 'tee', color: '#ff8fb8', shade: '#e57aa0', accent: '#d63a3a', spots: ['#d63a3a', '#ffffff'], shop: 0, event: 'valentine' },
+    { name: 'Lucky Hoodie', type: 'hoodie', color: '#3fae4a', shade: '#329040', accent: '#f4c542', shop: 0, event: 'stpatricks' },
+    { name: 'Pastel Hoodie', type: 'hoodie', color: '#bfe6f2', shade: '#a3d2e2', accent: '#ffb3d1', spots: ['#ffb3d1', '#fff1a0', '#c9f2c7'], shop: 0, event: 'easter' },
+    { name: 'Stars & Stripes Tee', type: 'tee', color: '#f4f1ea', shade: '#d9d5cb', accent: '#2f4fa8', stripes: ['#e2553f', '#e2553f', '#e2553f'], shop: 0, event: 'fourth' },
+    { name: 'Harvest Flannel', type: 'flannel', color: '#c8643a', shade: '#a8522e', accent: '#3a2416', under: '#f4c542', shop: 0, event: 'thanksgiving' },
+    { name: 'Ugly Sweater', type: 'hoodie', color: '#2e7d4f', shade: '#256b42', accent: '#d64545', spots: ['#d64545', '#f4f1ea', '#f4c542'], shop: 0, event: 'christmas' },
   ],
   pants: [
     { name: 'Baggy Cargos', type: 'cargo', color: '#6b7a3a', shade: '#59662f' },
@@ -203,6 +219,14 @@ const OUTFIT_OPTIONS = {
     { name: 'Lava Deck', grip: '#2a1410', graphic: '#1c1c20', art: 'flame', accent: '#ffd23f', wheel: '#ff5a1f', shop: 300 },
     { name: 'Money Deck', grip: '#2f2f33', graphic: '#2e9e4f', art: 'dots', accent: '#f4c542', wheel: '#f4c542', artColors: ['#f4c542', '#7fd36b', '#e9ffe6'], shop: 350 },
     { name: 'Ice Deck', grip: '#2f2f33', graphic: '#bfe6f2', art: 'stars', accent: '#ffffff', wheel: '#3dd6ff', shop: 300 },
+    { name: 'Disco Deck', grip: '#2f2f33', graphic: '#c9d1d9', art: 'checker', accent: '#f4c542', wheel: '#f4c542', artColors: ['#f4c542', '#ffffff', '#a593e6'], shop: 0, event: 'newyear' },
+    { name: 'Love Deck', grip: '#2f2f33', graphic: '#ff8fb8', art: 'dots', accent: '#d63a3a', wheel: '#ffffff', artColors: ['#d63a3a', '#ffffff', '#ff5fae'], shop: 0, event: 'valentine' },
+    { name: 'Shamrock Deck', grip: '#2f2f33', graphic: '#2e9e4f', art: 'checker', accent: '#7fd36b', wheel: '#f4c542', artColors: ['#7fd36b', '#f4c542'], shop: 0, event: 'stpatricks' },
+    { name: 'Easter Egg Deck', grip: '#2f2f33', graphic: '#fff1a0', art: 'dots', accent: '#ffb3d1', wheel: '#bfe6f2', artColors: ['#ffb3d1', '#bfe6f2', '#c9f2c7', '#e0c3ff'], shop: 0, event: 'easter' },
+    { name: 'Firecracker Deck', grip: '#2f2f33', graphic: '#f4f1ea', art: 'stripes', accent: '#e2553f', wheel: '#2f4fa8', shop: 0, event: 'fourth' },
+    { name: 'Spooky Deck', grip: '#2f2f33', graphic: '#26262b', art: 'skull', accent: '#ff8c1a', wheel: '#ff8c1a', artColors: ['#ff8c1a', '#ff8c1a', '#ff8c1a', '#ff8c1a', '#26262b', '#26262b'], shop: 0, event: 'halloween' },
+    { name: 'Maple Deck', grip: '#2f2f33', graphic: '#7a4a24', art: 'flame', accent: '#ff8c2e', wheel: '#f4c542', shop: 0, event: 'thanksgiving' },
+    { name: 'Candy Cane Deck', grip: '#2f2f33', graphic: '#f4f1ea', art: 'stripes', accent: '#d64545', wheel: '#3fae4a', shop: 0, event: 'christmas' },
   ],
   // accessories on top of everything else
   extra: [
@@ -222,8 +246,16 @@ const OUTFIT_OPTIONS = {
     { name: 'Gold Shades', type: 'shades', color: '#e0b23c', shop: 150 },
     { name: 'Ice Shades', type: 'shades', color: '#bfefff', shop: 140 },
     { name: 'Galaxy Cape', type: 'cape', color: '#2b1d4a', accent: '#a593e6', shop: 450 },
-    // Halloween: a joke axe "stuck" in your head, like the costume one (free until the end of October)
-    { name: 'Axe in Head', type: 'axe', color: '#b9c0c8', accent: '#8a5a2b', shop: 0, until: [2026, 10, 31] },
+    // Halloween: a joke axe "stuck" in your head, like the costume one (free all October)
+    { name: 'Axe in Head', type: 'axe', color: '#b9c0c8', accent: '#8a5a2b', shop: 0, event: 'halloween' },
+    { name: 'Party Shades', type: 'shades', color: '#f4c542', shop: 0, event: 'newyear' },
+    { name: 'Heart Shades', type: 'shades', color: '#ff5fae', shop: 0, event: 'valentine' },
+    { name: 'Clover Chain', type: 'chain', color: '#3fae4a', shop: 0, event: 'stpatricks' },
+    { name: 'Easter Basket', type: 'backpack', color: '#f4c542', accent: '#ffb3d1', shop: 0, event: 'easter' },
+    { name: 'Star Shades', type: 'shades', color: '#2f4fa8', shop: 0, event: 'fourth' },
+    { name: 'Bat Cape', type: 'cape', color: '#2b1d4a', accent: '#1c1c20', shop: 0, event: 'halloween' },
+    { name: 'Harvest Scarf', type: 'scarf', color: '#c8643a', accent: '#f4c542', shop: 0, event: 'thanksgiving' },
+    { name: 'Christmas Scarf', type: 'scarf', color: '#3fae4a', accent: '#d64545', shop: 0, event: 'christmas' },
   ],
   // which foot goes forward; goofy flicks flips and shove-its the other way round
   stance: [
@@ -284,6 +316,14 @@ const OUTFIT_OPTIONS = {
     { name: 'Diamond', colors: ['#3dd6ff', '#bfefff', '#ffffff'], sparkle: '#ffffff', shop: 450 },
     { name: 'Neon Zap', colors: ['#ff3dbb', '#c6ff3d', '#ffffff'], zap: true, shop: 350 },
     { name: 'Sunset', colors: ['#ff5a1f', '#ff8fc4', '#fff1a0'], shop: 280 },
+    { name: 'Fireworks', colors: ['#a593e6', '#f4c542', '#ffffff'], sparkle: '#ffd84a', shop: 0, event: 'newyear' },
+    { name: 'Hearts', colors: ['#d63a3a', '#ff8fb8', '#fff0f7'], sparkle: '#ffffff', shop: 0, event: 'valentine' },
+    { name: 'Lucky Clover', colors: ['#2e9e4f', '#7fd36b', '#e9ffe6'], sparkle: '#f4c542', shop: 0, event: 'stpatricks' },
+    { name: 'Pastel', colors: ['#ffb3d1', '#c9f2c7', '#ffffff'], shop: 0, event: 'easter' },
+    { name: 'Firecracker', colors: ['#e2553f', '#ffffff', '#2f4fa8'], flicker: true, shop: 0, event: 'fourth' },
+    { name: 'Slime', colors: ['#5fc232', '#c6ff3d', '#efffc4'], flicker: true, shop: 0, event: 'halloween' },
+    { name: 'Autumn', colors: ['#a8522e', '#ff8c2e', '#ffd23f'], shop: 0, event: 'thanksgiving' },
+    { name: 'Snowflake', colors: ['#5cc8ff', '#e6f7ff', '#ffffff'], sparkle: '#ffffff', shop: 0, event: 'christmas' },
   ],
   // How you fall when you bail (see ragdoll.js). Anything left out falls the classic way.
   //   spin: how hard you tumble · carry: [x, y] how much of your speed you keep
@@ -314,16 +354,45 @@ const OUTFIT_OPTIONS = {
     { name: 'Cartoon POW', fx: 'pow', shop: 350 },
     { name: 'Pinball', spin: 1.4, bounce: 0.95, grip: 0.02, time: 1.3, fx: 'ding', shop: 400 },
     { name: 'Coin Spill', fx: 'coins', shop: 450 },
+    { name: 'Firework Slam', fx: 'confetti', word: 'BOOM!', color: '#f4c542', shop: 0, event: 'newyear' },
+    { name: 'Love Struck', spin: 0.3, fx: 'stars', word: 'XOXO', color: '#ff5fae', shop: 0, event: 'valentine' },
+    { name: 'Lucky Bounce', spin: 1, bounce: 0.7, grip: 0.05, time: 1.2, fx: 'boing', color: '#3fae4a', shop: 0, event: 'stpatricks' },
+    { name: 'Egg Roll', spin: 2.4, carry: [1.05, 0.5], grip: 0.03, bounce: 0.2, word: 'CRACK!', color: '#fff1a0', shop: 0, event: 'easter' },
+    { name: 'Rocket Pop', spin: 1.4, carry: [0.25, 0], kick: { x: 0, y: -1300 }, time: 1.5, fx: 'rocket', color: '#e2553f', shop: 0, event: 'fourth' },
+    { name: 'Spooky Slam', fx: 'ghost', word: 'BOO!', color: '#a593e6', shop: 0, event: 'halloween' },
+    { name: 'Food Coma', spin: 0.1, carry: [0.4, 0.3], parts: { hip: { x: -40, y: 650 }, head: { x: -50, y: -120 }, foot: { x: 140, y: -320 } }, word: 'SO FULL', color: '#c8643a', shop: 0, event: 'thanksgiving' },
+    { name: 'Snow Angel', spin: 0.2, kick: { x: 0, y: -160 }, spread: 380, word: 'BRRR!', color: '#bfefff', shop: 0, event: 'christmas' },
   ],
 };
 // every item knows its category (handy for the shop)
 for (const cat in OUTFIT_OPTIONS) for (const o of OUTFIT_OPTIONS[cat]) o.cat = cat;
 // everything the Skate Shop ever sells, cheapest first
-const SHOP_ITEMS = Object.values(OUTFIT_OPTIONS).flat().filter(o => o.shop && !o.until).sort((a, b) => a.shop - b.shop);
-// for a short time only, on top of the daily stock: until: [year, month, day] it's there up to the
-// end of that day (yours for good if you get it in time)
-const SHOP_LIMITED = Object.values(OUTFIT_OPTIONS).flat().filter(o => o.until);
-const limitedEnds = item => new Date(item.until[0], item.until[1] - 1, item.until[2], 23, 59, 59, 999).getTime();
+const SHOP_ITEMS = Object.values(OUTFIT_OPTIONS).flat().filter(o => o.shop && !o.event).sort((a, b) => a.shop - b.shop);
+// The holidays, every year. In a holiday's month its gear is free in the Skate Shop (and yours for good
+// if you grab it), and the maps get decorated (decor: see season.js); on the 1st of the next month it's
+// gone. A month without a holiday is just a normal month.
+const HOLIDAYS = [
+  { id: 'newyear', month: 1, name: "NEW YEAR'S", color: '#f4c542', decor: ['fireworks', 'confetti', 'snow'] },
+  { id: 'valentine', month: 2, name: "VALENTINE'S DAY", color: '#ff5fae', decor: ['hearts'] },
+  { id: 'stpatricks', month: 3, name: "ST. PATRICK'S DAY", color: '#3fae4a', decor: ['clovers'] },
+  { id: 'easter', month: 4, name: 'EASTER', color: '#ff8fc4', decor: ['petals', 'eggs'] },
+  { id: 'fourth', month: 7, name: 'FOURTH OF JULY', color: '#e2553f', decor: ['fireworks'] },
+  { id: 'halloween', month: 10, name: 'HALLOWEEN', color: '#ff8c1a', decor: ['leaves', 'pumpkins', 'bats'] },
+  { id: 'thanksgiving', month: 11, name: 'THANKSGIVING', color: '#c8643a', decor: ['leaves'] },
+  { id: 'christmas', month: 12, name: 'CHRISTMAS', color: '#d64545', decor: ['snow', 'lights', 'presents'] },
+];
+// The holiday this month (null if there isn't one), when it ends (the last moment of the month),
+// and the next one coming up, and when.
+function holidayNow(at = Date.now()) {
+  const d = new Date(at), m = d.getMonth() + 1;
+  const h = HOLIDAYS.find(x => x.month === m);
+  const next = HOLIDAYS.find(x => x.month > m) || HOLIDAYS[0];
+  const nextYear = next.month > m ? d.getFullYear() : d.getFullYear() + 1;
+  return { holiday: h ? { ...h, ends: new Date(d.getFullYear(), m, 1).getTime() - 1 } : null, next, nextAt: new Date(nextYear, next.month - 1, 1).getTime() };
+}
+// the gear that comes with them (only this month's holiday's is in the shop)
+const SHOP_LIMITED = Object.values(OUTFIT_OPTIONS).flat().filter(o => o.event);
+const limitedEnds = (item, at = Date.now()) => holidayNow(at).holiday?.ends ?? at;
 
 // The shop changes completely every day at 12:00 PM (your time): everything in it goes, and 8 new
 // things come in, one of them the Daily Deal. It's the same shop for everyone.
@@ -369,7 +438,7 @@ function shopToday(at = Date.now()) {
   next.setHours(12, 0, 0, 0);
   if (next.getTime() <= at) next.setDate(next.getDate() + 1);
   // the limited-time things go first, while they're still around
-  const limited = SHOP_LIMITED.filter(it => at <= limitedEnds(it));
+  const limited = SHOP_LIMITED.filter(it => it.event === holidayNow(at).holiday?.id);
   return { day, items: [...limited, ...items], deal, nextAt: next.getTime() };
 }
 // what it costs today (the Daily Deal is cheaper)

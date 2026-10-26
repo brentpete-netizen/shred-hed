@@ -9,7 +9,7 @@ const HAIR_NATURAL = '#3a2416';
 const HAIR_LINE = { color: INK, width: 1.9, amp: 0.35, maxLen: 7 };
 
 // hats you can see the whole hairstyle around (the rest cover the top of your head)
-const HAIR_SHOWS = new Set(['none', 'headphones', 'halo', 'crown']);
+const HAIR_SHOWS = new Set(['none', 'headphones', 'halo', 'crown', 'bunny']);
 // the old head items that are a hairstyle themselves
 const HAIR_FROM_HEAD = { hair: 'spiky', mohawk: 'mohawk', afro: 'afro', ponytail: 'ponytail' };
 

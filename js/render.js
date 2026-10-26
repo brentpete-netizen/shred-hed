@@ -587,6 +587,36 @@ function drawHead(ctx, h, up, F) {
   } else if (hat.type === 'headphones') {
     Sketch.limb(ctx, arcPts(h, R + 4, ua - half - 0.1, ua + half + 0.1, 8), 2.2, hat.color, { amp: 0.2 });
     Sketch.circle(ctx, ear.x, ear.y, 4.3, hat.accent, { width: 2 });
+  } else if (hat.type === 'party') {
+    // a striped cone with a pom-pom, a bit to one side
+    const l = add(add(h, up, R - 3), back, R - 3), r = add(add(h, up, R - 3), F, R - 4), tip = add(add(h, up, R + 19), F, 2);
+    Sketch.shape(ctx, [l, tip, r], hat.color, HAT_LINE);
+    for (const k of [0.35, 0.65]) Sketch.stroke(ctx, [mix(l, tip, k), mix(r, tip, k)], thin(hat.stripe, 2.4));
+    Sketch.circle(ctx, tip.x, tip.y, 3, hat.accent, { width: 1.4 });
+    Sketch.stroke(ctx, [l, add(add(h, up, -2), back, R - 2)], thin(INK, 0.9)); // the elastic
+  } else if (hat.type === 'bunny') {
+    // a headband with two tall ears
+    Sketch.limb(ctx, arcPts(h, R + 1.5, ua - half + 0.25, ua + half - 0.25, 8), 2.4, hat.color, { amp: 0.2 });
+    for (const [k, lean] of [[-0.35, -3], [0.25, 2]]) {
+      const base = add(add(h, up, R), F, k * R * 2), tipE = add(add(base, up, 17), F, lean);
+      const ear = [add(base, F, -3), add(mix(base, tipE, 0.6), F, -4), tipE, add(mix(base, tipE, 0.6), F, 4), add(base, F, 3)];
+      Sketch.shape(ctx, ear, hat.color, HAT_LINE);
+      Sketch.shape(ctx, [add(base, F, -1.2), add(mix(base, tipE, 0.6), F, -1.8), add(tipE, up, -3), add(mix(base, tipE, 0.6), F, 1.8), add(base, F, 1.2)], hat.accent, { color: hat.accent, width: 0.5, amp: 0.1 });
+    }
+  } else if (hat.type === 'witch') {
+    // a wide brim and a tall bent cone
+    const c = add(h, up, R - 4);
+    Sketch.limb(ctx, [add(add(c, back, R + 9), up, 1), add(c, up, -1), add(add(c, F, R + 9), up, 1)], 3, hat.color, { amp: 0.3 });
+    const tip = add(add(c, up, 30), back, 8);
+    Sketch.shape(ctx, [add(c, back, R - 2), add(add(c, up, 18), back, 2), tip, add(add(c, up, 14), F, 3), add(c, F, R - 2)], hat.color, HAT_LINE);
+    Sketch.limb(ctx, [add(add(c, back, R - 2.5), up, 3), add(add(c, F, R - 2.5), up, 3)], 2.4, hat.accent, { amp: 0.2 });
+  } else if (hat.type === 'santa') {
+    // red, with a white band, flopping over at the back to a pom-pom
+    Sketch.shape(ctx, cap(R + 1.5), hat.color, HAT_LINE);
+    const top = add(h, up, R + 1), flop = add(add(h, up, R + 6), back, R + 7);
+    Sketch.shape(ctx, [add(top, F, -2), add(top, F, 3), add(add(h, up, R + 9), back, R * 0.4), flop, add(add(h, up, R - 1), back, R - 2)], hat.color, HAT_LINE);
+    Sketch.circle(ctx, flop.x, flop.y, 3.4, hat.accent, { width: 1.4 });
+    Sketch.limb(ctx, [add(add(h, up, 1), back, R + 1), add(add(h, up, 1), F, R + 1)], 4.2, hat.accent, { amp: 0.2 });
   } else if (hat.type === 'pumpkin') {
     // a carved pumpkin right over your head: ribs, a curly stalk, and a glowing jack-o'-lantern face
     const c = add(h, up, 1.5), r = R + 4.5, glow = '#ffd23f', dark = '#5a2a08';

@@ -634,7 +634,7 @@ function render() {
   if (building) builder.drawWorld(ctx);
   else {
     const seen = { x0: view.x - halfW - 50, x1: view.x + halfW + 50 };
-    Season.drawPumpkins(ctx, world, seen);
+    Season.drawGround(ctx, world, seen);
     if (mode === 'play' && !skateGame && !testRide) Hype.drawWorld(ctx, time);
     if (online) Online.draw(ctx, time, skateGame ? skateGame.watchedId() : null);
     // while you watch someone's S.K.A.T.E. attempt, your own skater steps aside
@@ -648,7 +648,7 @@ function render() {
     // jack-o'-lanterns glow in the dark
     if (day.night > 0.2) {
       ctx.globalCompositeOperation = 'lighter';
-      Season.drawPumpkins(ctx, world, seen, clamp(day.night, 0, 1));
+      Season.drawGround(ctx, world, seen, clamp(day.night, 0, 1));
       ctx.globalCompositeOperation = 'source-over';
     }
   }

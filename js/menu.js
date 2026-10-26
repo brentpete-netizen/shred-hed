@@ -1016,8 +1016,30 @@ class Menu {
     ctx.fillStyle = INK;
     ctx.fillText(`Shred Bucks  ·  ${Trophies.got()} / ${TROPHIES.length} trophies`, w / 2 - 90 + bucksW / 2 + 8, ly + 36);
 
+    // the holiday on now (with free gear in the shop), or which one's coming up
+    const hn = holidayNow(), hol = hn.holiday, ey = ly + 64, days = at => Math.max(1, Math.ceil((at - Date.now()) / 864e5));
+    if (hol) {
+      const text = `${hol.name} EVENT  ·  free gear in the Skate Shop  ·  ${days(hol.ends)} day${days(hol.ends) === 1 ? '' : 's'} left`;
+      const fs = this.fitText(ctx, text, w - 40, 17, MARKER), bw2 = Math.min(w - 24, ctx.measureText(text).width + 40);
+      ctx.save();
+      ctx.translate(w / 2, ey);
+      ctx.rotate(-0.015 + Math.sin(time * 2) * 0.006);
+      ctx.fillStyle = 'rgba(40, 30, 20, 0.25)';
+      ctx.fillRect(-bw2 / 2 + 3, -13, bw2, 28);
+      ctx.fillStyle = hol.color;
+      ctx.fillRect(-bw2 / 2, -16, bw2, 28);
+      ctx.restore();
+      markerText(ctx, text, w / 2, ey - 2, fs, '#ffffff', -0.015);
+      this.hit(w / 2 - bw2 / 2, ey - 16, bw2, 28, () => this.choose(this.mainItems.indexOf('SKATE SHOP')));
+    } else {
+      ctx.font = `${Math.max(12, Math.min(15, w / 60))}px ${HAND}`;
+      ctx.textAlign = 'center';
+      ctx.fillStyle = INK;
+      ctx.fillText(`next event: ${hn.next.name} in ${days(hn.nextAt)} days`, w / 2, ey - 2);
+    }
+
     // the buttons
-    const y0 = ly + 56, L = this.mainLayout(w, h, y0);
+    const y0 = ly + 86, L = this.mainLayout(w, h, y0);
     this.mainItems.forEach((item, i) => {
       const col = Math.floor(i / L.rows), row = i % L.rows;
       const bx = L.x0 + col * (L.bw + L.gap), by = y0 + row * (L.bh + L.rowGap);
@@ -1417,16 +1439,17 @@ class Menu {
     const line = `${CATEGORY_LABEL[item.cat] || item.cat}  ·  ${SHOP_TAGLINES[`${item.cat}:${item.name}`] || 'only in the Skate Shop'}`;
     const lh = Math.max(15, Math.min(21, w / 52));
     y += lh * this.wrapText(ctx, line, tx, y, tw, lh).length + 8;
-    if (!owned && item.until) {
+    const hol = item.event && HOLIDAYS.find(x => x.id === item.event);
+    if (!owned && hol) {
       // a limited-time freebie: when it goes
       const ends = new Date(limitedEnds(item)), when = ends.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
       markerText(ctx, 'FREE', tx, y + 10, Math.min(34, w / 18), '#7fd36b', -0.03);
       ctx.font = `${Math.max(12, Math.min(16, w / 70))}px ${HAND}`;
       ctx.textAlign = 'center';
       ctx.fillStyle = '#e2553f';
-      ctx.fillText(`leaves the shop after ${when} · yours for good if you grab it`, tx, y + 34);
-      y += 44;
-      markerText(ctx, 'HALLOWEEN · LIMITED TIME', tx, p.y + 18, Math.min(22, w / 30), '#ff8c1a', -0.04);
+      ctx.textBaseline = 'top';
+      y += 12 + 16 * this.wrapText(ctx, `leaves the shop after ${when} · yours for good if you grab it`, tx, y + 26, tw, 16).length;
+      this.windowBadge(ctx, `${hol.name} · LIMITED TIME`, hol.color, p, wide, modelW, tx, tw);
     } else if (!owned) {
       const size = Math.min(30, w / 20);
       if (deal) {
@@ -1442,7 +1465,7 @@ class Menu {
       } else drawBucks(ctx, price, tx, y + 8, size, afford ? '#f4c542' : '#ef5a4a');
       y += 30;
     }
-    if (deal && !owned) markerText(ctx, `DAILY DEAL · ${Math.round(SHOP_DEAL_OFF * 100)}% OFF`, tx, p.y + 18, Math.min(22, w / 30), '#e2553f', -0.04);
+    if (deal && !owned) this.windowBadge(ctx, `DAILY DEAL · ${Math.round(SHOP_DEAL_OFF * 100)}% OFF`, '#e2553f', p, wide, modelW, tx, tw);
     else y += 6;
 
     // the big button
@@ -1455,6 +1478,13 @@ class Menu {
     this.fancyButton(ctx, look[0], bx, by, bw, bh, look[1], 650, () => this.shopPick(), this.shopConfirm ? pulse : 1);
   }
 
+  // A line across the top of the shop window (the holiday, today's deal): over the item's words on
+  // a wide screen, over the model on a narrow one, so it never covers the item's name.
+  windowBadge(ctx, text, color, p, wide, modelW, tx, tw) {
+    const x = wide ? tx : p.x + modelW / 2, room = wide ? tw : modelW - 12;
+    markerText(ctx, text, x, p.y + 18, this.fitText(ctx, text, room, 22, MARKER), color, -0.04);
+  }
+
   // The wall of cards, scrolled so the one you've picked is always in view.
   drawShopWall(ctx, wall, dpr, now) {
     // room above and below for the "more" arrows
@@ -1464,9 +1494,9 @@ class Menu {
     let cols = 3, cw = 0, ch = 0;
     for (let c = 2; c <= 6; c++) {
       const w0 = Math.min(240, (g.w - gap * (c - 1)) / c), h0 = w0 * 1.2, r0 = Math.ceil(stock.length / c);
-      if (r0 * (h0 + gap) - gap <= g.h && w0 > cw) { cols = c; cw = w0; ch = h0; }
+      if (r0 * (h0 + gap) - gap <= g.h && w0 > cw && w0 >= 84) { cols = c; cw = w0; ch = h0; }
     }
-    if (!cw) { cols = clamp(Math.floor(g.w / 150), 3, 6); cw = (g.w - gap * (cols - 1)) / cols; ch = cw * 1.2; }
+    if (!cw) { cols = clamp(Math.floor((g.w + gap) / (104 + gap)), 2, 6); cw = (g.w - gap * (cols - 1)) / cols; ch = cw * 1.2; }
     if (ch > g.h) { ch = Math.max(80, g.h); cw = Math.min(cw, ch / 1.2); } // short screens: at least a row
     // centre the cards on the wall
     g.x += (g.w - (cw * cols + gap * (cols - 1))) / 2;
@@ -1555,7 +1585,7 @@ class Menu {
       ctx.restore();
     };
     if (owned) markerText(ctx, wearing ? 'WEARING' : 'OWNED', px + pw / 2, py + ph * 0.84, Math.min(18, cw * 0.11), '#7fd36b', -0.14);
-    else if (it.until) ribbon('HALLOWEEN', '#ff8c1a');
+    else if (it.event) { const hol = HOLIDAYS.find(x => x.id === it.event); ribbon(hol.name.replace(/'S DAY|'S/, ''), hol.color); }
     else if (deal) ribbon(`${Math.round(SHOP_DEAL_OFF * 100)}% OFF`, '#e2553f');
     // a twinkle on the one you've picked
     if (sel) for (let k = 0; k < 3; k++) {
