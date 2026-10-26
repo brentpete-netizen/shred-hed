@@ -104,11 +104,20 @@ class MapBuilder {
 
   scenery(item) { this.back.push(item); return this; }
 
+  // A named gap (see gaps.js): pop between x0 and x1, come down between x2 and x3 (and at least
+  // `drop` lower than you took off, for one that goes down stairs).
+  gap(name, pts, [x0, x1], [x2, x3], drop = -1e9) {
+    (this.gaps ||= []).push({ name, pts, from: [x0, x1], to: [x2, x3], drop });
+    return this;
+  }
+
   build({ spawn, theme, name, gravity }) {
-    return new Terrain({
+    const T = new Terrain({
       points: this.pts, spawn, ends: this.ends, rails: this.rails,
       decor: this.decor, back: this.back, front: this.front, theme, name, gravity,
     });
+    T.gaps = this.gaps || [];
+    return T;
   }
 }
 
@@ -144,6 +153,10 @@ function buildSkatepark() {
   b.decor.push([{ x: pad.x + 16, y: -16 }, { x: pad.x + 16, y: 0 }], [{ x: pad.x + 276, y: -16 }, { x: pad.x + 276, y: 0 }]);
   b.flat(240).prop('ledge', 0, 350, 26).flat(780);
   b.qpEnd(200, 10);
+  b.gap('Over The Rail', 150, [300, 468], [765, 1080]);
+  b.gap('Funbox Gap', 300, [lip.x - 240, lip.x + 4], [bottom.x + 4, bottom.x + 600]);
+  b.gap('Deck To Pad', 250, [deckEnd.x - 120, deckEnd.x + 2], [pad.x + 20, pad.x + 270]);
+  b.gap('Pad Hop', 200, [pad.x - 300, pad.x], [pad.x + 300, pad.x + 700]);
   b.scenery({ type: 'fence', x0: -160, x1: b.cur.x + 160, y: 0, h: 70 });
   for (const x of [700, 1650, 2500, 3300]) b.scenery({ type: 'tree', x, y: -6, s: 1 });
   return b.build({ spawn: { x: 300, y: 0 }, theme: THEMES.park, name: 'Skatepark' });
@@ -154,9 +167,16 @@ function buildStreet() {
   b.front.push({ type: 'facade', x0: -160, x1: 0, top: -520, bottom: 0, style: 'shop' });
   b.prop('bench', 200, 150, 28).flat(600);
   b.scenery({ type: 'lamp', x: 480, y: 0 });
+  const stairTop = b.cur.x;
   b.stairs(5);                         // down to the plaza
+  const stairEnd = b.cur.x;
+  b.gap('Five Stair', 250, [stairTop - 160, stairTop + 4], [stairEnd + 4, stairEnd + 300], 40);
   b.flat(260).to(14, 12);              // curb cut down to the street
-  b.flat(240).car('#3f7fd6').flat(200);
+  b.flat(240);
+  const car = b.cur.x;
+  b.car('#3f7fd6').flat(200);
+  b.gap('Car Hop', 400, [car - 260, car - 2], [car + 254, car + 520]);
+  b.gap('Car Roof', 200, [car - 260, car - 2], [car + 110, car + 170]);
   b.prop('curb', 0, 180, 11).flat(380);
   b.scenery({ type: 'lamp', x: b.cur.x - 120, y: b.cur.y });
   b.bend(150, -0.42).line((82 - 150 * (1 - Math.cos(0.42))) / Math.sin(0.42), -0.42); // bank back up to the sidewalk
@@ -176,11 +196,15 @@ function buildSchool() {
   b.front.push({ type: 'facade', x0: -160, x1: 0, top: -520, bottom: 0, style: 'school' });
   b.prop('table', 120, 160, 42).prop('bench', 120, 160, 20).flat(680);
   b.prop('planter', 60, 200, 28).flat(330);
+  const eightTop = b.cur.x;
   b.stairs(8);                         // the big eight
+  b.gap('The Big Eight', 500, [eightTop - 170, eightTop + 4], [b.cur.x + 4, b.cur.x + 420], 60);
   b.flat(520);
   // the gap: a ditch between the walkway and the court below
+  const ditch = b.cur.x;
   b.to(0, 110).flat(150).to(35, -50);
   const court = { ...b.cur };
+  b.gap('School Gap', 400, [ditch - 220, ditch], [court.x + 4, court.x + 500]);
   b.prop('bench', 380, 140, 24).flat(700);
   b.front.push({ type: 'court', x0: court.x + 40, x1: court.x + 660, y: court.y });
   b.qpEnd(200, 10);
@@ -208,10 +232,12 @@ function buildMega() {
   const lip = { ...b.cur };
   const wall = MEGA.kicker / Math.sin(0.96);
   b.line(wall, 0.96).flat(MEGA.gap).line(wall, -0.96).flat(30);
+  b.gap('MEGA GAP', 1500, [lip.x - 200, lip.x + 4], [b.cur.x, b.cur.x + MEGA.landing + 300]);
   b.to(MEGA.landing, -b.cur.y);
   // the DIY spot under the bridge
   const diy = b.cur.x;
   b.flat(250).to(90, -32).flat(60).to(90, 32).flat(120);
+  b.gap('Bump To Ledge', 250, [diy + 250, diy + 400], [b.cur.x + 20, b.cur.x + 260]);
   b.prop('ledge', 0, 240, 28).flat(300).prop('rail', 60, 200, 30).flat(340);
   b.qpEnd(340, 14);
   b.front.push({ type: 'scaffold', x0: -160, x1: runway, top: -MEGA.tower });
@@ -242,8 +268,11 @@ function buildBoardwalk() {
   const poolEnd = b.cur.x;
   b.to(0, -(120 - K.deck));
   b.line(-K.deck / Math.sin(K.landing), K.landing); // the landing ramp, down to the boardwalk
+  b.gap('Lifeguard Leap', 400, [lip.x - 220, lip.x + 4], [poolEnd, poolEnd + 600]);
   b.flat(240).prop('table', 70, 160, 42).flat(420);
+  const dune = b.cur.x;
   b.line(70, -0.5).flat(120).line(70, 0.5); // a sand dune
+  b.gap('Dune Jump', 200, [dune + 30, dune + 190], [dune + 270, dune + 600]);
   b.flat(300).prop('ledge', 40, 320, 30).flat(520); // the sea wall
   b.qpEnd(230, 12);
   for (const x of [120, 900, 1900, 2700, 3500]) b.scenery({ type: 'palm', x, y: 0, s: 0.9 + (x % 3) * 0.12 });
@@ -365,10 +394,17 @@ function buildSpot(hour = spotHour()) {
     // stairs down (and somewhere to land), only while there's still room to go down
     stairs: () => {
       if (b.cur.y > 160) return FEATURES.bank();
-      b.stairs(Math.round(between(3, 8)), { rail: r() < 0.75 });
+      const n = Math.round(between(3, 8)), top = b.cur.x;
+      b.stairs(n, { rail: r() < 0.75 });
+      b.gap(`${['', '', '', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight'][n]} Stair`, 50 * n + 50, [top - 160, top + 4], [b.cur.x + 4, b.cur.x + 300], 30);
       b.flat(Math.round(between(280, 380)));
     },
-    car: () => { b.flat(60).car(pick(['#3f7fd6', '#d64545', '#3fae4a', '#f4c542', '#26262b', '#e8e4da'])); b.flat(220); },
+    car: () => {
+      b.flat(60);
+      const at = b.cur.x;
+      b.car(pick(['#3f7fd6', '#d64545', '#3fae4a', '#f4c542', '#26262b', '#e8e4da'])).flat(220);
+      b.gap('Car Hop', 400, [at - 260, at - 2], [at + 254, at + 470]);
+    },
     // a bank back up to the next level
     bank: () => {
       if (b.cur.y < -60) return FEATURES.ledge();
@@ -379,14 +415,18 @@ function buildSpot(hour = spotHour()) {
     // off a drop to the street below
     drop: () => {
       if (b.cur.y > 200) return FEATURES.bank();
-      b.flat(20).to(0, Math.round(between(28, 60)));
+      b.flat(20);
+      const at = b.cur.x;
+      b.to(0, Math.round(between(28, 60)));
       b.flat(320);
+      b.gap('Drop In', 150, [at - 150, at - 1], [at + 120, at + 320]);
     },
     // a ditch to ollie over, landing a bit lower than you took off
     gap: () => {
       if (b.cur.y > 180) return FEATURES.rail();
-      const deep = Math.round(between(100, 120)), up = Math.round(between(44, 54));
+      const deep = Math.round(between(100, 120)), up = Math.round(between(44, 54)), at = b.cur.x;
       b.to(0, deep).flat(Math.round(between(120, 160))).to(35, -up);
+      b.gap('Ditch Gap', 400, [at - 220, at], [b.cur.x + 4, b.cur.x + 320]);
       b.flat(320);
     },
     manualPad: () => {

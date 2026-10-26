@@ -913,6 +913,7 @@ class Skater {
       }
       if (f.kind === 'word') { f.y += f.vy * dt; f.vy *= Math.pow(0.3, dt); }
       if (f.kind === 'smoke') { f.x += f.vx * dt; f.y += f.vy * dt; f.r += 14 * dt; }
+      if (f.kind === 'flame') { f.x += f.vx * dt; f.y += f.vy * dt; f.r *= Math.pow(0.25, dt); } // (on fire: see hype.js)
       if (f.kind === 'ghost') f.y -= 55 * dt;
       if (f.kind === 'star') {
         f.a += 5 * dt;

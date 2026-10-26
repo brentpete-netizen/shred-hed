@@ -188,6 +188,8 @@ function loadTerrain(t, id) {
   hud.mapId = id;
   hud.mapName = terrain.name;
   Bonus.load(id, terrain);
+  Gaps.load(id, terrain);
+  Hype.load(terrain);
   window.shredHed = { skater, terrain, cam, CONFIG }; // for tuning from the browser console
 }
 
@@ -220,17 +222,99 @@ function startTestRide() {
   mode = 'play';
 }
 
-// choice: { map, game: 'free' | 'cpu' | '2p' }
+// The 2-minute run: as many points as you can in two minutes, for a medal.
+const RUN_TIME = 120, RUN_MEDALS = [20000, 60000, 150000], RUN_BUCKS = [0, 15, 30, 60];
+let run = null; // { t: seconds left, over, wait, result }
+
+function startRun(map) {
+  loadMap(map);
+  skateGame = null;
+  run = { t: RUN_TIME, over: false, wait: 0, result: null, lastTick: 11 };
+  showHelp = false;
+}
+
+// Time's up: once the combo you're in has landed (or a few seconds), add it up.
+function finishRun() {
+  const score = hud.score, medal = RUN_MEDALS.filter(m => score >= m).length;
+  const best = Progress.runDone(mapId, score);
+  if (RUN_BUCKS[medal]) Progress.earn(RUN_BUCKS[medal], `${['', 'bronze', 'silver', 'gold'][medal]} medal`);
+  if (medal) Trophies.event('medal', medal);
+  run.result = { score, medal, best, bucks: RUN_BUCKS[medal], t: 0 };
+  Sound.play(medal ? 'trophy' : 'lost');
+}
+
+function updateRun(dt) {
+  if (run.result) { run.result.t += dt; return; }
+  if (!run.over) {
+    run.t -= dt;
+    // the last ten seconds tick down
+    const s = Math.ceil(run.t);
+    if (s < run.lastTick && s >= 1 && s <= 10) { run.lastTick = s; Sound.play('tick'); }
+    if (run.t <= 0) { run.t = 0; run.over = true; Sound.play('horn'); }
+    return;
+  }
+  // time's up: let the combo you're in land (or not), then add it all up
+  run.wait += dt;
+  if ((!skater.combo.active && skater.state !== 'air' && skater.state !== 'grind') || run.wait > 4) finishRun();
+}
+
+// The clock, and the medal when it's over.
+function drawRun(ctx, w, h) {
+  const size = Math.min(52, w / 12);
+  if (!run.result) {
+    const s = Math.ceil(run.t), text = run.over ? 'TIME!' : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+    const hurry = run.t <= 10;
+    markerText(ctx, text, w / 2, h * 0.07 + 8, size * (hurry ? 1.1 + Math.sin(time * 12) * 0.06 : 1), hurry ? '#ef5a4a' : '#ffffff', -0.03);
+    const next = RUN_MEDALS.find(m => hud.score < m);
+    ctx.font = `${Math.max(13, size * 0.3)}px ${HAND}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = INK;
+    ctx.fillText(next ? `${fmtScore(next - hud.score)} to ${['bronze', 'silver', 'gold'][RUN_MEDALS.indexOf(next)]}` : 'GOLD!', w / 2, h * 0.07 + 8 + size * 0.6);
+    return;
+  }
+  const R = run.result, k = Math.min(1, R.t / 0.3);
+  ctx.fillStyle = `rgba(28, 28, 34, ${0.45 * k})`;
+  ctx.fillRect(0, 0, w, h);
+  const cw2 = Math.min(440, w - 32), chh = Math.min(380, h - 60), x = (w - cw2) / 2, y = (h - chh) / 2;
+  drawCard(ctx, x, y, cw2, chh, 880);
+  markerText(ctx, "TIME'S UP!", w / 2, y + 40, Math.min(44, cw2 / 7), '#f4c542', -0.04, 1 + 0.3 * Math.exp(-R.t * 8));
+  // the medal
+  const colors = [['#b9b4aa', '#8a857c'], ['#d98a4a', '#a8622e'], ['#d5dbe1', '#9aa3ab'], ['#f4c542', '#c8931c']][R.medal];
+  const mx = w / 2, my = y + chh * 0.42, mr = Math.min(48, chh * 0.13) * (1 + 0.25 * Math.exp(-R.t * 6));
+  Sketch.seedFor(881);
+  ctx.save();
+  ctx.translate(mx, my);
+  Sketch.circle(ctx, 0, 0, mr, colors[0], { color: INK, width: 3, amp: 0.6 });
+  Sketch.circle(ctx, 0, 0, mr * 0.72, colors[1], { color: INK, width: 1.6, amp: 0.4 });
+  ctx.fillStyle = '#fff8dc';
+  starPath(ctx, 0, 0, mr * 0.45, 0);
+  ctx.fill();
+  ctx.restore();
+  markerText(ctx, ['NO MEDAL', 'BRONZE', 'SILVER', 'GOLD'][R.medal], w / 2, my + mr + 22, 26, colors[0], -0.03);
+  markerText(ctx, fmtScore(R.score), w / 2, my + mr + 58, Math.min(40, cw2 / 8), '#ffffff', -0.02);
+  ctx.font = `${Math.max(14, Math.min(18, w / 50))}px ${HAND}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = INK;
+  const lines = [R.best ? 'NEW BEST ON THIS MAP!' : `best here: ${fmtScore(Progress.runBest(mapId))}`, R.bucks ? `+${R.bucks} Shred Bucks` : `${fmtScore(RUN_MEDALS[0] - R.score)} more for bronze`];
+  lines.forEach((l, i) => ctx.fillText(l, w / 2, my + mr + 88 + i * 22));
+  ctx.fillText(TouchPad.enabled ? 'tap to go again' : 'Enter: go again  ·  Esc: menu', w / 2, y + chh - 22);
+}
+
+// choice: { map, game: 'free' | 'cpu' | '2p' | 'run' }
 function startSkating({ map, game }) {
-  if (game === 'free') {
-    // (Street Spot: a new hour is a new spot)
-    if (map !== mapId || skater.state === 'bail' || skateGame || (terrain.spotHour !== undefined && terrain.spotHour !== spotHour())) loadMap(map);
+  run = null;
+  if (game === 'run') startRun(map);
+  else if (game === 'free') {
+    // (Street Spot: a new hour is a new spot; and after the menu's show skater, a fresh start)
+    if (map !== mapId || skater.state === 'bail' || skateGame || attract.used || (terrain.spotHour !== undefined && terrain.spotHour !== spotHour())) loadMap(map);
     skateGame = null;
   } else {
     loadMap(map);
     skateGame = new SkateGame(terrain, game === 'cpu');
     skateGame.onGameOver = winner => {
-      if (game === 'cpu') { Stats.skateResult(!winner.cpu); Progress.skateResult(!winner.cpu); }
+      if (game === 'cpu') { Stats.skateResult(!winner.cpu); Progress.skateResult(!winner.cpu); if (!winner.cpu) Trophies.event('skateWin', winner.letters); }
       else Progress.skateGame();
     };
     skater = skateGame.skater;
@@ -239,7 +323,41 @@ function startSkating({ map, game }) {
   menu.lastChoice = { map, game };
   testRide = false;
   mode = 'play';
+  attract.used = false;
   hud.clear();
+}
+
+// On the main menu your skater shows off behind it: the CPU works out a trick and skates it, then
+// another one (same physics, same planner as in S.K.A.T.E.). Nothing it does counts for anything.
+const ATTRACT_TRICKS = ['Kickflip', 'Tre Flip', 'BS 360', 'Kickflip + 50-50', 'Indy', 'Heelflip', 'Varial Kickflip', 'FS 180 Heelflip',
+  'Boardslide', 'Method', '360 Shove-it', 'Hardflip', 'Kickflip + Indy', 'Laser Flip', 'Christ Air', 'Tre Flip + 50-50'];
+const attract = { driver: null, think: null, t: 0, used: false, name: null };
+
+function attractOn() { return mode === 'menu' && menu.screen === 'main' && !online && !menu.inRoom && !skateGame && !testRide; }
+
+function attractStep() {
+  if (!attractOn()) {
+    if (attract.driver || attract.think) { attract.driver = attract.think = null; skater.regular = false; }
+    return;
+  }
+  if (!attract.driver && !attract.think) {
+    attract.name = ATTRACT_TRICKS[Math.floor(Math.random() * ATTRACT_TRICKS.length)];
+    attract.think = cpuThinkPlan(terrain, attract.name, 80);
+  }
+  if (attract.think) {
+    const until = performance.now() + 4;
+    let r;
+    do r = attract.think.next(); while (!r.done && performance.now() < until);
+    if (!r.done) return;
+    attract.think = null;
+    if (!r.value) return; // couldn't on this map: try another next time
+    skater.respawn(terrain.spawnS);
+    skater.facing = 1;
+    skater.regular = true; // (plans are worked out regular)
+    attract.driver = new CpuDriver(r.value);
+    attract.t = 0;
+    attract.used = true;
+  }
 }
 
 function menuPicked(r) {
@@ -354,6 +472,7 @@ canvas.addEventListener('pointerdown', e => {
   if ((mode === 'play' || menu.screen === 'lobby') && Chat.click(e.clientX, e.clientY)) return;
   if (mode === 'play' && showHelp && e.pointerType === 'touch') { showHelp = false; return; } // tap the help away
   if (mode === 'play' && skateGame?.state === 'over') { carry.push('start'); return; }     // tap for a rematch
+  if (mode === 'play' && run?.result) { carry.push('start'); return; }                    // tap to run it again
   if (mode === 'menu') {
     const r = menu.click(e.clientX, e.clientY);
     if (r) menuPicked(r);
@@ -514,6 +633,9 @@ function render() {
   drawTerrain(ctx, world, { x0: view.x - halfW - 50, x1: view.x + halfW + 50 });
   if (building) builder.drawWorld(ctx);
   else {
+    const seen = { x0: view.x - halfW - 50, x1: view.x + halfW + 50 };
+    Season.drawPumpkins(ctx, world, seen);
+    if (mode === 'play' && !skateGame && !testRide) Hype.drawWorld(ctx, time);
     if (online) Online.draw(ctx, time, skateGame ? skateGame.watchedId() : null);
     // while you watch someone's S.K.A.T.E. attempt, your own skater steps aside
     if (!skateGame?.watching) {
@@ -522,16 +644,25 @@ function render() {
       ComboTrail.draw(ctx, skater, time);
       drawSkater(ctx, skater);
     }
-    drawNight(day, sky, { x0: view.x - halfW - 50, x1: view.x + halfW + 50 }, { xs: skyXs, y: sy, scale, w: cw }, space);
+    drawNight(day, sky, seen, { xs: skyXs, y: sy, scale, w: cw }, space);
+    // jack-o'-lanterns glow in the dark
+    if (day.night > 0.2) {
+      ctx.globalCompositeOperation = 'lighter';
+      Season.drawPumpkins(ctx, world, seen, clamp(day.night, 0, 1));
+      ctx.globalCompositeOperation = 'source-over';
+    }
   }
 
   // screen-space UI
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  if (!building) Season.drawAir(ctx, cw, ch, time, day); // leaves, snow, bats...
   if (mode === 'menu') { menu.draw(ctx, cw, ch, time, dpr); hud.drawProgress(ctx, cw, ch); }
   else if (building) builder.drawUI(ctx, cw, ch);
   else {
     drawSpeedLines(ctx, cw, ch);
     hud.draw(ctx, cw, ch, skater, !!skateGame);
+    if (!skateGame && !testRide) Hype.drawHud(ctx, cw, ch, view, scale, time);
+    if (run) drawRun(ctx, cw, ch);
     if (skateGame) skateGame.draw(ctx, cw, ch);
     if (showHelp) drawHelp(ctx, cw, ch);
     ctx.font = `15px ${HAND}`;
@@ -572,7 +703,9 @@ function frame(now) {
     // online, the menu opens over the room: you're still in it (and still there for everyone) until LEAVE ROOM
     if (mode === 'play' && e === 'menu' && online) { mode = 'menu'; menu.openInRoom(); Stats.save(); return false; }
     if (mode === 'play' && e === 'test' && online) { Chat.open(); return false; }
-    if (mode === 'play' && e === 'menu') { mode = 'menu'; menu.open(); Stats.save(); return false; }
+    if (mode === 'play' && e === 'menu') { mode = 'menu'; run = null; menu.open(); Stats.save(); return false; }
+    // the 2-minute run's over: go again
+    if (mode === 'play' && run?.result && e === 'start') { if (run.result.t > 0.6) { startRun(mapId); hud.clear(); } return false; }
     if (mode === 'play' && skateGame?.state === 'over' && e === 'start') {
       if (!online) startSkating(menu.lastChoice);
       else if (Net.role === 'host' && Net.players.length >= 2) Net.startGame(); // rematch for everyone
@@ -609,27 +742,44 @@ function frame(now) {
   acc += simDt * CONFIG.timeScale * (Progress.cheat('halfspeed') ? 0.5 : 1);
   if (acc < STEP) carry = events;
   let first = true;
+  attractStep();
+  // Free Skate and the 2-minute run get gaps and hype (not S.K.A.T.E., a test ride or the menu)
+  const extras = mode === 'play' && !skateGame && !testRide;
   while (acc >= STEP) {
     const keys = first ? events : [];
     // (in the menu, the keys are for the menu, not the skater behind it)
     const playing = mode === 'play';
-    if (skateGame && (playing || online)) {
+    if (attract.driver) {
+      const { ev, held } = attract.driver.step(skater);
+      skater.update(STEP, ev, a => held.has(a));
+      attract.t += STEP;
+    } else if (skateGame && (playing || online)) {
       // in S.K.A.T.E. the game decides who's in control: you, player 2, the CPU, or nobody
       const { ev, held } = skateGame.input(playing ? keys : []);
       skater.update(STEP, ev, playing ? held : () => false);
-    } else skater.update(STEP, keys, a => (playing || !online) && Input.held(a));
+    } else skater.update(STEP, playing && run?.result ? [] : keys, a => (playing || !online) && !run?.result && Input.held(a));
+    if (extras) Gaps.update(skater, STEP);
     first = false;
     acc -= STEP;
     if (mode === 'play') wrapWorld();
   }
-  const yours = !skateGame || skateGame.isMine(); // only your own skating goes in your stats
+  // the show skater's done its trick (or slammed): on to the next one
+  if (attract.driver && (attract.t > 8 || (attract.driver.popT !== null && skater.state === 'ground' && attract.t - attract.driver.popT > 1.6))) {
+    attract.driver = null;
+    skater.regular = false;
+  }
+  const yours = (!skateGame || skateGame.isMine()) && !attractOn(); // only your own skating goes in your stats
   const telling = online && skateGame && !skateGame.watching; // your S.K.A.T.E. attempt, for the other skater
   for (const m of skater.out) {
+    if (!yours && !skateGame) continue; // (the menu's show skater: quietly)
+    if (extras) Hype.onMessage(m, skater); // (on fire, a hot spot: before anyone counts the points)
     hud.handle(m);
     if (yours) {
       Progress.onMessage(m); // before Stats, so it can tell which tricks are new
       Challenges.onMessage(m);
       Stats.onMessage(m, skateGame ? null : mapId, hud.score);
+      Trophies.onMessage(m);
+      if (m.type === 'gap') Trophies.event('gap');
     }
     Sound.onMessage(m);
     // Tung Tung Tung Sahur goes "tung" when he pops
@@ -639,6 +789,21 @@ function frame(now) {
     if (telling && SAY_TYPES.has(m.type)) Net.send({ t: 'say', m });
   }
   skater.out.length = 0;
+  if (extras) {
+    Hype.update(dt, skater);
+    for (const e of Hype.events.splice(0)) {
+      if (e.type === 'fire') {
+        hud.progress({ type: 'banner', title: 'ON FIRE!', lines: ['double points', "until you bail or it burns out"] });
+        Sound.play('fire');
+        Trophies.event('fire');
+      } else if (e.type === 'fireOut') Sound.play('fireOut');
+      else if (e.type === 'spot') { hud.progress({ type: 'newTrick', name: 'HOT SPOT! triple points there' }); Sound.play('spot'); }
+      else if (e.type === 'spotHit') Trophies.event('spotHit');
+    }
+  }
+  if (run && mode === 'play') updateRun(dt);
+  if (mode === 'play' && yours) Trophies.tick(skater, dt);
+  if (attract.driver) ComboTrail.update(skater, dt);
   if (mode === 'play') {
     ComboTrail.update(skater, dt);
     // (no warping off to a hidden spot online, or you'd lose everyone)
@@ -650,7 +815,8 @@ function frame(now) {
   Net.update(dt);
   for (const ev of Progress.events.splice(0)) {
     hud.progress(ev);
-    if (ev.type === 'level' || ev.type === 'secret' || ev.type === 'banner') Sound.play('levelUp');
+    if (ev.type === 'trophy') Sound.play('trophy');
+    else if (ev.type === 'level' || ev.type === 'secret' || ev.type === 'banner') Sound.play('levelUp');
     else if (ev.type === 'newTrick' || ev.type === 'letter') Sound.play('newTrick');
     if (ev.type === 'secret' || ev.type === 'banner') menu.refreshMaps();
   }

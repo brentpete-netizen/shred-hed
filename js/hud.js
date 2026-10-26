@@ -1,5 +1,14 @@
 // On-screen text: trick and combo popups, the score, the help card and a debug readout.
 
+// What the game shouts when you land a big one (by how many points it was worth).
+const PRAISE = [
+  { at: 1500, text: 'NICE!', color: '#7fd36b', burst: '#fff4c2', size: 54 },
+  { at: 4000, text: 'SICK!', color: '#3dd6ff', burst: '#d9f6ff', size: 64 },
+  { at: 10000, text: 'GNARLY!', color: '#f4c542', burst: '#fff0b0', size: 72 },
+  { at: 25000, text: 'INSANE!!', color: '#ff8c2e', burst: '#ffd9b0', size: 80 },
+  { at: 60000, text: 'GODLIKE!!!', color: '#ff3dbb', burst: '#ffd0f0', size: 88 },
+];
+
 const MARKER = '"Permanent Marker", "Comic Sans MS", cursive';
 const HAND = '"Patrick Hand", "Comic Sans MS", cursive';
 
@@ -41,8 +50,14 @@ class Hud {
     else if (m.type === 'combo') {
       this.score += m.score;
       this.trickPop = null;
-      const sub = m.mult > 1 ? `${fmtScore(m.points)} × ${m.mult}` : m.parts[0].name;
-      this.result = { text: '+' + fmtScore(m.score), sub, color: '#7fd36b', t: 0 };
+      const sub = (m.mult > 1 ? `${fmtScore(m.points)} × ${m.mult}` : m.parts[0].name) + (m.bonus ? `  ·  ${m.bonus.join('  ·  ')}` : '');
+      this.result = { text: '+' + fmtScore(m.score), sub, color: m.bonus ? '#ff8c2e' : '#7fd36b', t: 0 };
+      // and a word for the big ones
+      const p = PRAISE.findLast(p => m.score >= p.at);
+      if (p) { this.praise = { ...p, t: 0, rot: (Math.random() - 0.5) * 0.2 }; Sound.play('praise', PRAISE.indexOf(p)); }
+    } else if (m.type === 'gap') {
+      this.gapPop = { text: m.name.toUpperCase() + ' GAP!', pts: m.pts, t: 0 };
+      Sound.play('gap');
     } else if (m.type === 'bail') {
       this.trickPop = null;
       this.result = { text: 'BAIL!', sub: m.why, color: '#ef5a4a', t: 0 };
@@ -58,6 +73,8 @@ class Hud {
     else if (ev.type === 'level') this.levelUp = { level: ev.level, unlocked: ev.unlocked, t: 0 };
     else if (ev.type === 'banner') this.levelUp = { title: ev.title, unlocked: ev.lines, t: 0 };
     else if (ev.type === 'letter') this.news.push({ kind: 'trick', text: `GOLDEN ${ev.letter}!  ${ev.found} / ${ev.total}`, t: 0, dur: 2.2 });
+    else if (ev.type === 'newGap') this.news.push({ kind: 'trick', text: `NEW GAP: ${ev.name.toUpperCase()}`, t: 0, dur: 2.2 });
+    else if (ev.type === 'trophy') this.levelUp = { title: 'TROPHY!', unlocked: [ev.name, `+${ev.reward} Shred Bucks`], t: 0, trophy: true };
     else if (ev.type === 'secret') {
       this.levelUp = ev.on
         ? { title: 'SECRET UNLOCKED!', unlocked: ['the whole closet and every map', 'plus 3 hidden maps', '(shop stuff you still have to buy)'], t: 0 }
@@ -70,6 +87,40 @@ class Hud {
     if (this.result && (this.result.t += dt) > 1.6) this.result = null;
     if (this.news) this.news = this.news.filter(n => (n.t += dt) < n.dur);
     if (this.levelUp && (this.levelUp.t += dt) > 3.6) this.levelUp = null;
+    if (this.praise && (this.praise.t += dt) > 1.4) this.praise = null;
+    if (this.gapPop && (this.gapPop.t += dt) > 1.5) this.gapPop = null;
+  }
+
+  // the big word for a big combo, and a gap you just hit
+  drawPops(ctx, w, h) {
+    const P = this.praise;
+    if (P) {
+      const k = P.t / 1.4, s = 1 + 0.8 * Math.exp(-P.t * 10);
+      ctx.globalAlpha = clamp((1.4 - P.t) / 0.4, 0, 1);
+      const size = Math.min(P.size * Math.min(1, w / 900), w / (P.text.length * 0.62));
+      // a burst behind it
+      ctx.save();
+      ctx.translate(w / 2, h * 0.36 - k * 20);
+      ctx.rotate(P.rot);
+      ctx.fillStyle = P.burst;
+      ctx.beginPath();
+      for (let i = 0; i < 20; i++) { const a = (i * Math.PI) / 10 + P.t, r = (i % 2 ? 0.45 : 0.8) * size * 1.8 * s; ctx.lineTo(Math.cos(a) * r * 1.6, Math.sin(a) * r * 0.7); }
+      ctx.closePath();
+      ctx.globalAlpha *= 0.55;
+      ctx.fill();
+      ctx.restore();
+      ctx.globalAlpha = clamp((1.4 - P.t) / 0.4, 0, 1);
+      markerText(ctx, P.text, w / 2, h * 0.36 - k * 20, size, P.color, P.rot, s);
+      ctx.globalAlpha = 1;
+    }
+    const G = this.gapPop;
+    if (G) {
+      ctx.globalAlpha = clamp((1.5 - G.t) / 0.4, 0, 1);
+      const s = 1 + 0.5 * Math.exp(-G.t * 12), y = h * 0.62 - G.t * 14;
+      markerText(ctx, G.text, w / 2, y, Math.min(34, w / (G.text.length * 0.6)), '#3dd6ff', 0.04, s);
+      markerText(ctx, `+${fmtScore(G.pts)}`, w / 2, y + 30, 20, '#ffffff', 0.04, s);
+      ctx.globalAlpha = 1;
+    }
   }
 
   drawProgress(ctx, w, h) {
@@ -131,6 +182,7 @@ class Hud {
       markerText(ctx, `${fmtScore(r.points)} × ${r.mult}`, cx, top + size * 1.6, size * 0.6, '#f4c542', -0.02);
     }
 
+    this.drawPops(ctx, w, h);
     this.drawProgress(ctx, w, h);
     if (this.result) {
       const p = this.result;

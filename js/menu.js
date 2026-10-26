@@ -3,7 +3,59 @@
 
 const PX_PER_FT = 23; // the skater is about 5.5 ft tall
 
-const MAIN_ITEMS = ['FREE SKATE', 'S.K.A.T.E.', 'ONLINE', 'CHALLENGES', 'PARK BUILDER', 'CLOSET', 'SKATE SHOP', 'STATS', 'AUDIO'];
+const MAIN_ITEMS = ['FREE SKATE', '2-MIN RUN', 'S.K.A.T.E.', 'ONLINE', 'CHALLENGES', 'TROPHIES', 'PARK BUILDER', 'CLOSET', 'SKATE SHOP', 'STATS', 'AUDIO'];
+// each main menu button's little drawing (see drawMenuIcon)
+const MAIN_ICON = {
+  'FREE SKATE': 'board', '2-MIN RUN': 'clock', 'S.K.A.T.E.': 'letters', ONLINE: 'globe', CHALLENGES: 'check', TROPHIES: 'trophy',
+  'PARK BUILDER': 'hammer', CLOSET: 'shirt', 'SKATE SHOP': 'bag', STATS: 'chart', AUDIO: 'speaker', 'BACK TO THE ROOM': 'board', 'LEAVE ROOM': 'door',
+};
+
+// Little hand-drawn icons, s across from the middle (x, y). lit: on a picked (yellow) button.
+function drawMenuIcon(ctx, kind, x, y, s, lit = false) {
+  const ink = { color: INK, width: Math.max(1.6, s * 0.16), amp: 0.3, passes: 1 };
+  const fill = (pts, color) => Sketch.shape(ctx, pts.map(([a, b]) => ({ x: x + a * s, y: y + b * s })), color, ink);
+  const line = pts => Sketch.stroke(ctx, pts.map(([a, b]) => ({ x: x + a * s, y: y + b * s })), ink);
+  Sketch.seedFor(kind.length * 31);
+  if (kind === 'board') {
+    fill([[-1.2, -0.25], [1.2, -0.25], [1.35, 0], [1.2, 0.2], [-1.2, 0.2], [-1.35, 0]], lit ? '#e2553f' : '#e2553f');
+    Sketch.circle(ctx, x - s * 0.7, y + s * 0.45, s * 0.22, '#f1e8cf', ink);
+    Sketch.circle(ctx, x + s * 0.7, y + s * 0.45, s * 0.22, '#f1e8cf', ink);
+  } else if (kind === 'clock') {
+    Sketch.circle(ctx, x, y, s * 0.95, '#fbf8f0', ink);
+    line([[0, 0], [0, -0.65]]); line([[0, 0], [0.5, 0.2]]);
+    line([[-0.3, -1.25], [0.3, -1.25]]);
+  } else if (kind === 'letters') {
+    markerText(ctx, 'S', x, y, s * 2, '#ef5a4a', -0.1);
+  } else if (kind === 'globe') {
+    Sketch.circle(ctx, x, y, s * 0.95, '#7fd8e0', ink);
+    line([[-0.95, 0], [0.95, 0]]);
+    ctx.beginPath(); ctx.ellipse(x, y, s * 0.42, s * 0.95, 0, 0, TAU); ctx.strokeStyle = INK; ctx.lineWidth = ink.width; ctx.stroke();
+  } else if (kind === 'check') {
+    fill([[-0.8, -1], [0.8, -1], [0.8, 1], [-0.8, 1]], '#fbf8f0');
+    Sketch.stroke(ctx, [{ x: x - s * 0.45, y }, { x: x - s * 0.1, y: y + s * 0.4 }, { x: x + s * 0.5, y: y - s * 0.45 }], { ...ink, color: '#3fae4a', width: ink.width * 1.4 });
+  } else if (kind === 'trophy') {
+    fill([[-0.8, -0.9], [0.8, -0.9], [0.6, 0.1], [0.15, 0.4], [0.15, 0.7], [0.55, 0.9], [-0.55, 0.9], [-0.15, 0.7], [-0.15, 0.4], [-0.6, 0.1]], lit ? '#fff4c2' : '#f4c542');
+    line([[-0.8, -0.7], [-1.15, -0.55], [-0.75, -0.1]]); line([[0.8, -0.7], [1.15, -0.55], [0.75, -0.1]]);
+  } else if (kind === 'hammer') {
+    line([[-0.7, 0.9], [0.35, -0.3]]);
+    fill([[0, -0.9], [0.9, -0.1], [0.6, 0.2], [-0.3, -0.6]], '#9aa0a6');
+  } else if (kind === 'shirt') {
+    fill([[-0.5, -0.9], [-1.1, -0.5], [-0.8, 0], [-0.55, -0.2], [-0.55, 0.95], [0.55, 0.95], [0.55, -0.2], [0.8, 0], [1.1, -0.5], [0.5, -0.9], [0.25, -0.65], [-0.25, -0.65]], '#6c4bd1');
+  } else if (kind === 'bag') {
+    fill([[-0.85, -0.4], [0.85, -0.4], [0.95, 0.95], [-0.95, 0.95]], '#f4c542');
+    line([[-0.4, -0.4], [-0.35, -0.95], [0.35, -0.95], [0.4, -0.4]]);
+    markerText(ctx, '$', x, y + s * 0.3, s * 1.1, '#3fae4a');
+  } else if (kind === 'chart') {
+    for (const [bx, hgt, c] of [[-0.75, 0.9, '#2f80ed'], [-0.15, 1.6, '#e2553f'], [0.45, 1.2, '#3fae4a']]) fill([[bx, 0.9 - hgt], [bx + 0.45, 0.9 - hgt], [bx + 0.45, 0.9], [bx, 0.9]], c);
+  } else if (kind === 'speaker') {
+    fill([[-0.9, -0.35], [-0.4, -0.35], [0.15, -0.9], [0.15, 0.9], [-0.4, 0.35], [-0.9, 0.35]], '#26262b');
+    for (const r of [0.55, 0.95]) { ctx.beginPath(); ctx.arc(x + s * 0.2, y, s * r, -0.8, 0.8); ctx.strokeStyle = INK; ctx.lineWidth = ink.width; ctx.stroke(); }
+  } else if (kind === 'door') {
+    fill([[-0.6, -1], [0.6, -1], [0.6, 1], [-0.6, 1]], '#a8743f');
+    Sketch.circle(ctx, x + s * 0.3, y, s * 0.1, '#f4c542', ink);
+  }
+}
+
 // the menu while you're still in an online room (you stay in it until you pick LEAVE ROOM)
 const ROOM_ITEMS = ['BACK TO THE ROOM', 'CLOSET', 'SKATE SHOP', 'CHALLENGES', 'STATS', 'AUDIO', 'LEAVE ROOM'];
 const CATEGORY_LABEL = Object.fromEntries(OUTFIT_CATEGORIES);
@@ -140,8 +192,11 @@ class Menu {
   handle(events) {
     for (const e of events) {
       if (this.screen === 'main') {
-        if (e === 'up') { this.sel = (this.sel + this.mainItems.length - 1) % this.mainItems.length; Sound.play('menuMove'); }
-        else if (e === 'down') { this.sel = (this.sel + 1) % this.mainItems.length; Sound.play('menuMove'); }
+        const n = this.mainItems.length, L = this.mainLayout(innerWidth, innerHeight, 0);
+        if (e === 'up') { this.sel = (this.sel + n - 1) % n; Sound.play('menuMove'); }
+        else if (e === 'down') { this.sel = (this.sel + 1) % n; Sound.play('menuMove'); }
+        // two columns: across to the other one (one column: → picks it, like before)
+        else if ((e === 'left' || e === 'right') && L.cols === 2) { this.sel = clamp(this.sel + (this.sel < L.rows ? L.rows : -L.rows), 0, n - 1); Sound.play('menuMove'); }
         else if (e === 'start' || e === 'grab' || e === 'right') this.choose(this.sel);
         else if (e === 'menu' && this.inRoom) this.result = { resume: true }; // Esc again: back to skating
       } else if (this.screen === 'online') {
@@ -202,6 +257,9 @@ class Menu {
           const key = FIT_SLIDERS[this.fitRow].key;
           this.setFit(key, this.trying[key] + (e === 'right' ? 1 : -1));
         } else if (e === 'start' || e === 'menu' || e === 'fit') this.closeFit();
+      } else if (this.screen === 'trophies') {
+        if (e === 'left' || e === 'right') this.turnTrophyPage(e === 'right' ? 1 : -1);
+        else if (e === 'start' || e === 'menu') this.back();
       } else if (e === 'start' || e === 'menu' || e === 'left') {
         this.back();
       }
@@ -218,6 +276,8 @@ class Menu {
     if (item === 'BACK TO THE ROOM') this.result = { resume: true };
     else if (item === 'LEAVE ROOM') this.result = { leave: true };
     else if (item === 'FREE SKATE') { this.game = 'free'; this.refreshMaps(); this.screen = 'maps'; }
+    else if (item === '2-MIN RUN') { this.game = 'run'; this.refreshMaps(); this.screen = 'maps'; }
+    else if (item === 'TROPHIES') { this.screen = 'trophies'; this.trophyPage = 0; }
     else if (item === 'S.K.A.T.E.') { this.screen = 'versus'; this.vsSel = this.vsSel || 0; }
     else if (item === 'ONLINE') { this.screen = 'online'; this.onSel = this.onSel || 0; }
     else if (item === 'PARK BUILDER') { this.screen = 'parks'; this.confirmDelete = false; }
@@ -549,6 +609,7 @@ class Menu {
 
   // Dragging a slider's knob (or clicking anywhere along its bar).
   pointerMove(x, y, down) {
+    this.mouse = { x, y }; // (for buttons that light up under it)
     if (!down) { this.dragging = null; return; }
     const bar = this.dragging && this.fitBars?.[this.dragging];
     if (bar) this.setFit(this.dragging, bar.min + ((x - bar.x) / bar.w) * (bar.max - bar.min));
@@ -599,7 +660,8 @@ class Menu {
 
   draw(ctx, w, h, time, dpr) {
     this.hits = [];
-    ctx.fillStyle = 'rgba(243, 238, 225, 0.72)';
+    // (lighter on the main menu, so you can see your skater showing off behind it)
+    ctx.fillStyle = `rgba(243, 238, 225, ${this.screen === 'main' && !this.inRoom ? 0.4 : 0.72})`;
     ctx.fillRect(0, 0, w, h);
     if (this.screen === 'main') this.drawMain(ctx, w, h, time);
     else if (this.screen === 'maps') this.drawMaps(ctx, w, h);
@@ -609,13 +671,14 @@ class Menu {
     else if (this.screen === 'closet') this.drawCloset(ctx, w, h, dpr);
     else if (this.screen === 'shop') this.drawShop(ctx, w, h, dpr);
     else if (this.screen === 'challenges') this.drawChallenges(ctx, w, h);
+    else if (this.screen === 'trophies') this.drawTrophies(ctx, w, h, time);
     else if (this.screen === 'fit') this.drawFit(ctx, w, h, dpr);
     else if (this.screen === 'online') this.drawOnline(ctx, w, h);
     else if (this.screen === 'join') this.drawJoin(ctx, w, h);
     else if (this.screen === 'lobby') this.drawLobby(ctx, w, h);
     else this.drawStats(ctx, w, h);
     // screens you leave with Esc get a button too, for phones and tablets with no Esc key
-    if (['maps', 'versus', 'parks', 'audio', 'online', 'join', 'challenges'].includes(this.screen)) {
+    if (['maps', 'versus', 'parks', 'audio', 'online', 'join', 'challenges', 'trophies'].includes(this.screen)) {
       const leave = this.screen === 'join' ? () => { this.stopTyping(); this.screen = 'online'; Sound.play('menuMove'); } : () => this.back();
       this.button(ctx, '◀', 12, w < 600 ? h - 52 : 12, 52, 40, false, 653, leave); // (clear of the titles on a phone)
     }
@@ -783,7 +846,7 @@ class Menu {
 
   // Map select: a card per spot with a little sketch of its layout and your best scores there.
   drawMaps(ctx, w, h) {
-    const title = { free: 'PICK A SPOT', cpu: 'S.K.A.T.E. VS CPU', '2p': 'S.K.A.T.E. 2 PLAYERS',
+    const title = { free: 'PICK A SPOT', run: '2-MINUTE RUN · PICK A SPOT', cpu: 'S.K.A.T.E. VS CPU', '2p': 'S.K.A.T.E. 2 PLAYERS',
       'online-free': 'ONLINE · PICK A SPOT', 'online-skate': 'ONLINE S.K.A.T.E. · PICK A SPOT' }[this.game];
     markerText(ctx, title, w / 2, Math.min(60, h * 0.09), Math.min(52, w / 12), '#ffffff', -0.04);
     const cols = w > 900 ? 4 : 2, rows = Math.ceil(this.maps.length / cols);
@@ -833,7 +896,8 @@ class Menu {
       const best = Stats.map(m.id);
       ctx.font = `${Math.max(12, fs * 0.6)}px ${MARKER}`;
       const gold = [0, 1, 2, 3, 4].filter(i => Progress.hasLetter(m.id, i)).length; // only hinted once you've found one
-      const line = m.id === 'spot' && cardH <= 170 ? m.blurb // (small cards: which spot it is, and when it changes)
+      const line = this.game === 'run' ? (Progress.runBest(m.id) ? `best run ${fmtScore(Progress.runBest(m.id))}` : 'no run yet')
+        : m.id === 'spot' && cardH <= 170 ? m.blurb // (small cards: which spot it is, and when it changes)
         : (best.bestCombo ? `best combo ${fmtScore(best.bestCombo)}` : 'not skated yet') + (gold ? `  ·  ${gold}/5 ★` : '');
       ctx.fillText(line, x + cardW / 2, Math.min(y + cardH - fs * 0.95, by + fs * 1.7));
       if (!Progress.isUnlocked('map', m.id)) this.drawLock(ctx, x, y, cardW, cardH, Progress.lockLevel('map', m.id));
@@ -846,73 +910,189 @@ class Menu {
     ctx.fillText('← → pick  ·  Enter skate  ·  Esc back', w / 2, top + rows * (cardH + gap) + 4);
   }
 
-  button(ctx, label, x, y, bw, bh, selected, id, fn) {
+  // A chunky sticker of a button: it sits a little crooked, with a shadow, and lifts up and
+  // glows when it's picked (or the mouse is over it). icon: one of MENU_ICONS, drawn on the left.
+  button(ctx, label, x, y, bw, bh, selected, id, fn, icon = null) {
+    const m = this.mouse, hover = !!m && m.x >= x && m.x <= x + bw && m.y >= y && m.y <= y + bh;
+    const hot = selected || hover, lift = hot ? 3 : 0;
+    const tilt = (((id * 37) % 7) - 3) * 0.004 + (hot ? -0.012 : 0);
+    ctx.save();
+    ctx.translate(x + bw / 2, y + bh / 2 - lift);
+    ctx.rotate(tilt);
+    if (hot) ctx.scale(1.03, 1.03);
+    ctx.translate(-(x + bw / 2), -(y + bh / 2));
+    ctx.fillStyle = 'rgba(40, 30, 20, 0.28)';
+    ctx.fillRect(x + 4, y + 5 + lift, bw, bh);
     Sketch.seedFor(id);
     const box = [{ x, y }, { x: x + bw, y }, { x: x + bw, y: y + bh }, { x, y: y + bh }];
-    Sketch.fill(ctx, box, selected ? '#f4c542' : '#fbf8f0', 2);
+    Sketch.fill(ctx, box, selected ? '#f4c542' : hover ? '#fff4c2' : '#fbf8f0', 2);
+    // a shine across the top
+    ctx.fillStyle = selected ? 'rgba(255, 255, 255, 0.35)' : 'rgba(255, 255, 255, 0.5)';
+    ctx.fillRect(x + 4, y + 3, bw - 8, bh * 0.28);
     Sketch.stroke(ctx, box, { color: INK, width: selected ? 3.2 : 2.2, amp: 1.2, closed: true });
-    markerText(ctx, label, x + bw / 2, y + bh / 2 + 2, Math.min(bh * 0.5, 34), selected ? '#ffffff' : '#f4f1ea', selected ? -0.03 : 0);
+    const isz = icon ? bh * 0.3 : 0, lx = x + (icon ? isz * 2.6 : 0);
+    if (icon) drawMenuIcon(ctx, icon, x + isz * 1.55, y + bh / 2, isz, selected);
+    const size = this.fitText(ctx, label, bw - (lx - x) - 14, Math.min(bh * 0.5, 34), MARKER);
+    markerText(ctx, label, (lx + x + bw) / 2, y + bh / 2 + 2, size, selected ? '#ffffff' : '#f4f1ea', selected ? -0.03 : 0);
+    ctx.restore();
     if (fn) this.hit(x, y, bw, bh, fn);
+  }
+
+  // How the main menu's buttons are laid out: one column, or two once there are lots of them.
+  mainLayout(w, h, y0) {
+    const n = this.mainItems.length, cols = n > 7 && w >= 340 ? 2 : 1, rows = Math.ceil(n / cols), gap = 12;
+    const bh = Math.max(30, Math.min(58, (h - y0 - 44) / (rows * 1.24)));
+    const bw = cols === 2 ? Math.min(300, (w - 40 - gap) / 2) : Math.min(340, w - 48);
+    const x0 = (w - (bw * cols + gap * (cols - 1))) / 2;
+    return { cols, rows, bw, bh, gap, rowGap: bh * 0.24, x0 };
   }
 
   drawMain(ctx, w, h, time) {
     // the cracked skull logo: beside the title on wide screens, on top of it on tall ones
     const stacked = w < h;
-    const size = Math.min(stacked ? w / 6.2 : w / 8, h / 5.5, 140);
+    const size = Math.min(stacked ? w / 6.6 : w / 9, h / 6.5, 120);
     const tilt = -0.06 + Math.sin(time * 3) * 0.015;
-    // (the title is about 5.6 × size wide; the skull about 0.87 × its height)
-    const skullH = stacked ? size * 1.2 : size * 1.55, side = stacked ? 0 : size * 0.72;
-    const tx = w / 2 + side;
-    if (stacked) drawSkullLogo(ctx, w / 2, h * 0.2 - size * 0.6 - skullH / 2, skullH, tilt * 1.5);
-    else drawSkullLogo(ctx, tx - size * 2.9 - skullH * 0.43, h * 0.2 + size * 0.05, skullH, tilt * 1.5 - 0.08);
-    markerText(ctx, 'SHRED HED', tx, h * 0.2, size, '#f4c542', tilt);
+    const skullH = stacked ? size * 1.15 : size * 1.5, side = stacked ? 0 : size * 0.72;
+    const tx = w / 2 + side, ty = stacked ? h * 0.17 : h * 0.15;
+    // a burst of sunshine behind it, turning slowly
+    ctx.save();
+    ctx.translate(tx, ty);
+    ctx.rotate(time * 0.15);
+    for (let i = 0; i < 16; i++) {
+      ctx.fillStyle = i % 2 ? 'rgba(244, 197, 66, 0.22)' : 'rgba(226, 85, 63, 0.14)';
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, size * 4.2, (i * TAU) / 16, ((i + 1) * TAU) / 16);
+      ctx.fill();
+    }
+    ctx.restore();
+    if (stacked) drawSkullLogo(ctx, w / 2, ty - size * 0.6 - skullH / 2, skullH, tilt * 1.5);
+    else drawSkullLogo(ctx, tx - size * 2.9 - skullH * 0.43, ty + size * 0.05, skullH, tilt * 1.5 - 0.08);
+    // the title, each letter bouncing on its own
+    const title = 'SHRED HED';
+    ctx.font = `${size}px ${MARKER}`;
+    let cx = tx - ctx.measureText(title).width / 2;
+    for (let i = 0; i < title.length; i++) {
+      ctx.font = `${size}px ${MARKER}`;
+      const ch = title[i], cw = ctx.measureText(ch).width;
+      if (ch !== ' ') markerText(ctx, ch, cx + cw / 2, ty + Math.sin(time * 4 + i * 0.7) * size * 0.05, size, i < 5 ? '#f4c542' : '#ff8c2e', tilt + Math.sin(time * 3 + i) * 0.04);
+      cx += cw;
+    }
     Sketch.seedFor(95);
     Sketch.stroke(ctx, [
-      { x: tx - size * 2.5, y: h * 0.2 + size * 0.72 },
-      { x: tx + size * 2.3, y: h * 0.2 + size * 0.42 },
+      { x: tx - size * 2.5, y: ty + size * 0.72 },
+      { x: tx + size * 2.3, y: ty + size * 0.42 },
     ], { color: '#e2553f', width: size * 0.08, amp: 3 });
+    // sparkles round the title
+    for (let k = 0; k < 4; k++) {
+      const a = time * 1.3 + k * 1.6, tw = Math.max(0, Math.sin(time * 4 + k * 2.1));
+      const sx = tx + Math.cos(a) * size * 2.9, sy = ty + Math.sin(a * 1.4) * size * 0.7, s = 4 + 7 * tw;
+      ctx.strokeStyle = `rgba(255, 246, 200, ${tw})`;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(sx - s, sy); ctx.lineTo(sx + s, sy); ctx.moveTo(sx, sy - s); ctx.lineTo(sx, sy + s);
+      ctx.stroke();
+    }
 
-    // your level and how close you are to the next one
-    const ly = h * 0.2 + size * 0.95;
-    const bw = Math.min(320, w - 48), bh = Math.min(54, h * 0.07, (h - ly - 100) / (this.mainItems.length * 1.28)), gap = bh * 0.28;
-    const x = (w - bw) / 2;
+    // your level and how close you are to the next one, your Shred Bucks and trophies
+    const ly = ty + size * 0.95;
+    const barW = Math.min(340, w - 48), x = (w - barW) / 2;
     const next = Progress.nextAt();
     markerText(ctx, `LEVEL ${Progress.level}${Progress.everything ? ' ★' : ''}`, x + 52, ly + 9, 20, Progress.everything ? '#f4c542' : '#ffffff', -0.03);
     Sketch.seedFor(96);
-    const bar = [{ x: x + 110, y: ly }, { x: x + bw, y: ly }, { x: x + bw, y: ly + 18 }, { x: x + 110, y: ly + 18 }];
+    const bar = [{ x: x + 110, y: ly }, { x: x + barW, y: ly }, { x: x + barW, y: ly + 18 }, { x: x + 110, y: ly + 18 }];
     Sketch.fill(ctx, bar, '#fbf8f0', 1);
-    const fillW = (bw - 110) * Progress.toNext;
+    const fillW = (barW - 110) * Progress.toNext;
     if (fillW > 2) Sketch.fill(ctx, [{ x: x + 110, y: ly }, { x: x + 110 + fillW, y: ly }, { x: x + 110 + fillW, y: ly + 18 }, { x: x + 110, y: ly + 18 }], '#7fd36b', 1);
     Sketch.stroke(ctx, bar, { color: INK, width: 2, amp: 0.8, closed: true });
     ctx.font = `13px ${HAND}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = INK;
-    ctx.fillText(next ? `${Progress.data.rep} / ${next} rep` : `${Progress.data.rep} rep · max level!`, x + 110 + (bw - 110) / 2, ly + 9);
-
-    const bucksW = drawBucks(ctx, Progress.bucks, w / 2 - 50, ly + 35, 18, '#f4c542');
+    ctx.fillText(next ? `${Progress.data.rep} / ${next} rep` : `${Progress.data.rep} rep · max level!`, x + 110 + (barW - 110) / 2, ly + 9);
+    const bucksW = drawBucks(ctx, Progress.bucks, w / 2 - 90, ly + 35, 18, '#f4c542');
     ctx.font = `14px ${HAND}`;
     ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
     ctx.fillStyle = INK;
-    ctx.fillText('Shred Bucks', w / 2 - 50 + bucksW / 2 + 8, ly + 36);
-    const y0 = ly + 52;
+    ctx.fillText(`Shred Bucks  ·  ${Trophies.got()} / ${TROPHIES.length} trophies`, w / 2 - 90 + bucksW / 2 + 8, ly + 36);
+
+    // the buttons
+    const y0 = ly + 56, L = this.mainLayout(w, h, y0);
     this.mainItems.forEach((item, i) => {
-      this.button(ctx, item, x, y0 + i * (bh + gap), bw, bh, i === this.sel, 100 + i, () => this.choose(i));
+      const col = Math.floor(i / L.rows), row = i % L.rows;
+      const bx = L.x0 + col * (L.bw + L.gap), by = y0 + row * (L.bh + L.rowGap);
+      this.button(ctx, item, bx, by, L.bw, L.bh, i === this.sel, 100 + i, () => this.choose(i), MAIN_ICON[item]);
       // fresh stock in the shop you haven't looked at yet, and challenges still to do today
-      const bob = Math.sin(time * 5) * 2, by = y0 + i * (bh + gap) + 4 + bob, bs = Math.min(20, bh * 0.42);
-      if (item === 'SKATE SHOP' && shopSeenDay() !== shopDay()) markerText(ctx, 'NEW!', x + bw - 8, by, bs, '#e2553f', 0.2);
-      if (item === 'CHALLENGES' && Challenges.left()) markerText(ctx, `${Challenges.left()} LEFT`, x + bw - 14, by, bs, '#f4c542', 0.2);
+      const bob = Math.sin(time * 5) * 2, by2 = by + 4 + bob, bs = Math.min(18, L.bh * 0.4);
+      if (item === 'SKATE SHOP' && shopSeenDay() !== shopDay()) markerText(ctx, 'NEW!', bx + L.bw - 8, by2, bs, '#e2553f', 0.2);
+      if (item === 'CHALLENGES' && Challenges.left()) markerText(ctx, `${Challenges.left()} LEFT`, bx + L.bw - 14, by2, bs, '#f4c542', 0.2);
     });
 
     const d = Stats.data;
-    ctx.font = `${Math.max(14, Math.min(19, w / 60))}px ${HAND}`;
+    ctx.font = `${Math.max(13, Math.min(18, w / 60))}px ${HAND}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     ctx.fillStyle = INK;
-    ctx.fillText(this.inRoom ? `you're still in the room · Esc goes back to it`
-      : `best combo ${fmtScore(d.bestCombo)}  ·  ${d.landed} trick${d.landed === 1 ? '' : 's'} landed  ·  ↑ ↓ + Enter, or click`,
-      w / 2, y0 + this.mainItems.length * (bh + gap) + 6);
+    ctx.fillText(this.inRoom ? 'still in the room · Esc goes back to it'
+      : `best combo ${fmtScore(d.bestCombo)}  ·  ${d.landed} trick${d.landed === 1 ? '' : 's'} landed  ·  arrows + Enter, or click`,
+      w / 2, y0 + L.rows * (L.bh + L.rowGap) + 4);
+  }
+
+  // ---------------------------------------------------------------- trophies
+
+  trophyGrid(w, h) {
+    const cols = w > 1000 ? 5 : w > 720 ? 4 : w > 460 ? 3 : 2, top = Math.min(120, h * 0.17), gap = 12;
+    const cw = Math.min(220, (w - 32 - gap * (cols - 1)) / cols), ch = Math.min(150, Math.max(118, cw * 0.72));
+    const rows = Math.max(1, Math.floor((h - top - 90 + gap) / (ch + gap)));
+    return { cols, rows, cw, ch, gap, top, per: cols * rows, x0: (w - (cw * cols + gap * (cols - 1))) / 2 };
+  }
+
+  turnTrophyPage(d) {
+    const G = this.trophyGrid(innerWidth, innerHeight), pages = Math.ceil(TROPHIES.length / G.per);
+    const p = clamp((this.trophyPage || 0) + d, 0, pages - 1);
+    if (p !== this.trophyPage) { this.trophyPage = p; Sound.play('menuMove'); }
+  }
+
+  drawTrophies(ctx, w, h, time) {
+    markerText(ctx, `TROPHIES  ${Trophies.got()} / ${TROPHIES.length}`, w / 2, Math.min(60, h * 0.09), Math.min(48, w / 13), '#f4c542', -0.04);
+    const G = this.trophyGrid(w, h), pages = Math.ceil(TROPHIES.length / G.per);
+    this.trophyPage = clamp(this.trophyPage || 0, 0, pages - 1);
+    TROPHIES.slice(this.trophyPage * G.per, (this.trophyPage + 1) * G.per).forEach((t, i) => {
+      const x = G.x0 + (i % G.cols) * (G.cw + G.gap), y = G.top + Math.floor(i / G.cols) * (G.ch + G.gap);
+      const got = Progress.hasTrophy(t.id);
+      ctx.fillStyle = 'rgba(40, 30, 20, 0.22)';
+      ctx.fillRect(x + 4, y + 5, G.cw, G.ch);
+      Sketch.seedFor(900 + i);
+      const box = [{ x, y }, { x: x + G.cw, y }, { x: x + G.cw, y: y + G.ch }, { x, y: y + G.ch }];
+      Sketch.fill(ctx, box, got ? '#fff4c2' : '#e9e4d8', 1.5);
+      Sketch.stroke(ctx, box, { color: INK, width: 2, amp: 1, closed: true });
+      // the badge, shining if it's yours
+      const r = Math.min(G.ch * 0.18, 22), bx = x + 12 + r, by = y + 12 + r;
+      Sketch.circle(ctx, bx, by, r, got ? '#f4c542' : '#c9c3b6', { color: INK, width: 2, amp: 0.4 });
+      drawMenuIcon(ctx, 'trophy', bx, by, r * 0.6, got);
+      if (got) {
+        const tw = Math.max(0, Math.sin(time * 3 + i));
+        ctx.strokeStyle = `rgba(255, 255, 255, ${tw})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(bx + r * 0.7, by - r * 1.2); ctx.lineTo(bx + r * 0.7, by - r * 0.5); ctx.moveTo(bx + r * 0.35, by - r * 0.85); ctx.lineTo(bx + r * 1.05, by - r * 0.85); ctx.stroke();
+      }
+      const nameW = G.cw - (2 * r + 32), nameSize = this.fitText(ctx, t.name, nameW, Math.min(19, G.cw / 9), MARKER);
+      markerText(ctx, t.name, x + 2 * r + 22 + nameW / 2, by, nameSize, got ? '#ffffff' : '#b9b4aa');
+      ctx.font = `${Math.max(12, Math.min(15, G.cw / 13))}px ${HAND}`;
+      ctx.fillStyle = INK;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      this.wrapText(ctx, t.desc, x + G.cw / 2, y + 2 * r + 34, G.cw - 20, 16);
+      if (got) markerText(ctx, 'GOT IT!', x + G.cw - 40, y + G.ch - 16, 15, '#7fd36b', -0.06);
+      else drawBucks(ctx, `+${t.reward}`, x + G.cw - 12, y + G.ch - 16, 15, '#f4c542', 'right');
+    });
+    // pages
+    if (pages > 1) {
+      const py = Math.min(h - 40, G.top + G.rows * (G.ch + G.gap) + 18);
+      markerText(ctx, `${this.trophyPage + 1} / ${pages}`, w / 2, py, 20, '#ffffff');
+      if (this.trophyPage > 0) { markerText(ctx, '◀', w / 2 - 70, py, 28, '#ffffff'); this.hit(w / 2 - 100, py - 22, 60, 44, () => this.turnTrophyPage(-1)); }
+      if (this.trophyPage < pages - 1) { markerText(ctx, '▶', w / 2 + 70, py, 28, '#ffffff'); this.hit(w / 2 + 40, py - 22, 60, 44, () => this.turnTrophyPage(1)); }
+    }
   }
 
   // The skater modelling what you're trying on (locked or not). Returns where it's drawn.
@@ -1649,6 +1829,8 @@ class Menu {
       ['Distance skated', ft > 5280 ? (ft / 5280).toFixed(2) + ' miles' : Math.round(ft) + ' ft'],
       ['Time skating', `${mins}:${String(secs).padStart(2, '0')}`],
       ['S.K.A.T.E. vs CPU', `${d.skateWins} won, ${d.skateLosses} lost`],
+      ['Gaps found', `${Progress.gapsFound()} / ${Gaps.count()}`],
+      ['Trophies', `${Trophies.got()} / ${Trophies.list.length}`],
       ['Hardest trick', d.hardest || '—'],
       ['Most landed', fav],
     ];

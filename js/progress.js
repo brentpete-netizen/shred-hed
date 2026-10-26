@@ -93,6 +93,11 @@ function mergeProgress(a, b) {
   for (const [m, list] of Object.entries(b.letters || {})) if (Array.isArray(list)) a.letters[m] = [...new Set([...(a.letters[m] || []), ...list])];
   a.spots = a.spots || {};
   for (const [id, found] of Object.entries(b.spots || {})) if (found) a.spots[id] = true;
+  a.gaps = a.gaps || {};
+  for (const [m, list] of Object.entries(b.gaps || {})) if (Array.isArray(list)) a.gaps[m] = [...new Set([...(a.gaps[m] || []), ...list])];
+  a.trophies = [...new Set([...(a.trophies || []), ...(Array.isArray(b.trophies) ? b.trophies : [])])];
+  a.runs = a.runs || {};
+  for (const [m, best] of Object.entries(b.runs || {})) a.runs[m] = Math.max(+a.runs[m] || 0, +best || 0);
   a.nameTag = !!(a.nameTag || b.nameTag);
   a.tung = !!(a.tung || b.tung);
   // today's challenges: the newer day wins; on the same day, the furthest you got on each
@@ -224,6 +229,41 @@ const Progress = (() => {
       if (found === TOTAL_LETTERS) {
         events.push({ type: 'banner', title: 'ALL 20 LETTERS!', lines: ['secret skater unlocked: the Ghost', 'check the closet'] });
       }
+    },
+
+    // gaps (see gaps.js): true the first time you get one
+    findGap(mapId, name) {
+      data.gaps = data.gaps || {};
+      const list = (data.gaps[mapId] = data.gaps[mapId] || []);
+      if (list.includes(name)) return false;
+      list.push(name);
+      store();
+      events.push({ type: 'newGap', name });
+      api.earn(GAP_BUCKS, 'new gap');
+      return true;
+    },
+    gapsFound(mapId) { return mapId ? (data.gaps?.[mapId] || []).length : Object.values(data.gaps || {}).reduce((n, l) => n + l.length, 0); },
+    hasGap(mapId, name) { return !!data.gaps?.[mapId]?.includes(name); },
+
+    // trophies (see trophies.js)
+    hasTrophy(id) { return !!data.trophies?.includes(id); },
+    giveTrophy(t) {
+      data.trophies = data.trophies || [];
+      if (data.trophies.includes(t.id)) return false;
+      data.trophies.push(t.id);
+      store();
+      events.push({ type: 'trophy', name: t.name, reward: t.reward });
+      api.earn(t.reward, 'trophy');
+      return true;
+    },
+
+    // the 2-minute run: the best score on each map
+    runBest(mapId) { return +data.runs?.[mapId] || 0; },
+    runDone(mapId, score) {
+      data.runs = data.runs || {};
+      const best = score > (+data.runs[mapId] || 0);
+      if (best) { data.runs[mapId] = score; store(); }
+      return best;
     },
 
     // hidden spots you find by doing something special

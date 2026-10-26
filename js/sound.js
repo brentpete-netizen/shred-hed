@@ -159,6 +159,22 @@ const Sound = (() => {
     coins() { for (let i = 0; i < 7; i++) tone({ freq: 3000 + Math.random() * 1800, dur: 0.06, gain: 0.05, type: 'triangle', delay: 0.05 + i * 0.07 + Math.random() * 0.03 }); },
   });
 
+  // hype: big combos, gaps, catching fire, hot spots, the 2-minute run
+  Object.assign(SFX, {
+    praise(tier = 0) { // a brighter, longer sting the bigger the combo
+      const base = [523, 587, 659, 784, 880][tier] || 523;
+      [1, 1.25, 1.5, 2].slice(0, 2 + Math.min(2, tier)).forEach((m, i) => tone({ freq: base * m, dur: 0.18 + tier * 0.04, gain: 0.09, type: 'square', delay: i * 0.06 }));
+      if (tier >= 3) burst({ type: 'highpass', freq: 3000, dur: 0.4, gain: 0.08, delay: 0.1 });
+    },
+    gap() { tone({ freq: 880, to: 1320, dur: 0.16, gain: 0.1, type: 'triangle' }); tone({ freq: 1760, dur: 0.22, gain: 0.07, type: 'triangle', delay: 0.1 }); },
+    fire() { burst({ type: 'bandpass', freq: 600, Q: 0.5, dur: 0.8, gain: 0.25 }); tone({ freq: 200, to: 900, dur: 0.7, gain: 0.12, type: 'sawtooth', attack: 0.05 }); },
+    fireOut() { tone({ freq: 500, to: 120, dur: 0.5, gain: 0.1, type: 'sawtooth' }); burst({ type: 'lowpass', freq: 500, dur: 0.4, gain: 0.15 }); },
+    spot() { [988, 1319, 988, 1319].forEach((f, i) => tone({ freq: f, dur: 0.1, gain: 0.07, type: 'triangle', delay: i * 0.09 })); },
+    tick() { tone({ freq: 1200, dur: 0.05, gain: 0.08, type: 'square' }); },
+    horn() { [392, 392, 523].forEach((f, i) => tone({ freq: f, dur: i === 2 ? 0.6 : 0.16, gain: 0.12, type: 'sawtooth', delay: i * 0.2 })); },
+    trophy() { [784, 988, 1175, 1568].forEach((f, i) => tone({ freq: f, dur: 0.3, gain: 0.1, type: 'triangle', delay: i * 0.08 })); tone({ freq: 2093, dur: 0.8, gain: 0.06, type: 'sine', delay: 0.35 }); },
+  });
+
   function play(name, arg) {
     if (!ac || settings.muted || !SFX[name]) return;
     SFX[name](arg);

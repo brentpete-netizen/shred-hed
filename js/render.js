@@ -1094,6 +1094,14 @@ const BAIL_FX = {
     ctx.stroke();
     if (sx > 0.5) { ctx.fillStyle = '#a67814'; ctx.font = `bold 9px ${HAND}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('$', f.x, f.y + 0.5); }
   },
+  flame(ctx, f, k) {
+    // yellow-hot, going orange, then red as it burns out
+    ctx.globalAlpha = 0.85 * (1 - k);
+    ctx.fillStyle = k < 0.3 ? '#ffe680' : k < 0.6 ? '#ff8c2e' : '#e2361f';
+    ctx.beginPath();
+    ctx.ellipse(f.x, f.y, f.r * 0.7, f.r * 1.2, 0, 0, TAU);
+    ctx.fill();
+  },
   smoke(ctx, f, k) {
     ctx.globalAlpha = 0.55 * (1 - k);
     ctx.beginPath();
