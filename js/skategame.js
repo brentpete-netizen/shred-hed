@@ -77,6 +77,7 @@ class SkateGame {
     this.skater.outfit = p.outfit;
     this.attempt = { t: 0, landedAt: null, names: null, done: false };
     this.driver = null;
+    this.thinking = null;
     this.state = 'attempt';
     if (p.cpu) this.planCpu();
     if (p.remote && this.pending?.n === this.attemptNo) {
@@ -107,15 +108,24 @@ class SkateGame {
     this.state = 'over';
   }
 
+  // The CPU works out its attempt a little at a time (see think), so the game doesn't freeze.
   planCpu() {
     const me = this.current, them = this.other;
+    this.thinking = this.phase === 'set'
+      ? cpuThinkSet(this.terrain, me.letters, them.letters)
+      : (function* (T, trick) { const plan = yield* cpuThinkPlan(T, trick, 160); return plan && { name: trick, plan }; })(this.terrain, this.trick);
+  }
+
+  // A few milliseconds of CPU thinking each frame; once it knows what to do, off it goes.
+  think() {
+    const until = performance.now() + 8;
+    let r;
+    do r = this.thinking.next(); while (!r.done && performance.now() < until);
+    if (!r.done) return;
+    this.thinking = null;
+    const me = this.current;
     let target = this.trick, plan = null;
-    if (this.phase === 'set') {
-      const pick = cpuChooseSet(this.terrain, me.letters, them.letters);
-      if (pick) ({ name: target, plan } = pick);
-    } else {
-      plan = cpuPlan(this.terrain, this.trick, 160);
-    }
+    if (r.value) ({ name: target, plan } = r.value);
     if (plan && Math.random() < cpuMissChance(target) - (me.letters >= 4 ? 0.08 : 0)) plan = cpuFluff(this.terrain, plan, target);
     // no idea how to do it: have a go at something anyway
     this.driver = new CpuDriver(plan || { ollieX: this.skater.pos.x + 300, speed: 500, charge: false, fakie: false, presses: [{ t: 0.03, key: 'right' }], holds: [] });
@@ -124,6 +134,7 @@ class SkateGame {
   // Inputs for this physics step: the keyboard, the CPU, or nothing between attempts.
   input(keyboardEvents) {
     if (this.state !== 'attempt' || this.attempt.done || this.watching) return { ev: [], held: () => false };
+    if (this.current.cpu && !this.driver) return { ev: [], held: () => false }; // still thinking
     if (this.driver) {
       const { ev, held } = this.driver.step(this.skater);
       return { ev, held: a => held.has(a) };
@@ -159,6 +170,7 @@ class SkateGame {
         if ((this.next.t += dt) >= 0.9) this.showBanner(this.next.title, this.next.sub, this.next.dur);
         return;
       }
+      if (this.thinking) return this.think(); // (the clock doesn't run while the CPU makes up its mind)
       a.t += dt;
       if (this.watching) return; // their screen decides how it went
       if (a.landedAt !== null && a.t - a.landedAt >= RIDE_AWAY) this.resolve(true);
@@ -256,7 +268,8 @@ class SkateGame {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillStyle = INK;
-        ctx.fillText(`${p.cpu ? 'the CPU' : p.name} is skating…`, w / 2, ty + size * (this.trick ? 1.7 : 0.8));
+        const doing = p.cpu && this.thinking ? 'is thinking' + '.'.repeat(1 + Math.floor(performance.now() / 300) % 3) : 'is skating…';
+        ctx.fillText(`${p.cpu ? 'the CPU' : p.name} ${doing}`, w / 2, ty + size * (this.trick ? 1.7 : 0.8));
       }
       if (this.tries > 1 && this.phase === 'match') markerText(ctx, 'last letter: 2 tries', w / 2, ty + size * 1.75, size * 0.42, '#ef5a4a');
     }

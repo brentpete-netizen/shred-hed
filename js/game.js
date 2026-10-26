@@ -57,7 +57,8 @@ function makeSkyline(kind, worldWidth) {
   Sketch.seedFor(500);
   const pencil = { color: 'rgba(80, 74, 66, 0.42)', width: 1.6, amp: 1.2, maxLen: 25 };
   const wash = 'rgba(200, 192, 176, 0.35)';
-  Sketch.circle(g, width * 0.3, -380, 46, 'rgba(244, 197, 66, 0.25)', { color: 'rgba(80,74,66,0.35)', width: 1.6 });
+  // (the sun and moon go across the sky by the time of day: see daylight.js)
+  const windows = []; // the ones that light up at night
 
   const towers = (minH, maxH, density) => {
     for (let x = 0; x < width;) {
@@ -67,8 +68,11 @@ function makeSkyline(kind, worldWidth) {
       Sketch.stroke(g, box, pencil);
       for (let wy = -bh + 16; wy < -20; wy += 22) {
         for (let wx = x + 12; wx < x + bw - 16; wx += 20) {
-          if (r() < density) Sketch.stroke(g, [{ x: wx, y: wy }, { x: wx + 8, y: wy }, { x: wx + 8, y: wy + 10 }, { x: wx, y: wy + 10 }],
-            { ...pencil, width: 1, closed: true, passes: 1 });
+          if (r() < density) {
+            Sketch.stroke(g, [{ x: wx, y: wy }, { x: wx + 8, y: wy }, { x: wx + 8, y: wy + 10 }, { x: wx, y: wy + 10 }],
+              { ...pencil, width: 1, closed: true, passes: 1 });
+            if (Daylight.lit(wx * 0.37 + wy)) windows.push({ x: wx + 1, y: wy + 1, w: 6, h: 8 });
+          }
         }
       }
       if (r() < 0.3) Sketch.stroke(g, [{ x: x + bw * 0.6, y: -bh }, { x: x + bw * 0.6, y: -bh - 30 - r() * 30 }], pencil);
@@ -131,6 +135,7 @@ function makeSkyline(kind, worldWidth) {
       Sketch.fill(g, house, wash, 2);
       Sketch.stroke(g, house, pencil);
       Sketch.stroke(g, [{ x: x + 20, y: -h + 20 }, { x: x + 40, y: -h + 20 }, { x: x + 40, y: -h + 40 }, { x: x + 20, y: -h + 40 }], { ...pencil, width: 1, closed: true, passes: 1 });
+      if (Daylight.lit(x * 0.37)) windows.push({ x: x + 21, y: -h + 21, w: 18, h: 18 });
       tree(x + w + 30, 0.9 + r() * 0.6);
     }
   } else if (kind === 'hills') {
@@ -149,7 +154,9 @@ function makeSkyline(kind, worldWidth) {
     }
     for (let x = 30; x < width; x += 120 + r() * 160) tree(x, 0.7 + r() * 0.5);
   } else towers(70, 300, 0.55);
-  return { canvas: c, width };
+  // how high the tallest thing in it goes (the stars come out above that)
+  const tallest = { space: 410, volcano: 400, beach: 260, downtown: 500, suburb: 160, hills: 250 }[kind] ?? 360;
+  return { canvas: c, width, windows, tallest };
 }
 
 // ---------------------------------------------------------------- game state
@@ -416,6 +423,62 @@ function drawSpeedLines(ctx, w, h) {
   ctx.stroke();
 }
 
+// Evening and night (see daylight.js): everything drawn so far gets darker, then the lights go on
+// top. Stars, the moon and lit windows only go in the sky, never over the ground or your skater
+// (who's left out of the clip). Called with the world's transform set.
+function drawNight(day, sky, view, skyAt, space) {
+  const [r, g, b] = day.color;
+  if (r + g + b >= 765) return; // broad daylight
+  const worldT = ctx.getTransform();
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.globalCompositeOperation = 'multiply';
+  ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+  ctx.fillRect(0, 0, cw, ch);
+  ctx.globalCompositeOperation = 'source-over';
+  if (day.night <= 0.05) return ctx.setTransform(worldT);
+  // the lights are drawn on a see-through layer, with what they'd be behind cut out of it, then
+  // laid over the picture
+  const L = nightLayer.getContext('2d');
+  if (nightLayer.width !== canvas.width || nightLayer.height !== canvas.height) { nightLayer.width = canvas.width; nightLayer.height = canvas.height; }
+  const T = terrain, you = skateGame?.watching ? null : skater.state === 'bail' ? skater.bail.rag.hip : skater.pos;
+  const cut = (far) => {
+    L.setTransform(worldT);
+    L.globalCompositeOperation = 'destination-out';
+    L.beginPath();
+    T.fillPoly.forEach((p, i) => (i ? L.lineTo(p.x, p.y) : L.moveTo(p.x, p.y)));
+    L.fill();
+    if (you) L.fillRect(you.x - 70, you.y - 130, 140, 150);
+    if (far) {
+      for (const s of T.back) if (s.type === 'building' || s.type === 'schoolBuilding') L.fillRect(s.x, s.y - s.h, s.w, s.h);
+      for (const s of T.front) if (s.type === 'facade') L.fillRect(s.x0, s.top, s.x1 - s.x0, s.bottom - s.top);
+    }
+    L.globalCompositeOperation = 'source-over';
+  };
+  const layOn = op => {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalCompositeOperation = op;
+    ctx.drawImage(nightLayer, 0, 0);
+    ctx.globalCompositeOperation = 'source-over';
+  };
+  // street lamps and lit windows, in the world (not over the ground or you)
+  L.setTransform(1, 0, 0, 1, 0, 0);
+  L.clearRect(0, 0, nightLayer.width, nightLayer.height);
+  L.setTransform(worldT);
+  Daylight.drawLights(L, day, T, view);
+  cut(false);
+  layOn('lighter');
+  // far off: windows in the skyline, the stars and the moon (not through buildings either)
+  L.setTransform(1, 0, 0, 1, 0, 0);
+  L.clearRect(0, 0, nightLayer.width, nightLayer.height);
+  L.setTransform(dpr, 0, 0, dpr, 0, 0);
+  Daylight.drawSkylineLights(L, day, skyline, skyAt);
+  Daylight.drawNightSky(L, day, sky, time, !space); // (the Moon Base has a planet up there already, not a moon)
+  cut(true);
+  layOn('source-over');
+  ctx.setTransform(worldT);
+}
+const nightLayer = document.createElement('canvas');
+
 function render() {
   const building = mode === 'build';
   const scale = building ? viewScale(BUILD_VIEW) : viewScale();
@@ -436,8 +499,13 @@ function render() {
   const sx = (SKY_X0 - skyX * PARALLAX) * scale + cw / 2;
   const sy = ch / 2 + (40 - skyY * PARALLAX) * scale - SKY_H * scale;
   const tw = skyline.width * scale;
+  // the sun, wherever it is in the sky right now (the same time as where you are)
+  const day = Daylight.now(), space = world.theme.sky === 'space';
+  const sky = { w: cw, top: clamp(sy + (SKY_H - 60) * scale, ch * 0.25, ch * 0.7), starsTo: sy + (SKY_H - 20 - skyline.tallest) * scale };
+  if (!building && !space) Daylight.drawSun(ctx, day, sky);
   let tx = loop ? ((sx % tw) + tw) % tw - tw : sx;
-  do { ctx.drawImage(skyline.canvas, tx, sy, tw, SKY_H * scale); tx += tw; } while (loop && tx < cw);
+  const skyXs = [];
+  do { ctx.drawImage(skyline.canvas, tx, sy, tw, SKY_H * scale); skyXs.push(tx); tx += tw; } while (loop && tx < cw);
 
   // world (shaken a little after a slam)
   const k = dpr * scale, shake = building ? { x: 0, y: 0 } : feel.offset;
@@ -454,6 +522,7 @@ function render() {
       ComboTrail.draw(ctx, skater, time);
       drawSkater(ctx, skater);
     }
+    drawNight(day, sky, { x0: view.x - halfW - 50, x1: view.x + halfW + 50 }, { xs: skyXs, y: sy, scale, w: cw }, space);
   }
 
   // screen-space UI
