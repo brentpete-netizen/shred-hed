@@ -76,7 +76,8 @@ const Bonus = (() => {
     }
 
     // School: grind the big handrail from the top all the way off the bottom in one go
-    if (bigRail) {
+    // (only until you've found it; after that it's on the map list and the rail is just a rail)
+    if (bigRail && !Progress.hasSpot('drain')) {
       const g = sk.grind;
       if (g && bigRail.includes(g.rail)) {
         if (!grindRun) grindRun = { startedAt: bigRail.indexOf(g.rail) };
