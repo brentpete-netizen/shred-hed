@@ -91,59 +91,39 @@ class Hud {
     if (this.gapPop && (this.gapPop.t += dt) > 1.5) this.gapPop = null;
   }
 
-  // the big word for a big combo, and a gap you just hit
-  drawPops(ctx, w, h) {
+  // Everything else that pops up, as small rows for the bottom-left corner (above the tricks):
+  // level ups and trophies, new tricks and gaps, who joined, the word for a big combo and a gap
+  // you just hit. Rows are [text, size, color, scale, alpha, font], top to bottom.
+  popRows(ctx, fs, maxW) {
+    const rows = [], fade = (t, dur, out = 0.4) => clamp((dur - t) / out, 0, 1);
+    const L = this.levelUp;
+    if (L) {
+      const a = clamp(Math.min(L.t / 0.2, (3.6 - L.t) / 0.5), 0, 1);
+      rows.push([L.title || `LEVEL ${L.level}!`, fs * 1.5, '#f4c542', 1 + 0.3 * Math.exp(-L.t * 8), a, MARKER]);
+      const lines = L.title ? fitLines(ctx, L.unlocked, '   ·   ', fs * 0.9, maxW)
+        : L.unlocked.length ? fitLines(ctx, ['unlocked:', ...L.unlocked], '   ', fs * 0.9, maxW) : ['keep shredding'];
+      for (const l of lines) rows.push([l, fs * 0.9, '#ffffff', 1, a, MARKER]);
+    }
+    for (const n of this.news || []) if (n.kind === 'trick') rows.push([n.text, fs, '#f4c542', 1, fade(n.t, n.dur), MARKER]);
+    for (const t of typeof Net !== 'undefined' ? Net.toasts : []) rows.push([t.text, fs, '#7fd36b', 1, fade(t.t, 3, 0.5), MARKER]);
     const P = this.praise;
-    if (P) {
-      const k = P.t / 1.4, s = 1 + 0.8 * Math.exp(-P.t * 10);
-      ctx.globalAlpha = clamp((1.4 - P.t) / 0.4, 0, 1);
-      const size = Math.min(P.size * Math.min(1, w / 900), w / (P.text.length * 0.62));
-      // a burst behind it
-      ctx.save();
-      ctx.translate(w / 2, h * 0.36 - k * 20);
-      ctx.rotate(P.rot);
-      ctx.fillStyle = P.burst;
-      ctx.beginPath();
-      for (let i = 0; i < 20; i++) { const a = (i * Math.PI) / 10 + P.t, r = (i % 2 ? 0.45 : 0.8) * size * 1.8 * s; ctx.lineTo(Math.cos(a) * r * 1.6, Math.sin(a) * r * 0.7); }
-      ctx.closePath();
-      ctx.globalAlpha *= 0.55;
-      ctx.fill();
-      ctx.restore();
-      ctx.globalAlpha = clamp((1.4 - P.t) / 0.4, 0, 1);
-      markerText(ctx, P.text, w / 2, h * 0.36 - k * 20, size, P.color, P.rot, s);
-      ctx.globalAlpha = 1;
-    }
+    if (P) rows.push([P.text, fs * 1.6, P.color, 1 + 0.5 * Math.exp(-P.t * 10), fade(P.t, 1.4), MARKER]);
     const G = this.gapPop;
-    if (G) {
-      ctx.globalAlpha = clamp((1.5 - G.t) / 0.4, 0, 1);
-      const s = 1 + 0.5 * Math.exp(-G.t * 12), y = h * 0.62 - G.t * 14;
-      markerText(ctx, G.text, w / 2, y, Math.min(34, w / (G.text.length * 0.6)), '#3dd6ff', 0.04, s);
-      markerText(ctx, `+${fmtScore(G.pts)}`, w / 2, y + 30, 20, '#ffffff', 0.04, s);
-      ctx.globalAlpha = 1;
-    }
+    if (G) rows.push([`${G.text}   +${fmtScore(G.pts)}`, fs * 1.1, '#3dd6ff', 1 + 0.3 * Math.exp(-G.t * 12), fade(G.t, 1.5), MARKER]);
+    return rows;
   }
 
+  // the rep and Shred Bucks you just got, small by the counters in the top-right
   drawProgress(ctx, w, h) {
     // (on a narrow screen, below the titles so they don't overlap)
     const ny = w < 700 || TouchPad.enabled ? 120 : 78;
-    (this.news || []).forEach((n, i) => {
+    (this.news || []).filter(n => n.kind !== 'trick').forEach((n, i) => {
       ctx.globalAlpha = clamp((n.dur - n.t) / 0.4, 0, 1);
       const y = ny + i * 26 - n.t * 18;
       if (n.kind === 'rep') markerText(ctx, n.text, w - 70, y, 18, '#7fd36b', -0.03);
-      else if (n.kind === 'bucks') drawBucks(ctx, `+${n.amount}`, w - 16, y, 18, '#f4c542', 'right');
-      else markerText(ctx, n.text, w / 2, h * 0.72 - n.t * 10, Math.min(28, w / 18), '#f4c542', -0.04, 1 + 0.3 * Math.exp(-n.t * 10));
+      else drawBucks(ctx, `+${n.amount}`, w - 16, y, 18, '#f4c542', 'right');
       ctx.globalAlpha = 1;
     });
-    const L = this.levelUp;
-    if (!L) return;
-    const a = clamp(Math.min(L.t / 0.2, (3.6 - L.t) / 0.5), 0, 1);
-    ctx.globalAlpha = a;
-    ctx.fillStyle = 'rgba(243, 238, 225, 0.8)';
-    ctx.fillRect(0, h * 0.36, w, h * 0.26);
-    markerText(ctx, L.title || `LEVEL ${L.level}!`, w / 2, h * 0.44, Math.min(64, w / (L.title ? 11 : 8)), '#f4c542', -0.05, 1 + 0.4 * Math.exp(-L.t * 8));
-    const text = L.title ? L.unlocked.join(' · ') : L.unlocked.length ? `unlocked: ${L.unlocked.join(', ')}` : 'keep shredding';
-    markerText(ctx, text, w / 2, h * 0.53, Math.min(22, w / (text.length * 0.62)), '#ffffff', -0.02);
-    ctx.globalAlpha = 1;
   }
 
   // skate: in Game of S.K.A.T.E. there's no score
@@ -163,19 +143,20 @@ class Hud {
     }
 
     this.drawTricks(ctx, w, h, sk);
-    this.drawPops(ctx, w, h);
     this.drawProgress(ctx, w, h);
   }
 
-  // The words for what you're doing, small and spaced out in the bottom-left corner: the trick you
-  // just did, the combo so far (wrapping onto more lines), its score, and what you banked or lost.
+  // All the words that pop up, small and spaced out in the bottom-left corner: level ups, trophies
+  // and the like on top (see popRows, and the S.K.A.T.E. calls), then the trick you just did, the
+  // combo so far (wrapping onto more lines), its score, and what you banked or lost.
   // (Bottom right while the help card's open, and beside the CHAT button online.)
   drawTricks(ctx, w, h, sk) {
     const fs = Math.max(12, Math.min(17, w / 66));
     const right = typeof showHelp !== 'undefined' && showHelp;
     const x = right ? w - 18 : 18 + (typeof Net !== 'undefined' && Net.active ? 92 : 0);
     const maxW = Math.min(w * 0.45, 440), align = right ? 'right' : 'left';
-    const rows = []; // top to bottom: [text, size, color, scale, alpha, font]
+    const rows = this.popRows(ctx, fs, maxW); // top to bottom: [text, size, color, scale, alpha, font]
+    if (typeof skateGame !== 'undefined' && skateGame) rows.push(...skateGame.popRows(ctx, fs, maxW));
 
     if (this.trickPop) {
       const p = this.trickPop;
@@ -184,15 +165,7 @@ class Hud {
     if (sk.combo.active) {
       const r = sk.combo.result();
       // as many tricks to a line as fit; only the last few lines
-      const lines = [''];
-      ctx.font = `${fs * 0.9}px ${MARKER}`;
-      ctx.letterSpacing = `${(fs * 0.9 * 0.14).toFixed(1)}px`;
-      for (const name of sk.combo.names()) {
-        const t = lines[lines.length - 1] ? lines[lines.length - 1] + '   +   ' + name : name;
-        if (ctx.measureText(t).width > maxW && lines[lines.length - 1]) lines.push('+   ' + name);
-        else lines[lines.length - 1] = t;
-      }
-      ctx.letterSpacing = '0px';
+      const lines = fitLines(ctx, sk.combo.names(), '   +   ', fs * 0.9, maxW, '+   ');
       if (lines.length > 4) lines.splice(0, lines.length - 4, '…');
       for (const l of lines) rows.push([l, fs * 0.9, '#ffffff', 1, 1, MARKER]);
       rows.push([`${fmtScore(r.points)}  ×  ${r.mult}`, fs * 1.1, '#f4c542', 1, 1, MARKER]);
@@ -216,6 +189,21 @@ class Hud {
 
 // Small text with the letters spread out. Marker text gets a dark outline like markerText (so it
 // reads on the night sky too); handwriting is just inked. (x, y) is the start (or end, for
+// Joins parts with sep into as many lines as it takes to keep each under maxW (measured as
+// spacedText draws it); lead starts each line after the first.
+function fitLines(ctx, parts, sep, size, maxW, lead = '') {
+  const lines = [''];
+  ctx.font = `${size}px ${MARKER}`;
+  ctx.letterSpacing = `${(size * 0.14).toFixed(1)}px`;
+  for (const part of parts) {
+    const last = lines[lines.length - 1], t = last ? last + sep + part : part;
+    if (ctx.measureText(t).width > maxW && last) lines.push(lead + part);
+    else lines[lines.length - 1] = t;
+  }
+  ctx.letterSpacing = '0px';
+  return lines;
+}
+
 // 'right') of the baseline.
 function spacedText(ctx, text, x, y, size, color, align = 'left', scale = 1, font = MARKER) {
   ctx.save();

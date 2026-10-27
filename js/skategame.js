@@ -273,15 +273,12 @@ class SkateGame {
       }
       if (this.tries > 1 && this.phase === 'match') markerText(ctx, 'last letter: 2 tries', w / 2, ty + size * 1.75, size * 0.42, '#ef5a4a');
     }
-    if (this.attempt?.done && this.result && this.state === 'attempt') {
-      markerText(ctx, this.result.text, w / 2, h * 0.3, size * 1.4, this.result.color, -0.05);
-    }
-
-    if (this.state === 'banner' || this.state === 'over') {
-      const b = this.banner, k = this.state === 'over' ? 1 : Math.min(1, b.t / 0.15);
-      ctx.fillStyle = `rgba(243, 238, 225, ${0.6 * k})`;
+    // (SET! / MISSED and the letter calls go with the other words in the corner: see popRows)
+    if (this.state === 'over') {
+      const b = this.banner;
+      ctx.fillStyle = 'rgba(243, 238, 225, 0.6)';
       ctx.fillRect(0, h * 0.28, w, h * 0.3);
-      markerText(ctx, b.title, w / 2, h * 0.38, Math.min(size * 1.8, w / 12), '#f4c542', -0.04, 0.9 + 0.1 * k);
+      markerText(ctx, b.title, w / 2, h * 0.38, Math.min(size * 1.8, w / 12), '#f4c542', -0.04);
       markerText(ctx, b.sub, w / 2, h * 0.38 + size * 1.5, Math.min(size * 0.7, w / 26), '#ffffff', -0.02);
       if (this.state === 'over') {
         // (on a touchscreen: tap for a rematch, ☰ to leave)
@@ -293,5 +290,18 @@ class SkateGame {
         markerText(ctx, hint, w / 2, h * 0.38 + size * 2.6, size * 0.5, '#ffffff');
       }
     }
+  }
+
+  // SET! / MISSED, and the call between tries ("SAM GETS S"), as small rows for the corner the
+  // Hud draws its words in (see Hud.drawTricks)
+  popRows(ctx, fs, maxW) {
+    const rows = [];
+    if (this.state === 'banner') {
+      const b = this.banner, a = Math.min(1, b.t / 0.15, (b.dur - b.t) / 0.3);
+      rows.push([b.title, fs * 1.5, '#f4c542', 1, a, MARKER]);
+      for (const l of fitLines(ctx, b.sub.split(' '), ' ', fs * 0.9, maxW)) rows.push([l, fs * 0.9, '#ffffff', 1, a, MARKER]);
+    }
+    if (this.attempt?.done && this.result && this.state === 'attempt') rows.push([this.result.text, fs * 1.5, this.result.color, 1, 1, MARKER]);
+    return rows;
   }
 }

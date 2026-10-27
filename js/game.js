@@ -672,12 +672,6 @@ function render() {
     ctx.fillStyle = INK;
     const corner = testRide ? 'TEST RIDE · Esc back to the builder' : online ? `${Net.public ? 'PUBLIC PARK' : `ONLINE · room ${Net.code}`} · ${Net.players.length} here${TouchPad.enabled ? '' : ' · T chat · Esc menu'}` : TouchPad.enabled ? '' : 'Esc · menu';
     ctx.fillText(corner, cw - 14, 12);
-    // "Sam joined", "Sam left"
-    Net.toasts.forEach((t, i) => {
-      ctx.globalAlpha = clamp((3 - t.t) / 0.5, 0, 1);
-      markerText(ctx, t.text, cw / 2, ch * 0.2 + i * 30, Math.min(24, cw / 28), '#7fd36b', -0.02);
-    });
-    ctx.globalAlpha = 1;
     if (online) Chat.draw(ctx, cw, ch);
     TouchPad.draw(ctx, cw, ch);
   }
