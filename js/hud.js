@@ -29,8 +29,8 @@ function markerText(ctx, text, x, y, size, color, rot = 0, scale = 1) {
   ctx.restore();
 }
 
-// The trick you just did pops up big; under it the running combo ("Kickflip + 50-50 + Manual")
-// and its score ("1,250 × 3"). Landing shows what you banked; bailing shows what you lost.
+// The trick you just did, the running combo ("Kickflip + 50-50 + Manual") and its score
+// ("1,250 × 3"), small in the bottom-left corner. Landing shows what you banked; bailing shows what you lost.
 class Hud {
   constructor() {
     this.score = 0;     // this session
@@ -146,10 +146,9 @@ class Hud {
     ctx.globalAlpha = 1;
   }
 
-  // skate: in Game of S.K.A.T.E. there's no score, and the trick popups sit lower under the letters
+  // skate: in Game of S.K.A.T.E. there's no score
   draw(ctx, w, h, sk, skate = false) {
     const size = Math.max(24, Math.min(50, w / 24));
-    const cx = w / 2, top = h * (skate ? 0.24 : 0.13);
 
     const scoreText = 'SCORE ' + fmtScore(this.score);
     ctx.font = `${size * 0.5}px ${MARKER}`;
@@ -163,37 +162,78 @@ class Hud {
       ctx.fillText(`${this.mapName}  ·  best ${fmtScore(best.bestScore)}  ·  best combo ${fmtScore(best.bestCombo)}`, 18, 24 + size * 0.42);
     }
 
-    if (this.trickPop) {
-      const p = this.trickPop;
-      ctx.globalAlpha = clamp((1.2 - p.t) / 0.3, 0, 1);
-      markerText(ctx, p.text, cx, top, size, '#ffffff', -0.04, 1 + 0.35 * Math.exp(-p.t * 14));
-      ctx.globalAlpha = 1;
-    }
-
-    if (sk.combo.active) {
-      const r = sk.combo.result();
-      ctx.font = `${size * 0.42}px ${HAND}`;
-      let line = sk.combo.names().join(' + ');
-      while (ctx.measureText(line).width > w - 40 && line.includes(' + ')) line = '… ' + line.slice(line.indexOf(' + ') + 3);
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = INK;
-      ctx.fillText(line, cx, top + size * 0.95);
-      markerText(ctx, `${fmtScore(r.points)} × ${r.mult}`, cx, top + size * 1.6, size * 0.6, '#f4c542', -0.02);
-    }
-
+    this.drawTricks(ctx, w, h, sk);
     this.drawPops(ctx, w, h);
     this.drawProgress(ctx, w, h);
-    if (this.result) {
-      const p = this.result;
-      const y = top + size * (sk.combo.active ? 2.6 : 0.9);
-      ctx.globalAlpha = clamp((1.6 - p.t) / 0.4, 0, 1);
-      const pop = 1 + 0.4 * Math.exp(-p.t * 12);
-      markerText(ctx, p.text, cx, y, size * 0.9, p.color, -0.04, pop);
-      if (p.sub) markerText(ctx, p.sub, cx + size * 0.3, y + size * 0.7, size * 0.4, '#ffffff', -0.04, pop);
-      ctx.globalAlpha = 1;
-    }
   }
+
+  // The words for what you're doing, small and spaced out in the bottom-left corner: the trick you
+  // just did, the combo so far (wrapping onto more lines), its score, and what you banked or lost.
+  // (Bottom right while the help card's open, and beside the CHAT button online.)
+  drawTricks(ctx, w, h, sk) {
+    const fs = Math.max(12, Math.min(17, w / 66));
+    const right = typeof showHelp !== 'undefined' && showHelp;
+    const x = right ? w - 18 : 18 + (typeof Net !== 'undefined' && Net.active ? 92 : 0);
+    const maxW = Math.min(w * 0.45, 440), align = right ? 'right' : 'left';
+    const rows = []; // top to bottom: [text, size, color, scale, alpha, font]
+
+    if (this.trickPop) {
+      const p = this.trickPop;
+      rows.push([p.text, fs * 1.35, '#ffffff', 1 + 0.3 * Math.exp(-p.t * 14), clamp((1.2 - p.t) / 0.3, 0, 1), MARKER]);
+    }
+    if (sk.combo.active) {
+      const r = sk.combo.result();
+      // as many tricks to a line as fit; only the last few lines
+      const lines = [''];
+      ctx.font = `${fs * 0.9}px ${MARKER}`;
+      ctx.letterSpacing = `${(fs * 0.9 * 0.14).toFixed(1)}px`;
+      for (const name of sk.combo.names()) {
+        const t = lines[lines.length - 1] ? lines[lines.length - 1] + '   +   ' + name : name;
+        if (ctx.measureText(t).width > maxW && lines[lines.length - 1]) lines.push('+   ' + name);
+        else lines[lines.length - 1] = t;
+      }
+      ctx.letterSpacing = '0px';
+      if (lines.length > 4) lines.splice(0, lines.length - 4, '…');
+      for (const l of lines) rows.push([l, fs * 0.9, '#ffffff', 1, 1, MARKER]);
+      rows.push([`${fmtScore(r.points)}  ×  ${r.mult}`, fs * 1.1, '#f4c542', 1, 1, MARKER]);
+    }
+    if (this.result) {
+      const p = this.result, a = clamp((1.6 - p.t) / 0.4, 0, 1), pop = 1 + 0.3 * Math.exp(-p.t * 12);
+      rows.push([p.text, fs * 1.5, p.color, pop, a, MARKER]);
+      if (p.sub) rows.push([p.sub, fs * 0.95, '#ffffff', 1, a, MARKER]);
+    }
+
+    let y = h - 18;
+    for (let i = rows.length - 1; i >= 0; i--) {
+      const [text, size, color, scale, alpha, font] = rows[i];
+      ctx.globalAlpha = alpha;
+      spacedText(ctx, text, x, y, size, color, align, scale, font);
+      y -= size * 1.6;
+    }
+    ctx.globalAlpha = 1;
+  }
+}
+
+// Small text with the letters spread out. Marker text gets a dark outline like markerText (so it
+// reads on the night sky too); handwriting is just inked. (x, y) is the start (or end, for
+// 'right') of the baseline.
+function spacedText(ctx, text, x, y, size, color, align = 'left', scale = 1, font = MARKER) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+  ctx.font = `${size}px ${font}`;
+  ctx.letterSpacing = `${(size * 0.14).toFixed(1)}px`;
+  ctx.textAlign = align;
+  ctx.textBaseline = 'alphabetic';
+  if (font === MARKER) {
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = size * 0.2;
+    ctx.strokeStyle = INK;
+    ctx.strokeText(text, 0, 0);
+  }
+  ctx.fillStyle = color;
+  ctx.fillText(text, 0, 0);
+  ctx.restore();
 }
 
 function drawCard(ctx, x, y, w, h, id) {
@@ -231,7 +271,7 @@ function drawHelp(ctx, w, h) {
   ctx.font = `${fs * 1.15}px ${MARKER}`;
   ctx.fillText('How to shred', x + pad, y + pad);
   const lines = TouchPad.enabled
-    ? [...HELP_LINES.slice(0, -1), ['on the screen', 'GRAB = Space · purple spin buttons = Q / E · tap here to close']]
+    ? [...HELP_LINES.slice(0, -1), ['on the screen', 'left side: drag to push, brake and crouch (in the air: spin) · right side: flick ↑ to ollie, flick to flip, hold still in the air to grab · tap here to close']]
     : HELP_LINES;
   lines.forEach(([k, v], i) => {
     const ly = y + pad + lh * (i + 1);

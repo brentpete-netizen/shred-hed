@@ -1,106 +1,225 @@
-// On-screen buttons for phones and tablets, while you skate: a D-pad on the left (the arrow
-// keys), and on the right OLLIE, GRAB (Space) and the two spins (Q / E). Plus a menu button and
-// a help button up top. They only show once the screen has been touched (or on a touch-only
-// device). Each finger works on its own, so you can hold GRAB and tap arrows for a grab, and
-// sliding a finger from one button onto another presses the new one.
+// Touch controls for phones and tablets: swipes instead of buttons, like the flick-it controls
+// in skate. The screen is split down the middle:
+//
+//   left side  = your feet. Put a finger down and drag it: right / left pushes, brakes and turns
+//                (and balances a manual), down crouches (to pop higher, or pump on ramps). In the
+//                air, dragging left / right spins you backside / frontside.
+//   right side = the flick. Flick up to ollie; pull down first and then flick up for a bigger
+//                one. In the air, flick for flip tricks (→ kickflip, ← heelflip, ↓ shove-it,
+//                ↑ impossible, and one swipe that bends, like ↓ then →, is a tre flip). Hold
+//                still in the air to grab, and flick while holding to pick which grab. Flicks
+//                just before you land pick a manual (↓) or a grind. Flick sideways on the
+//                ground to kick-turn or revert.
+//
+// Every gesture ends up as the same presses and holds as the keyboard (see Input), so the game
+// doesn't know the difference. Each finger works on its own. A menu and a help button stay up top.
+// It all only shows up once the screen has been touched (or on a touch-only device).
 
 const TouchPad = (() => {
   let enabled = matchMedia('(pointer: coarse)').matches;
   let buttons = [];
-  const fingers = new Map(); // pointer id -> the button it's on (or null)
+  const fingers = new Map(); // pointer id -> what that finger is doing
+  const trails = [];         // fading streaks where the right-hand fingers flicked
+  let hintT = 0;             // how long the "how to swipe" hint has been showing
 
-  // Where everything goes for a screen this size.
+  const DEAD = 22;   // px a left-hand finger has to drag before it does anything
+  const FLICK = 30;  // px a right-hand finger has to travel to count as a flick
+  const HOLD = 0.16; // seconds a right-hand finger has to stay still in the air to grab
+
+  const sk = () => (typeof skater !== 'undefined' ? skater : null);
+  const inAir = () => sk()?.state === 'air';
+
   function layout(w, h) {
-    const s = Math.max(44, Math.min(76, Math.min(w, h) * 0.12)), m = 14 + s * 0.1, gap = s * 1.08;
-    const lx = m + s / 2, ly = h - m - s / 2 - gap; // the middle of the D-pad
-    const rx = w - m - s * 0.7, ry = h - m - s * 0.7;
     buttons = [
-      { action: 'up', x: lx + gap, y: ly - gap, r: s / 2, label: '▲' },
-      { action: 'left', x: lx, y: ly, r: s / 2, label: '◀' },
-      { action: 'right', x: lx + gap * 2, y: ly, r: s / 2, label: '▶' },
-      { action: 'down', x: lx + gap, y: ly + gap, r: s / 2, label: '▼' },
-      { action: 'up', x: rx, y: ry, r: s * 0.7, label: 'OLLIE', big: true },
-      { action: 'grab', x: rx - s * 1.55, y: ry + s * 0.05, r: s * 0.52, label: 'GRAB' },
-      { action: 'spinBack', x: rx - s * 1.2, y: ry - s * 1.3, r: s * 0.44, spin: -1 },
-      { action: 'spinFront', x: rx + s * 0.05, y: ry - s * 1.55, r: s * 0.44, spin: 1 },
-      { action: 'menu', x: w - 30, y: 56, r: 20, label: '☰', small: true },
-      { action: 'help', x: w - 76, y: 56, r: 20, label: '?', small: true },
+      { action: 'menu', x: w - 30, y: 56, r: 20, label: '☰' },
+      { action: 'help', x: w - 76, y: 56, r: 20, label: '?' },
     ];
-    return s;
+  }
+  const findButton = (x, y) => buttons.find(b => Math.hypot(x - b.x, y - b.y) < b.r * 1.3);
+
+  // presses (one-off, like tapping a key) and holds (until let go), each under its own id so two
+  // fingers never cancel each other out
+  const press = (id, action) => { Input.touchDown(`${id}:tap`, action); Input.touchUp(`${id}:tap`); };
+  function hold(f, slot, action) {
+    const key = `${f.id}:${slot}`;
+    if (f[slot] === action) return;
+    if (f[slot]) Input.touchUp(key);
+    f[slot] = action;
+    if (action) Input.touchDown(key, action);
   }
 
-  const active = () => enabled;
-  const find = (x, y) => buttons.find(b => Math.hypot(x - b.x, y - b.y) < b.r * 1.2);
+  // which way a drag went, by its biggest part
+  const dirOf = (dx, dy) => (Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : dy > 0 ? 'down' : 'up');
 
-  // pointer events from the canvas; true when one of the buttons took it
+  // pointer events from the canvas; true when a touch was taken for skating
   function down(e) {
     if (e.pointerType === 'touch' && !enabled) enabled = true;
-    if (!enabled || !buttons.length) return false;
-    const b = find(e.clientX, e.clientY);
-    if (!b) return false;
-    fingers.set(e.pointerId, b);
-    Input.touchDown(e.pointerId, b.action);
+    if (!enabled || e.pointerType === 'mouse') return false;
+    const b = findButton(e.clientX, e.clientY);
+    if (b) { press(e.pointerId, b.action); e.preventDefault(); return true; }
+    const side = e.clientX < innerWidth / 2 ? 'left' : 'right';
+    const f = { id: e.pointerId, side, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, t: 0, last: null, moved: false };
+    fingers.set(e.pointerId, f);
+    if (side === 'right') trails.push(f.trail = { pts: [{ x: e.clientX, y: e.clientY, t: 0 }], fade: 0 });
+    hintT = Math.max(hintT, 6); // they've got the idea, start fading the hint
     e.preventDefault();
     return true;
   }
+
   function move(e) {
-    if (!fingers.has(e.pointerId)) return;
-    const b = find(e.clientX, e.clientY), was = fingers.get(e.pointerId);
-    if (b === was) return;
-    fingers.set(e.pointerId, b);
-    if (b && !b.small) Input.touchDown(e.pointerId, b.action);
-    else Input.touchUp(e.pointerId);
+    const f = fingers.get(e.pointerId);
+    if (!f) return;
+    f.x = e.clientX;
+    f.y = e.clientY;
+    if (f.side === 'left') return feet(f);
+    f.trail.pts.push({ x: f.x, y: f.y, t: 0 });
+    flick(f);
   }
+
+  // Left hand: like a stick. Which way you've dragged from where you put your finger down is held.
+  function feet(f) {
+    const dx = f.x - f.x0, dy = f.y - f.y0;
+    if (Math.hypot(dx, dy) < DEAD) { f.drag = null; return hold(f, 'dir', null); }
+    const d = dirOf(dx, dy);
+    if (d === f.drag) return; // keep doing what this drag started (pushing into an ollie stays a push)
+    f.drag = d;
+    // a new drag in the air spins you; on the ground it's the arrow keys (up does nothing here:
+    // ollies are a flick on the right)
+    if (inAir()) hold(f, 'dir', d === 'left' ? 'spinBack' : d === 'right' ? 'spinFront' : null);
+    else hold(f, 'dir', d === 'up' ? null : d);
+  }
+
+  // Right hand: each time the finger travels far enough a new way, that's a flick. One swipe
+  // that changes direction is two flicks (↓ then → is a tre flip; ↑ then → is an ollie kickflip).
+  function flick(f) {
+    const ax = f.ax ?? f.x0, ay = f.ay ?? f.y0;
+    const dx = f.x - ax, dy = f.y - ay;
+    if (Math.hypot(dx, dy) < FLICK) return;
+    f.moved = true;
+    const d = dirOf(dx, dy);
+    f.ax = f.x;
+    f.ay = f.y;
+    if (d === f.last) return; // still going the same way
+    f.last = d;
+    const s = sk();
+    if (!s || s.state === 'bail') return press(f.id, d); // (any flick gets you back up after a bail)
+    if (s.state === 'ground' && !s.manual && d === 'down') {
+      hold(f, 'crouch', 'down'); // pull down and keep it there: crouch, then flick up to pop higher
+      return;
+    }
+    hold(f, 'crouch', null);
+    // on the ground, sideways is a kick-turn (or a revert just after landing)
+    if (s.state === 'ground' && !s.manual && (d === 'left' || d === 'right')) return press(f.id, d === 'left' ? 'spinBack' : 'spinFront');
+    press(f.id, d);
+  }
+
   function up(e) {
-    if (!fingers.has(e.pointerId)) return;
+    const f = fingers.get(e.pointerId);
+    if (!f) return;
+    for (const slot of ['dir', 'crouch', 'grab']) hold(f, slot, null);
+    if (f.trail) f.trail.fade = 0.001;
     fingers.delete(e.pointerId);
-    Input.touchUp(e.pointerId);
   }
 
-  // a curly arrow, for the spin buttons
-  function spinArrow(ctx, x, y, r, dir) {
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = Math.max(3, r * 0.16);
-    ctx.lineCap = 'round';
-    // most of a circle, going round the way it spins, with an arrowhead on the end
-    const start = dir > 0 ? -2.6 : -0.55, end = dir > 0 ? 0.9 : -4.05, rr = r * 0.48;
-    ctx.beginPath();
-    ctx.arc(x, y, rr, start, end, dir < 0);
-    ctx.stroke();
-    const ex = x + Math.cos(end) * rr, ey = y + Math.sin(end) * rr;
-    const t = end + (dir > 0 ? Math.PI / 2 : -Math.PI / 2), k = r * 0.26;
-    ctx.beginPath();
-    ctx.moveTo(ex + Math.cos(t + 2.5) * k, ey + Math.sin(t + 2.5) * k);
-    ctx.lineTo(ex, ey);
-    ctx.lineTo(ex + Math.cos(t - 2.5) * k, ey + Math.sin(t - 2.5) * k);
-    ctx.stroke();
+  // every frame: holding still on the right in the air is a grab; left-hand drags follow the
+  // skater into and out of the air
+  function update(dt) {
+    hintT += dt;
+    for (const f of fingers.values()) {
+      f.t += dt;
+      if (f.side === 'left') { feet(f); continue; }
+      const still = Math.hypot(f.x - (f.ax ?? f.x0), f.y - (f.ay ?? f.y0)) < 10;
+      if (!f.grab && inAir() && still && f.t >= HOLD && !f.moved) hold(f, 'grab', 'grab');
+      if (f.grab && !inAir()) hold(f, 'grab', null);
+    }
+    for (const tr of trails) {
+      for (const p of tr.pts) p.t += dt;
+      if (tr.fade) tr.fade += dt;
+      while (tr.pts.length > 2 && tr.pts[0].t > 0.35) tr.pts.shift();
+    }
+    for (let i = trails.length - 1; i >= 0; i--) if (trails[i].fade > 0.35) trails.splice(i, 1);
   }
 
+  let lastDraw = 0;
   function draw(ctx, w, h) {
     if (!enabled) { buttons = []; return; }
+    const now = performance.now() / 1000;
+    update(lastDraw ? Math.min(0.1, now - lastDraw) : 0);
+    lastDraw = now;
     layout(w, h);
-    const pressed = new Set([...fingers.values()].filter(Boolean));
-    for (const b of buttons) {
-      const on = pressed.has(b);
-      ctx.globalAlpha = on ? 0.9 : 0.55;
-      ctx.fillStyle = b.big ? '#e2553f' : b.action === 'grab' ? '#2f80ed' : b.spin ? '#6c4bd1' : '#26262b';
+
+    // the left-hand "stick": a ring where the finger went down and a knob that follows it
+    for (const f of fingers.values()) {
+      if (f.side !== 'left') continue;
+      const dx = f.x - f.x0, dy = f.y - f.y0, d = Math.hypot(dx, dy), k = d > 54 ? 54 / d : 1;
+      ctx.globalAlpha = 0.35;
+      ctx.strokeStyle = '#26262b';
+      ctx.lineWidth = 3;
       ctx.beginPath();
-      ctx.arc(b.x, b.y, b.r * (on ? 0.94 : 1), 0, TAU);
+      ctx.arc(f.x0, f.y0, 54, 0, TAU);
+      ctx.stroke();
+      ctx.globalAlpha = 0.6;
+      ctx.fillStyle = f.dir ? (f.dir.startsWith('spin') ? '#6c4bd1' : '#2f80ed') : '#26262b';
+      ctx.beginPath();
+      ctx.arc(f.x0 + dx * k, f.y0 + dy * k, 22, 0, TAU);
       ctx.fill();
-      ctx.globalAlpha = on ? 1 : 0.8;
+    }
+    // right-hand flicks leave a streak that fades out
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (const tr of trails) {
+      if (tr.pts.length < 2) continue;
+      ctx.globalAlpha = 0.5 * (tr.fade ? Math.max(0, 1 - tr.fade / 0.35) : 1);
+      ctx.strokeStyle = '#f4c542';
+      ctx.lineWidth = 9;
+      ctx.beginPath();
+      tr.pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    // how it works, for the first few seconds of each session (gone as soon as you touch)
+    if (hintT < 7 && !fingers.size) {
+      ctx.globalAlpha = clamp((7 - hintT) / 1.5, 0, 1) * 0.85;
+      const fs = Math.max(13, Math.min(18, w / 50)), y = h * 0.62;
+      markerText(ctx, 'drag: push · spin in the air', w * 0.25, y, fs, '#ffffff');
+      markerText(ctx, 'flick ↑ to ollie · flick to flip · hold to grab', w * 0.75, y, fs, '#ffffff');
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([8, 8]);
+      ctx.beginPath();
+      ctx.moveTo(w / 2, h * 0.3);
+      ctx.lineTo(w / 2, h * 0.9);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
+    }
+
+    for (const b of buttons) {
+      ctx.globalAlpha = 0.55;
+      ctx.fillStyle = '#26262b';
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.r, 0, TAU);
+      ctx.fill();
+      ctx.globalAlpha = 0.8;
       ctx.strokeStyle = '#fbf8f0';
       ctx.lineWidth = 2.5;
       ctx.stroke();
-      if (b.spin) spinArrow(ctx, b.x, b.y, b.r, b.spin);
-      else markerText(ctx, b.label, b.x, b.y + 1, b.big ? b.r * 0.42 : b.label.length > 1 ? b.r * 0.42 : b.r * 0.8, '#ffffff');
+      markerText(ctx, b.label, b.x, b.y + 1, b.r * 0.8, '#ffffff');
     }
     ctx.globalAlpha = 1;
   }
 
-  // how much of the bottom of the screen the buttons use (so chat can sit above them)
-  function bottomSpace(h) { return enabled && buttons.length ? Math.max(44, Math.min(76, Math.min(innerWidth, h) * 0.12)) * 3.4 : 0; }
+  // no buttons along the bottom any more, so nothing for chat to make room for
+  function bottomSpace() { return 0; }
 
-  function clear() { for (const id of fingers.keys()) Input.touchUp(id); fingers.clear(); buttons = []; }
+  function clear() {
+    for (const f of fingers.values()) for (const slot of ['dir', 'crouch', 'grab']) hold(f, slot, null);
+    fingers.clear();
+    trails.length = 0;
+    buttons = [];
+    hintT = 0;
+  }
 
-  return { down, move, up, draw, clear, bottomSpace, get enabled() { return active(); } };
+  return { down, move, up, draw, clear, bottomSpace, get enabled() { return enabled; } };
 })();

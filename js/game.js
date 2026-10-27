@@ -468,11 +468,12 @@ const builderToWorld = (x, y) => {
 };
 
 canvas.addEventListener('pointerdown', e => {
-  if (mode === 'play' && TouchPad.down(e)) return;
+  // (taps on the chat, the help card and the end-of-game cards first; any other touch is a swipe)
   if ((mode === 'play' || menu.screen === 'lobby') && Chat.click(e.clientX, e.clientY)) return;
   if (mode === 'play' && showHelp && e.pointerType === 'touch') { showHelp = false; return; } // tap the help away
   if (mode === 'play' && skateGame?.state === 'over') { carry.push('start'); return; }     // tap for a rematch
   if (mode === 'play' && run?.result) { carry.push('start'); return; }                    // tap to run it again
+  if (mode === 'play' && TouchPad.down(e)) return;
   if (mode === 'menu') {
     const r = menu.click(e.clientX, e.clientY);
     if (r) menuPicked(r);
