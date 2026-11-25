@@ -230,13 +230,14 @@ function startRun(map) {
   loadMap(map);
   skateGame = null;
   run = { t: RUN_TIME, over: false, wait: 0, result: null, lastTick: 11 };
+  hud.runBest = Progress.runBest(map);
   showHelp = false;
 }
 
 // Time's up: once the combo you're in has landed (or a few seconds), add it up.
 function finishRun() {
   const score = hud.score, medal = RUN_MEDALS.filter(m => score >= m).length;
-  const best = Progress.runDone(mapId, score);
+  const best = !Progress.cheating && Progress.runDone(mapId, score); // (an easy-mode cheat: no best)
   if (RUN_BUCKS[medal]) Progress.earn(RUN_BUCKS[medal], `${['', 'bronze', 'silver', 'gold'][medal]} medal`);
   if (medal) Trophies.event('medal', medal);
   run.result = { score, medal, best, bucks: RUN_BUCKS[medal], t: 0 };
@@ -276,12 +277,12 @@ function drawRun(ctx, w, h) {
   const R = run.result, k = Math.min(1, R.t / 0.3);
   ctx.fillStyle = `rgba(28, 28, 34, ${0.45 * k})`;
   ctx.fillRect(0, 0, w, h);
-  const cw2 = Math.min(440, w - 32), chh = Math.min(380, h - 60), x = (w - cw2) / 2, y = (h - chh) / 2;
+  const cw2 = Math.min(440, w - 32), chh = Math.min(380, h - 40), x = (w - cw2) / 2, y = (h - chh) / 2;
   drawCard(ctx, x, y, cw2, chh, 880);
-  markerText(ctx, "TIME'S UP!", w / 2, y + 40, Math.min(44, cw2 / 7), '#f4c542', -0.04, 1 + 0.3 * Math.exp(-R.t * 8));
+  markerText(ctx, "TIME'S UP!", w / 2, y + chh * 0.11, Math.min(44, cw2 / 7, chh * 0.12), '#f4c542', -0.04, 1 + 0.3 * Math.exp(-R.t * 8));
   // the medal
   const colors = [['#b9b4aa', '#8a857c'], ['#d98a4a', '#a8622e'], ['#d5dbe1', '#9aa3ab'], ['#f4c542', '#c8931c']][R.medal];
-  const mx = w / 2, my = y + chh * 0.42, mr = Math.min(48, chh * 0.13) * (1 + 0.25 * Math.exp(-R.t * 6));
+  const mx = w / 2, my = y + chh * 0.34, mr = Math.min(48, chh * 0.12) * (1 + 0.25 * Math.exp(-R.t * 6));
   Sketch.seedFor(881);
   ctx.save();
   ctx.translate(mx, my);
@@ -291,20 +292,21 @@ function drawRun(ctx, w, h) {
   starPath(ctx, 0, 0, mr * 0.45, 0);
   ctx.fill();
   ctx.restore();
-  markerText(ctx, ['NO MEDAL', 'BRONZE', 'SILVER', 'GOLD'][R.medal], w / 2, my + mr + 22, 26, colors[0], -0.03);
-  markerText(ctx, fmtScore(R.score), w / 2, my + mr + 58, Math.min(40, cw2 / 8), '#ffffff', -0.02);
-  ctx.font = `${Math.max(14, Math.min(18, w / 50))}px ${HAND}`;
+  markerText(ctx, ['NO MEDAL', 'BRONZE', 'SILVER', 'GOLD'][R.medal], w / 2, y + chh * 0.53, Math.min(26, chh * 0.075), colors[0], -0.03);
+  markerText(ctx, fmtScore(R.score), w / 2, y + chh * 0.65, Math.min(40, cw2 / 8, chh * 0.11), '#ffffff', -0.02);
+  ctx.font = `${Math.max(12, Math.min(18, w / 50, chh * 0.05))}px ${HAND}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = INK;
   const lines = [R.best ? 'NEW BEST ON THIS MAP!' : `best here: ${fmtScore(Progress.runBest(mapId))}`, R.bucks ? `+${R.bucks} Shred Bucks` : `${fmtScore(RUN_MEDALS[0] - R.score)} more for bronze`];
-  lines.forEach((l, i) => ctx.fillText(l, w / 2, my + mr + 88 + i * 22));
-  ctx.fillText(TouchPad.enabled ? 'tap to go again' : 'Enter: go again  ·  Esc: menu', w / 2, y + chh - 22);
+  lines.forEach((l, i) => ctx.fillText(l, w / 2, y + chh * (0.76 + i * 0.07)));
+  ctx.fillText(TouchPad.enabled ? 'tap to go again' : 'Enter: go again  ·  Esc: menu', w / 2, y + chh * 0.93);
 }
 
 // choice: { map, game: 'free' | 'cpu' | '2p' | 'run' }
 function startSkating({ map, game }) {
   run = null;
+  hud.runBest = null;
   if (game === 'run') startRun(map);
   else if (game === 'free') {
     // (Street Spot: a new hour is a new spot; and after the menu's show skater, a fresh start)
@@ -449,6 +451,8 @@ function wrapWorld() {
   L.shift += L.dx;
   ComboTrail.shift(dx, dy);
   Bonus.shift(dx, dy);
+  Hype.shift(dx, dy);
+  Gaps.shift(dx, dy);
 }
 
 // Where the camera follows: you, or the other skater while you watch their attempt.
@@ -600,6 +604,8 @@ function drawNight(day, sky, view, skyAt, space) {
 const nightLayer = document.createElement('canvas');
 
 function render() {
+  // (a minimised window, or a phone turning round, can be 0 wide for a moment: nothing to draw)
+  if (!canvas.width || !canvas.height || !cw || !ch) return;
   const building = mode === 'build';
   const scale = building ? viewScale(BUILD_VIEW) : viewScale();
   const view = building ? builder.cam : cam, world = building ? builder.terrain : terrain;

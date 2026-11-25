@@ -196,7 +196,10 @@ class Menu {
         if (e === 'up') { this.sel = (this.sel + n - 1) % n; Sound.play('menuMove'); }
         else if (e === 'down') { this.sel = (this.sel + 1) % n; Sound.play('menuMove'); }
         // two columns: across to the other one (one column: → picks it, like before)
-        else if ((e === 'left' || e === 'right') && L.cols === 2) { this.sel = clamp(this.sel + (this.sel < L.rows ? L.rows : -L.rows), 0, n - 1); Sound.play('menuMove'); }
+        else if ((e === 'left' || e === 'right') && L.cols > 1) {
+          const to = this.sel + (e === 'right' ? L.rows : -L.rows);
+          if (to >= 0 && to < n) { this.sel = to; Sound.play('menuMove'); }
+        }
         else if (e === 'start' || e === 'grab' || e === 'right') this.choose(this.sel);
         else if (e === 'menu' && this.inRoom) this.result = { resume: true }; // Esc again: back to skating
       } else if (this.screen === 'online') {
@@ -678,10 +681,14 @@ class Menu {
     else if (this.screen === 'lobby') this.drawLobby(ctx, w, h);
     else this.drawStats(ctx, w, h);
     // screens you leave with Esc get a button too, for phones and tablets with no Esc key
-    if (['maps', 'versus', 'parks', 'audio', 'online', 'join', 'challenges', 'trophies'].includes(this.screen)) {
+    if (['maps', 'versus', 'parks', 'audio', 'online', 'join', 'trophies'].includes(this.screen)) {
       const leave = this.screen === 'join' ? () => { this.stopTyping(); this.screen = 'online'; Sound.play('menuMove'); } : () => this.back();
       this.button(ctx, '◀', 12, w < 600 ? h - 52 : 12, 52, 40, false, 653, leave); // (clear of the titles on a phone)
     }
+    // a new screen fades in (the paper over it clears away quickly)
+    if (this.screen !== this.shownScreen) { this.shownScreen = this.screen; this.swapAt = performance.now(); }
+    const fade = 1 - clamp((performance.now() - (this.swapAt || 0)) / 200, 0, 1);
+    if (fade > 0) { ctx.fillStyle = `rgba(243, 238, 225, ${fade * fade})`; ctx.fillRect(0, 0, w, h); }
     if (this.msg) {
       ctx.globalAlpha = clamp((2 - this.msg.t) / 0.4, 0, 1);
       markerText(ctx, this.msg.text, w / 2, h * 0.5, Math.min(30, w / 20), this.msg.color || '#ef5a4a', -0.03);
@@ -848,9 +855,11 @@ class Menu {
   drawMaps(ctx, w, h) {
     const title = { free: 'PICK A SPOT', run: '2-MINUTE RUN · PICK A SPOT', cpu: 'S.K.A.T.E. VS CPU', '2p': 'S.K.A.T.E. 2 PLAYERS',
       'online-free': 'ONLINE · PICK A SPOT', 'online-skate': 'ONLINE S.K.A.T.E. · PICK A SPOT' }[this.game];
-    markerText(ctx, title, w / 2, Math.min(60, h * 0.09), Math.min(52, w / 12), '#ffffff', -0.04);
-    const cols = w > 900 ? 4 : 2, rows = Math.ceil(this.maps.length / cols);
-    const gap = 16, top = Math.min(110, h * 0.17);
+    markerText(ctx, title, w / 2, Math.min(60, h * 0.09), this.fitText(ctx, title, w - 130, Math.min(52, w / 12), MARKER), '#ffffff', -0.04);
+    // as many columns as it takes for the cards to be a decent height (but not too thin)
+    const gap = 16, top = Math.min(110, h * 0.17), n = this.maps.length;
+    const fitRows = Math.max(1, Math.floor((h - top - 90 + gap) / (150 + gap)));
+    const cols = clamp(Math.ceil(n / fitRows), 2, w < 500 ? 2 : w < 760 ? 3 : 4), rows = Math.ceil(n / cols);
     const cardW = Math.min(300, (w - 32 - gap * (cols - 1)) / cols);
     const cardH = Math.min(280, (h - top - 90 - gap * (rows - 1)) / rows);
     const x0 = (w - (cardW * cols + gap * (cols - 1))) / 2;
@@ -860,7 +869,22 @@ class Menu {
       const box = [{ x, y }, { x: x + cardW, y }, { x: x + cardW, y: y + cardH }, { x, y: y + cardH }];
       Sketch.fill(ctx, box, sel ? '#f4c542' : '#fbf8f0', 2);
       Sketch.stroke(ctx, box, { color: INK, width: sel ? 3.2 : 2, amp: 1.2, closed: true });
-      const fs = Math.min(26, cardW / 9);
+      const small = cardH < 100, fs = this.fitText(ctx, m.name, cardW - 16, Math.min(26, cardW / 9, small ? cardH * 0.34 : 99), MARKER);
+      if (small) {
+        // a short card: just the name and how you've done there
+        markerText(ctx, m.name, x + cardW / 2, y + cardH * 0.36, fs, '#ffffff', -0.03);
+        const best = Stats.map(m.id), runBest = Progress.runBest(m.id);
+        const line = this.game === 'run' ? (runBest ? `best run ${fmtScore(runBest)}` : 'no run yet')
+          : m.id === 'spot' ? m.blurb : best.bestCombo ? `best combo ${fmtScore(best.bestCombo)}` : 'not skated yet';
+        ctx.font = `${Math.max(11, fs * 0.55)}px ${HAND}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = INK;
+        ctx.fillText(line, x + cardW / 2, y + cardH * 0.74, cardW - 12);
+        if (!Progress.isUnlocked('map', m.id)) this.drawLock(ctx, x, y, cardW, cardH, Progress.lockLevel('map', m.id));
+        this.hit(x, y, cardW, cardH, () => this.pickMap(i));
+        return;
+      }
       markerText(ctx, m.name, x + cardW / 2, y + fs, fs, '#ffffff', -0.03);
 
       // the layout, squeezed into the card
@@ -891,15 +915,16 @@ class Menu {
         const test = (lines[lines.length - 1] + ' ' + word).trim();
         if (ctx.measureText(test).width > cardW - 24) lines.push(word); else lines[lines.length - 1] = test;
       }
-      const by = my + mh + 8;
-      if (cardH > 170) lines.slice(0, 2).forEach((l, k) => ctx.fillText(l, x + cardW / 2, by + k * fs * 0.75));
+      const by = my + mh + 8, lineY = Math.min(y + cardH - fs * 0.95, by + fs * 1.7);
+      const room = Math.max(0, Math.min(2, Math.floor((lineY - by - fs * 0.15) / (fs * 0.75))));
+      if (cardH > 150) lines.slice(0, room).forEach((l, k) => ctx.fillText(l, x + cardW / 2, by + k * fs * 0.75, cardW - 16));
       const best = Stats.map(m.id);
       ctx.font = `${Math.max(12, fs * 0.6)}px ${MARKER}`;
       const gold = [0, 1, 2, 3, 4].filter(i => Progress.hasLetter(m.id, i)).length; // only hinted once you've found one
       const line = this.game === 'run' ? (Progress.runBest(m.id) ? `best run ${fmtScore(Progress.runBest(m.id))}` : 'no run yet')
         : m.id === 'spot' && cardH <= 170 ? m.blurb // (small cards: which spot it is, and when it changes)
         : (best.bestCombo ? `best combo ${fmtScore(best.bestCombo)}` : 'not skated yet') + (gold ? `  ·  ${gold}/5 ★` : '');
-      ctx.fillText(line, x + cardW / 2, Math.min(y + cardH - fs * 0.95, by + fs * 1.7));
+      ctx.fillText(line, x + cardW / 2, lineY, cardW - 12);
       if (!Progress.isUnlocked('map', m.id)) this.drawLock(ctx, x, y, cardW, cardH, Progress.lockLevel('map', m.id));
       this.hit(x, y, cardW, cardH, () => this.pickMap(i));
     });
@@ -940,20 +965,21 @@ class Menu {
 
   // How the main menu's buttons are laid out: one column, or two once there are lots of them.
   mainLayout(w, h, y0) {
-    const n = this.mainItems.length, cols = n > 7 && w >= 340 ? 2 : 1, rows = Math.ceil(n / cols), gap = 12;
-    const bh = Math.max(30, Math.min(58, (h - y0 - 44) / (rows * 1.24)));
-    const bw = cols === 2 ? Math.min(300, (w - 40 - gap) / 2) : Math.min(340, w - 48);
+    const n = this.mainItems.length, gap = 12;
+    const cols = n <= 7 || w < 290 ? 1 : w > h * 1.5 && h < 560 ? 3 : 2, rows = Math.ceil(n / cols);
+    const bh = Math.max(26, Math.min(58, (h - y0 - 30) / (rows * 1.24)));
+    const bw = cols > 1 ? Math.min(300, (w - 40 - gap * (cols - 1)) / cols) : Math.min(340, w - 48);
     const x0 = (w - (bw * cols + gap * (cols - 1))) / 2;
     return { cols, rows, bw, bh, gap, rowGap: bh * 0.24, x0 };
   }
 
   drawMain(ctx, w, h, time) {
     // the cracked skull logo: beside the title on wide screens, on top of it on tall ones
-    const stacked = w < h;
-    const size = Math.min(stacked ? w / 6.6 : w / 9, h / 6.5, 120);
+    const stacked = w < h, short = h < 560;
+    const size = Math.min(stacked ? w / 6.6 : w / 9, short ? h / 9 : h / 6.5, 120);
     const tilt = -0.06 + Math.sin(time * 3) * 0.015;
     const skullH = stacked ? size * 1.15 : size * 1.5, side = stacked ? 0 : size * 0.72;
-    const tx = w / 2 + side, ty = stacked ? h * 0.17 : h * 0.15;
+    const tx = w / 2 + side, ty = stacked ? Math.max(h * 0.17, size * 1.85) : short ? size * 0.75 + 6 : h * 0.15;
     // a burst of sunshine behind it, turning slowly
     ctx.save();
     ctx.translate(tx, ty);
@@ -1017,7 +1043,7 @@ class Menu {
     ctx.fillText(`Shred Bucks  ·  ${Trophies.got()} / ${TROPHIES.length} trophies`, w / 2 - 90 + bucksW / 2 + 8, ly + 36);
 
     // the holiday on now (with free gear in the shop), or which one's coming up
-    const hn = holidayNow(), hol = hn.holiday, ey = ly + 64, days = at => Math.max(1, Math.ceil((at - Date.now()) / 864e5));
+    const hn = holidayNow(), hol = hn.holiday, ey = ly + (short ? 56 : 64), days = at => Math.max(1, Math.ceil((at - Date.now()) / 864e5));
     if (hol) {
       const text = `${hol.name} EVENT  ·  free gear in the Skate Shop  ·  ${days(hol.ends)} day${days(hol.ends) === 1 ? '' : 's'} left`;
       const fs = this.fitText(ctx, text, w - 40, 17, MARKER), bw2 = Math.min(w - 24, ctx.measureText(text).width + 40);
@@ -1039,7 +1065,7 @@ class Menu {
     }
 
     // the buttons
-    const y0 = ly + 86, L = this.mainLayout(w, h, y0);
+    const y0 = ly + (short ? 74 : 86), L = this.mainLayout(w, h, y0);
     this.mainItems.forEach((item, i) => {
       const col = Math.floor(i / L.rows), row = i % L.rows;
       const bx = L.x0 + col * (L.bw + L.gap), by = y0 + row * (L.bh + L.rowGap);
@@ -1791,7 +1817,7 @@ class Menu {
   drawChallenges(ctx, w, h) {
     markerText(ctx, 'DAILY CHALLENGES', w / 2, Math.min(60, h * 0.09), Math.min(52, w / 11), '#f4c542', -0.04);
     const list = Challenges.today(), now = performance.now() / 1000;
-    const cw = Math.min(w - 32, 640), chh = Math.max(84, Math.min(124, (h * 0.6) / 3)), x = (w - cw) / 2, top = Math.min(118, h * 0.16);
+    const top = Math.min(118, h * 0.16), cw = Math.min(w - 32, 640), chh = clamp((h - top - 120) / 3 - 14, 58, 124), x = (w - cw) / 2;
     const TIER_COLOR = ['#7fd36b', '#f4c542', '#e2553f'];
     list.forEach((c, i) => {
       const y = top + i * (chh + 14);
@@ -1802,17 +1828,18 @@ class Menu {
       Sketch.fill(ctx, box, c.done ? '#e3f3d6' : '#fbf8f0', 2);
       Sketch.stroke(ctx, box, { color: INK, width: 2.2, amp: 1, closed: true });
       // EASY / MEDIUM / HARD
-      const tag = [{ x: x + 14, y: y + 12 }, { x: x + 112, y: y + 12 }, { x: x + 104, y: y + 40 }, { x: x + 14, y: y + 40 }];
+      const side = chh < 96, ty = side ? y + chh / 2 - 14 : y + 12; // (short card: the tag goes beside the words)
+      const tag = [{ x: x + 14, y: ty }, { x: x + 112, y: ty }, { x: x + 104, y: ty + 28 }, { x: x + 14, y: ty + 28 }];
       Sketch.shape(ctx, tag, TIER_COLOR[c.tier], { color: INK, width: 1.8, amp: 0.4 });
-      markerText(ctx, CHALLENGE_TIER[c.tier], x + 60, y + 27, 18, '#ffffff');
+      markerText(ctx, CHALLENGE_TIER[c.tier], x + 60, ty + 15, 18, '#ffffff');
       // what to do (the reward gets the right-hand part of the card)
-      const rw = Math.min(184, cw * 0.28), textW = cw - rw - 30;
-      const size = this.fitText(ctx, c.text, textW, Math.min(30, chh * 0.3), MARKER);
+      const rw = Math.min(184, cw * 0.28), lx = x + (side ? 124 : 18), textW = cw - rw - 30 - (side ? 106 : 0);
+      const size = this.fitText(ctx, c.text, textW, Math.min(30, chh * (side ? 0.36 : 0.3)), MARKER);
       ctx.font = `${size}px ${MARKER}`;
-      markerText(ctx, c.text, x + 18 + ctx.measureText(c.text).width / 2, y + chh * 0.6, size, '#ffffff', -0.01);
+      markerText(ctx, c.text, lx + ctx.measureText(c.text).width / 2, y + chh * (side ? 0.45 : 0.6), size, '#ffffff', -0.01);
       // how far (for the ones you count up)
       if (c.goal > 1) {
-        const bx = x + 18, bw = textW - 8, by = y + chh - 20, f = c.prog / c.goal;
+        const bx = lx, bw = textW - 8, by = y + chh - (side ? 16 : 20), f = c.prog / c.goal;
         Sketch.seedFor(730 + i);
         const bar = [{ x: bx, y: by }, { x: bx + bw, y: by }, { x: bx + bw, y: by + 10 }, { x: bx, y: by + 10 }];
         Sketch.fill(ctx, bar, '#ece6d8', 1);
@@ -1865,7 +1892,7 @@ class Menu {
       ['Most landed', fav],
     ];
     markerText(ctx, 'STATS', w / 2, Math.min(60, h * 0.09), Math.min(52, w / 9), '#ffffff', -0.04);
-    const cw = Math.min(w - 32, 620), lh = Math.min(34, h * 0.055), fs = Math.min(lh * 0.64, 21);
+    const cw = Math.min(w - 32, 620), lh = Math.max(15, Math.min(34, (h - Math.min(110, h * 0.17) - 30 - Math.min(50, h * 0.08) - 50) / lines.length)), fs = Math.min(lh * 0.64, 21);
     const cx = (w - cw) / 2, cy = Math.min(110, h * 0.17), chh = lh * lines.length + 30;
     drawCard(ctx, cx, cy, cw, chh, 310);
     lines.forEach(([label, value], i) => {
@@ -1891,7 +1918,7 @@ class Menu {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     ctx.fillStyle = INK;
-    ctx.fillText('Everything saves by itself in this browser. A save code takes it to another phone or computer.', w / 2, by + bh + 8);
+    this.wrapText(ctx, 'Everything saves by itself in this browser. A save code takes it to another phone or computer.', w / 2, by + bh + 8, w - 24, 16);
   }
 
   copySaveCode() {

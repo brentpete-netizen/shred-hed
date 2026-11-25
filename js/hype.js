@@ -134,5 +134,8 @@ const Hype = (() => {
     ctx.restore();
   }
 
-  return { load, onMessage, update, drawWorld, drawHud, events, get onFire() { return fire > 0; }, get spot() { return spot; } };
+  // the endless Hill Bomb stepped everything back (see wrapWorld in game.js)
+  function shift(dx, dy) { if (spot) { spot.x += dx; spot.y += dy; } }
+
+  return { load, onMessage, update, drawWorld, drawHud, shift, events, get onFire() { return fire > 0; }, get spot() { return spot; } };
 })();

@@ -40,6 +40,7 @@ class Hud {
 
   clear() {
     this.score = 0;
+    this.shown = 0; // the score on screen, counting up to the real one
     this.trickPop = null;
     this.result = null;
   }
@@ -83,6 +84,8 @@ class Hud {
   }
 
   update(dt) {
+    this.shown = (this.shown || 0) + (this.score - (this.shown || 0)) * Math.min(1, dt * 7);
+    if (Math.abs(this.score - this.shown) < 1) this.shown = this.score;
     if (this.trickPop && (this.trickPop.t += dt) > 1.2) this.trickPop = null;
     if (this.result && (this.result.t += dt) > 1.6) this.result = null;
     if (this.news) this.news = this.news.filter(n => (n.t += dt) < n.dur);
@@ -130,16 +133,19 @@ class Hud {
   draw(ctx, w, h, sk, skate = false) {
     const size = Math.max(24, Math.min(50, w / 24));
 
-    const scoreText = 'SCORE ' + fmtScore(this.score);
+    const shown = this.shown ?? this.score, counting = shown < this.score;
+    const scoreText = 'SCORE ' + fmtScore(shown);
     ctx.font = `${size * 0.5}px ${MARKER}`;
-    if (!skate) markerText(ctx, scoreText, 18 + ctx.measureText(scoreText).width / 2, 24, size * 0.5, '#f4c542');
+    if (!skate) markerText(ctx, scoreText, 18 + ctx.measureText(scoreText).width / 2, 24, size * 0.5, counting ? '#ffe680' : '#f4c542', 0, counting ? 1.08 : 1);
     if (this.mapId && !skate) {
       const best = Stats.map(this.mapId);
       ctx.font = `${Math.max(13, size * 0.34)}px ${HAND}`;
       ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
       ctx.fillStyle = INK;
-      ctx.fillText(`${this.mapName}  ·  best ${fmtScore(best.bestScore)}  ·  best combo ${fmtScore(best.bestCombo)}`, 18, 24 + size * 0.42);
+      const text = this.runBest !== null && this.runBest !== undefined ? `${this.mapName}  ·  best run ${fmtScore(this.runBest)}`
+        : w < 640 ? this.mapName : `${this.mapName}  ·  best ${fmtScore(best.bestScore)}  ·  best combo ${fmtScore(best.bestCombo)}`;
+      ctx.fillText(text, 18, 24 + size * 0.42, w < 640 ? w / 2 - 70 : w);
     }
 
     this.drawTricks(ctx, w, h, sk);
@@ -187,8 +193,6 @@ class Hud {
   }
 }
 
-// Small text with the letters spread out. Marker text gets a dark outline like markerText (so it
-// reads on the night sky too); handwriting is just inked. (x, y) is the start (or end, for
 // Joins parts with sep into as many lines as it takes to keep each under maxW (measured as
 // spacedText draws it); lead starts each line after the first.
 function fitLines(ctx, parts, sep, size, maxW, lead = '') {
@@ -204,6 +208,8 @@ function fitLines(ctx, parts, sep, size, maxW, lead = '') {
   return lines;
 }
 
+// Small text with the letters spread out. Marker text gets a dark outline like markerText (so it
+// reads on the night sky too); handwriting is just inked. (x, y) is the start (or end, for
 // 'right') of the baseline.
 function spacedText(ctx, text, x, y, size, color, align = 'left', scale = 1, font = MARKER) {
   ctx.save();
@@ -248,26 +254,39 @@ const HELP_LINES = [
 ];
 
 function drawHelp(ctx, w, h) {
-  const fs = Math.max(13, Math.min(17, w / 80));
-  const lh = fs * 1.35, pad = fs * 0.9;
-  const cardW = Math.min(w - 32, fs * 46), cardH = pad * 2 + lh * (HELP_LINES.length + 1);
-  const x = 16, y = h - cardH - 16;
+  const fs = Math.max(12, Math.min(17, w / 80));
+  const lh = fs * 1.3, pad = fs * 0.9, kw = fs * (w < 600 ? 7.6 : 9.5);
+  const cardW = Math.min(w - 32, fs * 46), vw = cardW - pad * 2 - kw;
+  const lines = TouchPad.enabled
+    ? [...HELP_LINES.slice(0, -1), ['on the screen', 'left side: drag to push, brake and crouch (in the air: spin) · right side: flick ↑ to ollie, flick to flip, hold still in the air to grab · tap here to close']]
+    : HELP_LINES;
+  // on a narrow screen the long ones wrap onto a second line
+  ctx.font = `${fs}px ${HAND}`;
+  const wrapped = lines.map(([k, v]) => {
+    const rows = [''];
+    for (const word of v.split(' ')) {
+      const t = rows[rows.length - 1] ? rows[rows.length - 1] + ' ' + word : word;
+      if (ctx.measureText(t).width > vw && rows[rows.length - 1]) rows.push(word); else rows[rows.length - 1] = t;
+    }
+    return [k, rows];
+  });
+  const count = wrapped.reduce((n, [, rows]) => n + rows.length, 0);
+  const cardH = pad * 2 + lh * (count + 1), x = 16, y = Math.max(70, h - cardH - 16);
   drawCard(ctx, x, y, cardW, cardH, 90);
   ctx.textBaseline = 'top';
   ctx.textAlign = 'left';
   ctx.fillStyle = INK;
   ctx.font = `${fs * 1.15}px ${MARKER}`;
   ctx.fillText('How to shred', x + pad, y + pad);
-  const lines = TouchPad.enabled
-    ? [...HELP_LINES.slice(0, -1), ['on the screen', 'left side: drag to push, brake and crouch (in the air: spin) · right side: flick ↑ to ollie, flick to flip, hold still in the air to grab · tap here to close']]
-    : HELP_LINES;
-  lines.forEach(([k, v], i) => {
-    const ly = y + pad + lh * (i + 1);
+  let row = 1;
+  for (const [k, rows] of wrapped) {
+    const ly = y + pad + lh * row;
     ctx.font = `bold ${fs}px ${HAND}`;
-    ctx.fillText(k, x + pad, ly);
+    ctx.fillText(k, x + pad, ly, kw - 6);
     ctx.font = `${fs}px ${HAND}`;
-    ctx.fillText(v, x + pad + fs * 9.5, ly);
-  });
+    rows.forEach((r, j) => ctx.fillText(r, x + pad + kw, ly + j * lh));
+    row += rows.length;
+  }
 }
 
 function drawDebug(ctx, sk, fps) {

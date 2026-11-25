@@ -53,7 +53,7 @@ const Daylight = (() => {
   function drawSun(ctx, d, sky) {
     const t = arc(d.h, SUNRISE, SUNSET);
     if (t === null) return;
-    const x = sky.w * (0.08 + 0.84 * t), y = sky.top - Math.sin(Math.PI * t) * sky.top * 0.8;
+    const x = sky.w * (0.08 + 0.84 * t), y = Math.max(110, sky.top - Math.sin(Math.PI * t) * sky.top * 0.8);
     const low = 1 - Math.sin(Math.PI * t); // near the horizon it's bigger and redder
     Sketch.seedFor(9);
     Sketch.circle(ctx, x, y, 34 + low * 10, `rgba(${244}, ${Math.round(197 - low * 80)}, ${Math.round(66 - low * 30)}, 0.32)`,
@@ -74,7 +74,7 @@ const Daylight = (() => {
     ctx.globalAlpha = 1;
     const t = arc(d.h, SUNSET, SUNRISE + 24);
     if (t === null || !moon) return;
-    const x = sky.w * (0.1 + 0.8 * t), y = Math.min(sky.starsTo - 30, sky.top - Math.sin(Math.PI * t) * sky.top * 0.75);
+    const x = sky.w * (0.1 + 0.8 * t), y = Math.max(115, Math.min(sky.starsTo - 30, sky.top - Math.sin(Math.PI * t) * sky.top * 0.75));
     ctx.globalAlpha = clamp(d.night * 1.4, 0, 1);
     ctx.save();
     ctx.shadowColor = 'rgba(255, 248, 220, 0.8)';

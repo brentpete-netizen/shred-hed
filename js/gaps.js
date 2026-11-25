@@ -47,5 +47,8 @@ const Gaps = (() => {
   let total = null;
   const count = () => (total ??= MAPS.filter(m => GAP_MAPS.includes(m.id)).reduce((n, m) => n + (m.build().gaps || []).length, 0));
 
-  return { load, update, count };
+  // the endless Hill Bomb stepped everything back (see wrapWorld in game.js)
+  function shift(dx, dy) { if (from) { from.x += dx; from.y += dy; } }
+
+  return { load, update, shift, count };
 })();
